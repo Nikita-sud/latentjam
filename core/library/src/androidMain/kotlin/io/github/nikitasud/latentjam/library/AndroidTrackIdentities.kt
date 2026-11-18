@@ -27,6 +27,10 @@ import kotlinx.coroutines.CancellationException
 internal class AndroidTrackIdentities(
     private val read: () -> Reader?,
     private val write: ((Writer) -> Unit) -> Unit,
+    /** The text of the list of unchecked rows (see [unchecked]) as last written; null when there is none. */
+    private val readUnchecked: () -> String? = { null },
+    /** Replaces that list, atomically; an IOException when it cannot. */
+    private val writeUnchecked: (String) -> Unit = {},
     private val readTags: (TrackDescriptor) -> TrackIdentityTags?,
 ) {
     private data class Entry(
@@ -67,6 +71,65 @@ internal class AndroidTrackIdentities(
     /** One instance per distinct volume/extension: 10,000 rows share a handful of these. */
     private val shared = HashMap<String, String>()
 
+    /**
+     * The sources of registered entries that no scan has held since MediaStore last changed its database, so that
+     * nothing has yet said whether their numbers still name their files. A scan under a new database checks the rows
+     * it holds and records the version, but the provider may still be indexing, or a card may be out: the rows that
+     * arrive later come under a database that is by then "the same", and were believed unchecked. Each waits here
+     * until a scan holds its source, is judged then by the test of a new database ([sameFile]), and leaves.
+     *
+     * Null when no list is on record. The list is written before the caller records the version, and an empty list is
+     * written as one, so a recorded version with no list (or a damaged one) means it was lost, or that the version
+     * was recorded by a build that kept none: nothing says which rows were checked, and so every row is, once. That
+     * costs little: a file unchanged since its last scan passes by its revision, and only one that was edited in place
+     * with another length in between can lose its id, as at any change of the provider's version. With no version to
+     * record (before Android 10) there is never a list, and the test of an unversioned provider is all there is.
+     */
+    private var unchecked: Set<String>? = null
+    private var uncheckedRead = false
+
+    private fun unchecked(): Set<String>? {
+        if (!uncheckedRead) {
+            unchecked = try {
+                readUnchecked()?.let(::decodeUnchecked)
+            } catch (_: IOException) {
+                null
+            }
+            uncheckedRead = true
+        }
+        return unchecked
+    }
+
+    /** What is known of the row at [source] in a scan that knows [scan] of the provider: see [unchecked]. */
+    private fun rowIdsFor(source: String, scan: RowIds): RowIds {
+        if (scan == RowIds.NEW_DATABASE) return scan
+        val waiting = unchecked()
+        return when {
+            waiting == null -> if (scan == RowIds.SAME_DATABASE) RowIds.NEW_DATABASE else scan
+            source in waiting -> RowIds.NEW_DATABASE
+            else -> scan
+        }
+    }
+
+    /**
+     * After a scan of the rows [scanned] is registered ([registered]): the entries it judged leave the list, and
+     * under a new database (or with no list on record) every entry it did not hold joins it. An IOException when
+     * the list cannot be saved: the caller must not record the provider's version after such a scan.
+     */
+    private fun recordUnchecked(registered: Map<String, Entry>, scanned: Set<String>, scan: RowIds) {
+        val before = unchecked()
+        val all = scan == RowIds.NEW_DATABASE || (scan == RowIds.SAME_DATABASE && before == null)
+        if (!all && before.isNullOrEmpty()) return
+        val after = HashSet<String>()
+        for (entry in registered.values) {
+            val source = entry.source
+            if (source.isNotEmpty() && source !in scanned && (all || source in before!!)) after += source
+        }
+        if (after == before) return
+        writeUnchecked(encodeUnchecked(after))
+        unchecked = after
+    }
+
     @Synchronized
     fun needsRelocationProbe(tracks: List<TrackDescriptor>, rowIds: RowIds = RowIds.UNVERSIONED): Boolean {
         val known = load()
@@ -82,6 +145,9 @@ internal class AndroidTrackIdentities(
      * phone) numbers the files anew, and playlists, favourites and history keyed by the old id would attach to
      * whatever file the number now names.
      *
+     * What the scan knows of the provider ([scan]) decides, except for a row still waiting to be checked under the
+     * provider's present database ([unchecked]), which is judged as under a new one:
+     *
      * - [RowIds.SAME_DATABASE]: the row is believed, as it always was. An edit in place may change anything.
      * - [RowIds.NEW_DATABASE]: it is the same file when its revision (size, modified, generation) is the one
      *   registered, or when the format is and the length is within a second. A retag in place changes the revision
@@ -92,8 +158,9 @@ internal class AndroidTrackIdentities(
      *   much, and a cover that doubles a file leaves its length alone. Two songs of one format and a similar size
      *   pass; that much reuse is not detected there.
      */
-    private fun sameFile(old: Entry, track: TrackDescriptor, rowIds: RowIds): Boolean {
+    private fun sameFile(old: Entry, track: TrackDescriptor, scan: RowIds): Boolean {
         if (old.volume != volume(track)) return false
+        val rowIds = rowIdsFor(old.source, scan)
         if (rowIds == RowIds.SAME_DATABASE) return true
         val revision = revision(track)
         if (!revision.isEmpty() && old.revision == revision) return true
@@ -206,6 +273,7 @@ internal class AndroidTrackIdentities(
         @Suppress("UNCHECKED_CAST")
         currentRows = rows as Array<Entry>
         currentAudio = audio
+        recordUnchecked(next, currentIds, rowIds)
         return resolved
     }
 
@@ -416,6 +484,19 @@ internal class AndroidTrackIdentities(
         }
 
         const val HEX_DIGITS = "0123456789abcdef"
+
+        /** First line of the list of unchecked rows; one source on each line after it. */
+        const val UNCHECKED_HEADER = "latentjam-unchecked-rows-v1"
+
+        fun encodeUnchecked(sources: Set<String>): String =
+            (listOf(UNCHECKED_HEADER) + sources.sortedWith(compareBy<String> { it.length }.thenBy { it })).joinToString("\n")
+
+        /** Null for anything this did not write (an empty or cut file included): then no list is on record. */
+        fun decodeUnchecked(text: String): Set<String>? {
+            val lines = text.split('\n')
+            if (lines.first() != UNCHECKED_HEADER) return null
+            return lines.drop(1).filterTo(HashSet(), String::isNotEmpty)
+        }
 
         /**
          * `HEADER \n sha256(body) \n body`, body = one line per entry joined by `\n`, sorted by ID.

@@ -58,9 +58,14 @@ internal class MediaStoreMusicLibrary(
     private val scanLock = Any()
     override val preservesRelocatedTrackIds: Boolean get() = true
     private val identityFile = java.io.File(context.filesDir, "track-identities-v1.txt")
+
+    /** Registered rows not yet checked under the provider's present database; the registry writes it. */
+    private val uncheckedRowsFile = java.io.File(context.filesDir, "track-identities-unchecked.txt")
     private val identities = AndroidTrackIdentities(
         read = { if (identityFile.exists()) identityFile.bufferedReader() else null },
         write = { contents -> identityFile.atomicReplace(contents) },
+        readUnchecked = { if (uncheckedRowsFile.exists()) uncheckedRowsFile.readText() else null },
+        writeUnchecked = { contents -> uncheckedRowsFile.atomicReplaceText(contents) },
         readTags = { track ->
             val uri = track.audioUri?.let(Uri::parse)
             uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.let { descriptor ->
@@ -339,9 +344,11 @@ internal class MediaStoreMusicLibrary(
                     durable = false
                     identities.durable(tracks, rowIds)
                 }
-                // Only now that the registry holds this scan's rows: recorded before, a scan that then failed would
-                // leave the next one believing ids it never checked. A version that cannot be kept is checked again.
-                if (durable && rowIds == RowIds.NEW_DATABASE && version != null) {
+                // Only now that the registry holds this scan's rows and has listed the ones it did not hold: recorded
+                // before, a scan that then failed would leave the next one believing ids it never checked. Not while a
+                // volume with songs on it is away either: those rows are checked by a scan that can see them. A
+                // version that cannot be kept is checked again.
+                if (version != null && recordsProviderVersion(rowIds, durable, ::storageMayBeMissing)) {
                     runCatching { providerVersionFile.atomicReplaceText(version) }
                 }
                 // Only a complete scan may tell the cover overrides which songs are gone: one that is not durable dates
@@ -774,6 +781,13 @@ internal fun mediaStoreLibraryScan(
 } catch (_: SecurityException) {
     LibraryScan(tracks = emptyList(), complete = false, answered = false)
 }
+
+/**
+ * Whether a scan may record MediaStore's version as the one the registry was saved under; see [RowIds]. Only a scan
+ * under a new database has one to record, and [storageMayBeMissing] is asked for no other.
+ */
+internal fun recordsProviderVersion(rowIds: RowIds, durable: Boolean, storageMayBeMissing: () -> Boolean): Boolean =
+    durable && rowIds == RowIds.NEW_DATABASE && !storageMayBeMissing()
 
 /** A storage volume the system lists: its name as tracks carry it (null when it has none) and its state. */
 internal class VolumeState(val id: String?, val state: String?) {
