@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.smart
 
 import java.util.concurrent.CountDownLatch
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -68,6 +69,41 @@ internal class ExecutorDecodeWorkersTest {
         assertEquals(listOf("a", "b", "c", "d", "e"), results.map { it.first })
         assertEquals(listOf(true, false, true, true, true), results.map { it.second.isSuccess })
         assertIs<EngineError.AudioUnavailable>((results[1].second.exceptionOrNull() as SmartEngineException).error)
+    }
+
+    @Test
+    fun `an abandoned worker still in its call counts as stuck and one that ended does not`() {
+        val workers = ExecutorDecodeWorkers(threads = 2, stuckAfterNanos = 0L) { task ->
+            Thread(task, "test-decode").apply { isDaemon = true }
+        }
+        val entered = CountDownLatch(1)
+        val ended = CountDownLatch(1)
+        // Plain tasks, not children of the test: a blocked one must never be joined by it.
+        val pool = workers.dispatcher.asExecutor()
+        pool.execute {
+            entered.countDown()
+            blockUninterruptibly()
+        }
+        pool.execute { ended.countDown() }
+        entered.await()
+        ended.await()
+        assertEquals(0, workers.stuck)
+
+        workers.abandon()
+        // The pool's idle thread ends when the pool shuts down; the blocked one stays.
+        assertEquals(1, settledStuck(workers, expected = 1))
+
+        gate.countDown()
+        assertEquals(0, settledStuck(workers, expected = 0))
+    }
+
+    /** [ExecutorDecodeWorkers.stuck] once it reads [expected], or as it stands after two seconds. */
+    private fun settledStuck(workers: ExecutorDecodeWorkers, expected: Int): Int {
+        repeat(200) {
+            if (workers.stuck == expected) return expected
+            Thread.sleep(10)
+        }
+        return workers.stuck
     }
 
     @Test

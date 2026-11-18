@@ -135,6 +135,11 @@ public data class IndexReport(
     public val failed: Int,
     public val skipped: Int = 0,
     public val errors: Map<TrackId, EngineError> = emptyMap(),
+    /**
+     * The backend stopped the chunk before its end ([AnalysisStalled]): tracks time out one after another, or too
+     * many decode workers are stuck. The tracks it did not reach are in no count; the caller ends its pass.
+     */
+    public val stalled: Boolean = false,
 )
 
 /**

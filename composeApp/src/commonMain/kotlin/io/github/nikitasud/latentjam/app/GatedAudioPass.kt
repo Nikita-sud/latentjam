@@ -37,6 +37,12 @@ internal interface AudioPassEngine {
     val signals: Flow<Any?>
 }
 
+/**
+ * The engine stopped a chunk because analysis stalled ([IndexReport.stalled]): the pass ends as a failed pass does,
+ * and the restart rules decide when it is tried again.
+ */
+internal class AnalysisPassStalled : RuntimeException("analysis stalled")
+
 /** How the audio pass ended. */
 internal enum class AudioPassEnd { COMPLETED, PAUSED }
 
@@ -188,6 +194,10 @@ internal class GatedAudioPass(
                         progressAt = TimeSource.Monotonic.markNow().takeIf { !pausing },
                     )
                 }
+                // Stalled: its tracks time out one after another, or too many decode workers are stuck. What the chunk
+                // reported is out and checkpointed like any chunk's; going on would cost every remaining track its
+                // 90 s, a ledger attempt and a leaked thread.
+                if (report.stalled) throw AnalysisPassStalled()
                 // A short scheduling gap also gives thermal management a chance to settle;
                 // 75 ms per model batch is invisible beside audio inference but materially
                 // improves gesture latency on mid-range phones.

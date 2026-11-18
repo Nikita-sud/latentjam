@@ -41,6 +41,9 @@ class GatedAudioPassTest {
         val staged = ArrayList<List<TrackId>>()
         var persists = 0
         var onStage: (Int) -> Unit = {}
+        /** The staged chunk (1-based) the engine reports as stalled, with [stalledErrors]; 0 is none. */
+        var stalledAt = 0
+        var stalledErrors: Map<TrackId, EngineError> = emptyMap()
         val remembered = mapOf(tracks.last().id to EngineError.InvalidAudio())
         override suspend fun missingFromIndex(ids: List<TrackId>) = ids.count { it !in indexed && it !in remembered }
         override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
@@ -48,6 +51,9 @@ class GatedAudioPassTest {
             val todo = chunk.filter { it.id !in indexed && it.id !in remembered }
             indexed += todo.map { it.id }
             onStage(staged.size)
+            if (staged.size == stalledAt) {
+                return IndexReport(indexed = 0, failed = stalledErrors.size, errors = stalledErrors, stalled = true)
+            }
             return IndexReport(indexed = todo.size, failed = 0, errors = emptyMap())
         }
         override suspend fun persist() {
@@ -116,6 +122,29 @@ class GatedAudioPassTest {
         assertTrue(state.value.running)
         assertNull(state.value.stopReason)
         assertEquals(listOf(8, 8, 4), engine.staged.map { it.size })
+    }
+
+    @Test
+    fun aStalledChunkEndsThePassAfterItsResultsArePublished() = runTest {
+        val timedOut: EngineError = EngineError.AudioUnavailable("Analysis timed out after 90 s")
+        engine.stalledAt = 2
+        engine.stalledErrors = mapOf(tracks[8].id to timedOut)
+        val pass = pass()
+        val failures = LinkedHashMap<TrackId, EngineError>()
+        val ended = runCatching {
+            pass.run(
+                order = tracks, allIds = tracks.map { it.id }, total = tracks.size,
+                progress = AnalysisProgress(tracks.size).apply { started(tracks.size) },
+                failures = failures, eta = IndexingEta(wall), gatedAtStart = true, shownAtStart = true,
+            )
+        }.exceptionOrNull()
+        assertTrue(ended is AnalysisPassStalled)
+        // The stalled chunk was the last one staged, and what it reported is out.
+        assertEquals(2, engine.staged.size)
+        assertEquals<Map<TrackId, EngineError>>(mapOf(tracks[8].id to timedOut), failures)
+        assertEquals<Map<TrackId, EngineError>>(failures, state.value.failures)
+        assertFalse(device.held)
+        assertFalse(state.value.pausable)
     }
 
     @Test

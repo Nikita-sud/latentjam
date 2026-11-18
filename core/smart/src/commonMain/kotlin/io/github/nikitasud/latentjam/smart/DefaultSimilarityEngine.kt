@@ -351,6 +351,7 @@ internal class DefaultSimilarityEngine(
         } ?: return@withContext IndexReport(indexed = 0, failed = tracks.size, errors = tracks.associate { it.id to EngineError.ModelUnavailable })
         // Phase 2, outside the engine lock: inference only (decoding and the model), results kept aside.
         val results = ArrayList<Pair<TrackDescriptor, Result<FloatArray>>>(prepared.toEmbed.size)
+        var stalled = false
         if (prepared.toEmbed.isNotEmpty()) {
             fun analysingFrom(position: Int) {
                 mutableAnalysing.value = prepared.toEmbed.getOrNull(position)
@@ -371,6 +372,10 @@ internal class DefaultSimilarityEngine(
                 }
             } catch (_: StaleChunk) {
                 // Phase 3 sees the new generation and keeps nothing.
+            } catch (halted: AnalysisStalled) {
+                // The backend stopped the chunk: what it got to is installed below, the rest was not tried.
+                stalled = true
+                println("SMART: analysis stalled (${halted.message})")
             } finally {
                 mutableAnalysing.value = null
             }
@@ -423,6 +428,7 @@ internal class DefaultSimilarityEngine(
                 failed = errors.size,
                 skipped = alreadyIndexed.size,
                 errors = errors,
+                stalled = stalled,
             )
         }
     }
