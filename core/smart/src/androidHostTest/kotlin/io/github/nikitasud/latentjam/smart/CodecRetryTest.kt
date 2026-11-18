@@ -48,4 +48,20 @@ class CodecRetryTest {
         assertFalse(backoff.take(2_000L))
         assertEquals(1_000L, backoff.leftMs)
     }
+
+    @Test
+    fun aStreamTheStrictLookupRefusesIsTriedWithTheFirstDecoderForItsMimeType() {
+        val decoders = listOf(
+            "c2.android.mp3.decoder" to listOf("audio/mpeg"),
+            "c2.vendor.aac.decoder" to listOf("audio/mp4a-latm"),
+            "c2.android.aac.decoder" to listOf("audio/MP4A-LATM"),
+            "c2.android.raw.decoder" to listOf("audio/raw"),
+        )
+        // AAC at 96 kHz: outside the rates the decoders declare, so the format lookup names none.
+        assertEquals("c2.vendor.aac.decoder", decoderForMime("audio/mp4a-latm", decoders))
+        assertEquals("c2.android.raw.decoder", decoderForMime("audio/raw", decoders))
+        // Apple Lossless on a device with no decoder for it: still none, and the file stays "no decoder".
+        assertNull(decoderForMime("audio/alac", decoders))
+        assertNull(decoderForMime("audio/mpeg", emptyList()))
+    }
 }

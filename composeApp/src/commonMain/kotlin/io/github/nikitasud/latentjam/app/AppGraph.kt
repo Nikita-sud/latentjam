@@ -807,6 +807,13 @@ object AppGraph {
                     if (mp4.isNotEmpty()) engine.retryFailedTracks(mp4.map { it.id })
                     settings.markAnalysisRetryDone(RETRY_ONCE_ALAC)
                 }
+                // Once more, after the update whose analysis tries a decoder the platform's strict lookup passed over
+                // (0.9.6): files remembered as "no decoder" may be any format, and the reason is not stored, so every
+                // remembered failure gets the one try.
+                if (tracks.isNotEmpty() && librarySnapshotAuthoritative && !settings.analysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)) {
+                    engine.retryFailedTracks(trackIds)
+                    settings.markAnalysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)
+                }
                 ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
@@ -1572,6 +1579,9 @@ private const val HELD_RETRY_SLACK_MS = 2_000L
 /** The one-time retry of MP4 files remembered as undecodable before the analysis could read Apple Lossless. */
 private const val RETRY_ONCE_ALAC = "alac"
 private val MP4_AUDIO_EXTENSIONS = setOf("m4a", "m4b", "m4r", "mp4")
+
+/** The one-time retry of every remembered failure, after the analysis stopped trusting a strict decoder lookup alone. */
+private const val RETRY_ONCE_DECODER_LOOKUP = "decoder-lookup"
 internal const val AUTOMATIC_INDEX_CHECKPOINT_TRACKS = 32
 internal const val AUTOMATIC_INDEX_YIELD_MS = 75L
 

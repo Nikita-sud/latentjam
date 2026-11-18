@@ -158,6 +158,13 @@ private fun othersLive(): Boolean {
 internal fun Throwable.mayBeContention(): Boolean =
     this is java.io.IOException || this is IllegalStateException
 
+/**
+ * The first of [decoders] (name to the MIME types it reads, in the platform's order) that reads [mime], whatever
+ * ranges it declares: what is tried when the platform's strict lookup names no decoder for a stream.
+ */
+internal fun decoderForMime(mime: String, decoders: List<Pair<String, List<String>>>): String? =
+    decoders.firstOrNull { (_, types) -> types.any { it.equals(mime, ignoreCase = true) } }?.first
+
 /** One track's back-off allowance over all its windows: 3 s in total (1c). Shared by its decode workers. */
 internal class CodecBackoff(totalMs: Long = 3_000L) {
     private val left = java.util.concurrent.atomic.AtomicLong(totalMs)
@@ -404,11 +411,9 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 // this device + stream format and may be remembered for unchanged bytes; failures
                 // while creating/starting the chosen codec remain retryable availability failures.
                 val decoderName = regularCodecs.findDecoderForFormat(inputFormat)
-                if (decoderName == null) {
-                    // The platform has no decoder for this stream. One the app brings (Apple Lossless) reads it; with
-                    // none, that is a stable fact about this device and these bytes.
-                    val own = appDecoder(mime, inputFormat)
-                        ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                // The platform lists no decoder for this stream: one the app brings (Apple Lossless) reads it.
+                val own = if (decoderName == null) appDecoder(mime, inputFormat) else null
+                if (own != null) {
                     if (stages != null) lap { stages.lookup += it }
                     failureStage = AudioDecodeFailureStage.DECODE
                     val decoded = own.use { decodePackets(it, extractor, targetSampleRate, targetSamples, downmixMode, isCancelled) }
@@ -416,8 +421,24 @@ internal class AndroidAudioDecoder(private val context: Context) {
                     mark = System.nanoTime()
                     return AudioDecodeResult.Success(decoded.waveform, decoded.validSamples)
                 }
+                // The lookup is strict: it refuses a stream outside the sample rates, bitrates or channel counts a
+                // decoder declares, which the decoder often reads all the same (AAC at 96 kHz, PCM above 96 kHz on
+                // Android 9 and earlier); playback, which only asks for the MIME type, plays such files, and the
+                // analysis marked them invalid for good. So the first decoder for the MIME type is tried. Only when
+                // there is none, or it refuses the stream, is that the stable fact about this device and these bytes.
+                val byMime = if (decoderName == null) {
+                    decoderForMime(mime, platformDecoders())
+                        ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                } else {
+                    null
+                }
                 if (stages != null) lap { stages.lookup += it }
-                val codec = startCodec(decoderName, inputFormat, backoff, isCancelled)
+                val codec = try {
+                    startCodec(decoderName ?: byMime!!, inputFormat, backoff, isCancelled)
+                } catch (refused: Exception) {
+                    if (byMime == null || refused is CancellationException) throw refused
+                    return AudioDecodeResult.InvalidAudio("No decoder for $mime")
+                }
                 failureStage = AudioDecodeFailureStage.DECODE
                 try {
                     if (stages != null) lap { stages.start += it }
@@ -454,6 +475,10 @@ internal class AndroidAudioDecoder(private val context: Context) {
             if (stages != null) lap { stages.release += it }
         }
     }
+
+    /** The device's decoders with the MIME types each reads, in the platform's order. */
+    private fun platformDecoders(): List<Pair<String, List<String>>> =
+        regularCodecs.codecInfos.filterNot { it.isEncoder }.map { it.name to it.supportedTypes.toList() }
 
     /** The app's own decoder for [mime], configured from the container's codec data, or null. */
     private fun appDecoder(mime: String, format: MediaFormat): AppPcmDecoder? {
