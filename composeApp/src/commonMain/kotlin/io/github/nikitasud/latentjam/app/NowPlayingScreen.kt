@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.layout.asPaddingValues
@@ -205,11 +206,16 @@ private val QueueHandleHeight = 18.dp
 // Exactly the handle and the title row. Anything more shows a sliver of the first queue
 // row under the title, which reads as a stray strip above the navigation bar.
 private val QueuePeekHeight = QueueHandleHeight + QueueTitleRowHeight
-private val PLAY_PAUSED_RADIUS = 36.dp
+private val PLAY_SIZE = 72.dp
+
+/**
+ * The play button in a window with little height. Still larger than the 48 dp buttons beside it, and 16 dp less
+ * of the height a phone on its side has least of.
+ */
+private val PLAY_SIZE_COMPACT = 56.dp
 private val NEXT_UP_HEIGHT = 36.dp
 /** Long enough that skipping through the queue reads no tag on the way; short enough to feel instant. */
 private const val LYRICS_PROBE_DELAY_MS = 400L
-private val PLAY_PLAYING_RADIUS = 24.dp
 private val SLEEP_TIMER_MINUTES = listOf(15, 30, 45, 60)
 private data class TrackMetadataPresentation(
     val track: TrackDescriptor?,
@@ -663,6 +669,27 @@ fun NowPlayingScreen(
                                             modifier = Modifier.fillMaxWidth(),
                                             enabled = shownTrack?.id == now.track?.id,
                                         )
+                                    }
+                                }
+                                // The artist and the album, as a row of their own for the same reason as the
+                                // source below: the shortest windows go without it, never without a button.
+                                AnimatedContent(
+                                    targetState = TrackMetadataPresentation(
+                                        track = now.track,
+                                        sourceLabel = queueSourceLabel,
+                                    ),
+                                    contentKey = { it.track?.id },
+                                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                                    modifier = Modifier.layoutId(PlayerControlsPart.ARTIST),
+                                    label = "track-artist",
+                                ) { shown ->
+                                    val shownTrack = shown.track
+                                    Column(
+                                        modifier = Modifier.inactiveForMotion(
+                                            shownTrack?.id != now.track?.id,
+                                        ),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
                                         // Artist and album are places, so they are links: each opens
                                         // its own collection. The dash between them stays plain.
                                         Row(
@@ -694,50 +721,70 @@ fun NowPlayingScreen(
                                                 )
                                             }
                                         }
-                                        if (shown.sourceLabel != null && shownTrack != null) {
-                                            // A quiet chip: the source reads as "where this track came
-                                            // from", and a tap goes there. A source that cannot be found
-                                            // again raises the queue it produced instead.
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                modifier = Modifier
-                                                    .padding(top = 2.dp)
-                                                    .clip(RoundedCornerShape(14.dp.corner()))
-                                                    .then(
-                                                        if (surface.allows(PlayerEntry.SOURCE_LINK)) {
-                                                            Modifier.clickable(role = Role.Button) {
-                                                                haptics.play(PlayerHaptic.TAP)
-                                                                if (onOpenSource?.invoke() != true) {
-                                                                    openQueue()
-                                                                }
+                                    }
+                                }
+                                // Where the queue came from, as a row of its own: a window too short for
+                                // everything leaves it out before any button ([FittedPlayerControls]). It
+                                // changes with the title above it, in the same fade.
+                                AnimatedContent(
+                                    targetState = TrackMetadataPresentation(
+                                        track = now.track,
+                                        sourceLabel = queueSourceLabel,
+                                    ),
+                                    contentKey = { it.track?.id },
+                                    transitionSpec = { motionFadeThrough(reduceMotion) },
+                                    modifier = Modifier.layoutId(PlayerControlsPart.SOURCE),
+                                    label = "track-source",
+                                ) { shown ->
+                                    val shownTrack = shown.track
+                                    if (shown.sourceLabel != null && shownTrack != null) {
+                                        // A quiet chip: the source reads as "where this track came
+                                        // from", and a tap goes there. A source that cannot be found
+                                        // again raises the queue it produced instead.
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier
+                                                .padding(top = 2.dp)
+                                                .inactiveForMotion(shownTrack?.id != now.track?.id)
+                                                .clip(RoundedCornerShape(14.dp.corner()))
+                                                .then(
+                                                    if (surface.allows(PlayerEntry.SOURCE_LINK)) {
+                                                        Modifier.clickable(role = Role.Button) {
+                                                            haptics.play(PlayerHaptic.TAP)
+                                                            if (onOpenSource?.invoke() != true) {
+                                                                openQueue()
                                                             }
-                                                        } else Modifier,
-                                                    )
-                                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(14.dp),
+                                                        }
+                                                    } else Modifier,
                                                 )
-                                                Text(
-                                                    text = stringResource(
-                                                        Res.string.now_playing_source,
-                                                        bidiWrap(shown.sourceLabel),
-                                                    ),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                            }
+                                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(14.dp),
+                                            )
+                                            Text(
+                                                text = stringResource(
+                                                    Res.string.now_playing_source,
+                                                    bidiWrap(shown.sourceLabel),
+                                                ),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+                                Spacer(
+                                    modifier = Modifier
+                                        .layoutId(PlayerControlsPart.GAPS)
+                                        .height(if (compact) 8.dp else 12.dp),
+                                )
 
                                 PlayerSeekBar(playback = playback, durationMs = now.durationMs, lyrics = lyrics, active = active)
 
@@ -786,8 +833,11 @@ fun NowPlayingScreen(
                                         // a rounded square plays. Colour stays the same, so the state never
                                         // depends on it.
                                         val playInteraction = remember { MutableInteractionSource() }
+                                        // A window with little height (a phone on its side) gets a smaller button,
+                                        // in the same shapes: the circle is half its size, the square a third.
+                                        val playSize = if (compact) PLAY_SIZE_COMPACT else PLAY_SIZE
                                         val playCorner by animateDpAsState(
-                                            targetValue = if (now.showPauseButton) PLAY_PLAYING_RADIUS else PLAY_PAUSED_RADIUS,
+                                            targetValue = if (now.showPauseButton) playSize / 3 else playSize / 2,
                                             animationSpec = tween(
                                                 if (reduceMotion) Motion.REDUCED_MS else Motion.EMPHASIZED_MS,
                                             ),
@@ -802,7 +852,7 @@ fun NowPlayingScreen(
                                             colors = playButtonColors(),
                                             interactionSource = playInteraction,
                                             modifier = Modifier
-                                                .size(72.dp)
+                                                .size(playSize)
                                                 .scaleOnPress(playInteraction, Motion.BUTTON_PRESS_SCALE)
                                                 .semantics { contentDescription = playPauseDescription },
                                         ) {
@@ -819,7 +869,7 @@ fun NowPlayingScreen(
                                                 },
                                                 contentDescription = null,
                                                 modifier = Modifier
-                                                    .size(36.dp)
+                                                    .size(playSize / 2)
                                                     .inactiveForMotion(playing != now.showPauseButton),
                                             )
                                             }
@@ -829,19 +879,26 @@ fun NowPlayingScreen(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(if (compact) 12.dp else 34.dp))
+                                // The space and the row below are the first a short window goes without.
+                                Spacer(
+                                    modifier = Modifier
+                                        .layoutId(PlayerControlsPart.NEXT_UP)
+                                        .height(if (compact) 12.dp else 34.dp),
+                                )
 
                                 // What comes next, without opening the queue; a tap opens it anyway. Beside
                                 // the queue it would only repeat the row under the playing one.
-                                if (!twoPane) NextUpRow(
-                                    next = nextUpTrack(now),
-                                    onOpenQueue = {
-                                        haptics.play(PlayerHaptic.TAP)
-                                        openQueue()
-                                    },
-                                )
+                                Box(modifier = Modifier.layoutId(PlayerControlsPart.NEXT_UP)) {
+                                    if (!twoPane) NextUpRow(
+                                        next = nextUpTrack(now),
+                                        onOpenQueue = {
+                                            haptics.play(PlayerHaptic.TAP)
+                                            openQueue()
+                                        },
+                                    )
+                                }
 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.layoutId(PlayerControlsPart.GAPS).height(6.dp))
                             },
                         )
                 }
@@ -991,6 +1048,9 @@ internal fun playerIsTwoPane(width: Dp, height: Dp): Boolean =
 private val TWO_PANE_MIN_WIDTH = 700.dp
 private val TWO_PANE_MIN_HEIGHT = 520.dp
 
+/** The space above and below the controls beside the cover. */
+private val CONTROLS_VERTICAL_PADDING = 4.dp
+
 /** The queue card's share of a two-pane player's width, against the player's 1. */
 private const val QUEUE_PANE_WEIGHT = 0.85f
 
@@ -1019,25 +1079,31 @@ private fun AdaptivePlayerContent(
                         .fillMaxHeight().padding(vertical = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) { artwork() }
-                Column(
+                // A phone on its side has room for the cover or for every row of the controls, not both: the rows
+                // that fit are shown and the rest left out, so no button ends under the queue. The scroll is
+                // for a window where not even the title, the seek bar and the buttons fit.
+                FittedPlayerControls(
+                    available = contentHeight - CONTROLS_VERTICAL_PADDING * 2,
                     modifier = Modifier.weight(1f).fillMaxHeight()
-                        .verticalScroll(rememberScrollState()).padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        .verticalScroll(rememberScrollState()).padding(vertical = CONTROLS_VERTICAL_PADDING),
                 ) { controls(true) }
             }
         } else if (compact) {
             // A split window or large text may leave too little width for two usable columns.
             // Scroll the body instead of shrinking touch targets or overlapping fixed children.
-            Column(
+            // The same fit as beside the cover, with the cover itself the first to go: a window this short
+            // showed the cover and nothing to play it with.
+            FittedPlayerControls(
+                available = contentHeight,
                 modifier = Modifier.fillMaxSize().padding(horizontal = horizontalPadding)
                     .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
-                    modifier = Modifier.size(minOf(contentWidth, 180.dp)).padding(vertical = 4.dp),
+                    modifier = Modifier.layoutId(PlayerControlsPart.COVER)
+                        .size(minOf(contentWidth, 180.dp)).padding(vertical = 4.dp),
                     contentAlignment = Alignment.Center,
                 ) { artwork() }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.layoutId(PlayerControlsPart.COVER).height(10.dp))
                 controls(true)
             }
         } else {
