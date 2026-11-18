@@ -1300,10 +1300,7 @@ private fun TopKind.labelRes() = when (this) {
 private fun HowYouListenCard(overview: ListeningOverview, accentInk: Color) {
     StatsCard {
         StatsTitle(stringResource(Res.string.stats_listening_style))
-        // The three shares of all starts always add up to 100 after rounding.
-        val finished = percentValue(overview.completionRate)
-        val skipped = percentValue(overview.skipRate)
-        val partly = (100 - finished - skipped).coerceAtLeast(0)
+        val (finished, partly, skipped) = listeningShares(overview.completionRate, overview.skipRate)
         ShareMeter(stringResource(Res.string.stats_finished_share), finished, color = accentInk)
         ShareMeter(stringResource(Res.string.stats_partly_share), partly, color = accentInk)
         ShareMeter(stringResource(Res.string.stats_skipped_share), skipped, color = accentInk)
@@ -1741,6 +1738,17 @@ private fun ProportionBar(
 }
 
 private fun percentValue(share: Float): Int = (share.coerceIn(0f, 1f) * 100).roundToInt()
+
+/**
+ * The finished, partly heard and skipped shares of all starts, in whole percent; they add up to 100. Finished and
+ * skipped can both round up (12.5 and 87.5): the skipped share then gives the point back, where clamping the partly
+ * share at zero left 101.
+ */
+internal fun listeningShares(completionRate: Float, skipRate: Float): Triple<Int, Int, Int> {
+    val finished = percentValue(completionRate)
+    val skipped = percentValue(skipRate).coerceAtMost(100 - finished)
+    return Triple(finished, 100 - finished - skipped, skipped)
+}
 
 private fun percent(share: Float): String = formatPercent(percentValue(share))
 

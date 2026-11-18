@@ -71,7 +71,34 @@ class PersonalHistoryTest {
         assertEquals(PickSurface.SEARCH, PersonalSignals.annotate(event(ListenOrigin(ListenStart.USER_PICK))).origin?.pickSurface)
         assertNull(PersonalSignals.annotate(event(ListenOrigin(ListenStart.AUTO_ADVANCE))).origin?.pickSurface)
         // A start long after the mark is another pick.
+        PersonalSignals.reset()
         PersonalSignals.pick(PickSurface.SEARCH, atMs = 900_000L)
+        assertNull(PersonalSignals.annotate(event(ListenOrigin(ListenStart.USER_PICK))).origin?.pickSurface)
+    }
+
+    @Test
+    fun aPickEndedByAnotherPickKeepsItsOwnSurface() {
+        // Picked in Search and started at 1 000 000; forty seconds later the listener picks another song in a list.
+        // The first listen is closed, and annotated, only then: after the second mark.
+        PersonalSignals.pick(PickSurface.SEARCH, atMs = 999_800L)
+        PersonalSignals.pick(PickSurface.COLLECTION, atMs = 1_040_000L)
+        assertEquals(PickSurface.SEARCH, PersonalSignals.annotate(event(ListenOrigin(ListenStart.USER_PICK))).origin?.pickSurface)
+    }
+
+    @Test
+    fun twoPicksASecondApartEachKeepTheirOwnSurface() {
+        PersonalSignals.pick(PickSurface.QUEUE, atMs = 999_900L)
+        PersonalSignals.pick(PickSurface.SEARCH, atMs = 1_000_700L)
+        val first = event(ListenOrigin(ListenStart.USER_PICK))
+        val second = first.copy(startedAtMs = 1_000_900L)
+        assertEquals(PickSurface.QUEUE, PersonalSignals.annotate(first).origin?.pickSurface)
+        assertEquals(PickSurface.SEARCH, PersonalSignals.annotate(second).origin?.pickSurface)
+    }
+
+    @Test
+    fun onlyTheLastFewMarksAreKept() {
+        PersonalSignals.pick(PickSurface.SEARCH, atMs = 999_800L)
+        repeat(8) { PersonalSignals.pick(PickSurface.COLLECTION, atMs = 2_000_000L + it * 60_000L) }
         assertNull(PersonalSignals.annotate(event(ListenOrigin(ListenStart.USER_PICK))).origin?.pickSurface)
     }
 

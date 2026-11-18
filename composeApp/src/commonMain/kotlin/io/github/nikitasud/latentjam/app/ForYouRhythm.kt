@@ -335,7 +335,10 @@ internal object ForYouRhythm {
             val key = artistKeyOf(artist)
             if (event.startedAtMs > cutoff) {
                 val prior = recent[key]
-                recent[key] = artist to ((prior?.second ?: 0) + 1)
+                // The key groups "A" with "A feat. B": the row is named after A, not after whichever credit
+                // the week's oldest listen happened to carry.
+                val name = phaseArtistName(artist, key)
+                recent[key] = (prior?.first?.takeIf { it.length <= name.length } ?: name) to ((prior?.second ?: 0) + 1)
                 recentTotal++
             } else {
                 baseline[key] = (baseline[key] ?: 0) + 1
@@ -371,6 +374,20 @@ internal object ForYouRhythm {
             .firstOrNull() ?: return null
         val (name, plays) = best.first.value
         return Binge(artistKey = best.first.key, artistName = name, recentPlays = plays)
+    }
+
+    /**
+     * The part of the display [credit] its artist [key] stands for when a featured guest follows it ("Eminem" of
+     * "Eminem feat. Dido"); otherwise the whole credit, so a band whose name the key cuts ("Sleeping with Sirens")
+     * keeps its name.
+     */
+    private fun phaseArtistName(credit: String, key: String): String {
+        val trimmed = credit.trim()
+        val lower = trimmed.lowercase()
+        if (key.isEmpty() || lower.length != trimmed.length || !lower.startsWith(key)) return trimmed
+        val rest = lower.substring(key.length).trimStart()
+        val featured = rest.startsWith("feat") || rest.startsWith("ft.") || rest.startsWith("ft ")
+        return if (featured) trimmed.take(key.length).trim() else trimmed
     }
 
     /**

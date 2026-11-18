@@ -203,6 +203,10 @@ internal class ListeningHistoryTest {
         // Merged from a backup: older, though logged later.
         history.record(event("2", startedAt = floor + 100, completed = true))
         assertEquals(floor + 100, history.firstListenAtMs())
+        // Scrobbled in 2016 and imported: the importer's fingerprint, not an unset clock.
+        val scrobbled = ListenEvent(TrackId("3"), 1_451_606_400_000L, 200_000L, 200_000L, completed = true, skipped = false)
+        history.record(scrobbled)
+        assertEquals(1_451_606_400_000L, history.firstListenAtMs())
     }
 
     @Test
@@ -629,6 +633,33 @@ internal class ListeningHistoryTest {
         val reloaded = DefaultListeningHistory(store)
         assertEquals(emptyMap(), reloaded.stats())
         assertEquals(emptyList(), reloaded.recentEvents(10))
+    }
+
+    @Test
+    fun aClearCancelledWhileTheLogIsDeletedLeavesNoListensInMemory() = runTest {
+        val deleting = CompletableDeferred<Unit>()
+        val store = object : HistoryStore {
+            val lines = mutableListOf(event("1", startedAt = 100).serialize())
+            override suspend fun append(line: String) { lines += line }
+            override suspend fun readAll(): List<String> = lines.toList()
+            override suspend fun clear() {
+                lines.clear()
+                deleting.await()
+            }
+        }
+        val history = DefaultListeningHistory(store)
+        // Load the log first, so the clear is already inside its store call after runCurrent().
+        assertEquals(1, history.allEvents().size)
+
+        val clearing = launch { history.clear() }
+        runCurrent()
+        clearing.cancel() // The listener leaves the Privacy screen while the log is being deleted.
+        deleting.complete(Unit)
+        clearing.join()
+
+        assertEquals(emptyList(), store.lines)
+        assertEquals(emptyList(), history.allEvents(), "a deleted log is not served from memory")
+        assertEquals(emptyMap(), history.stats())
     }
 
     @Test

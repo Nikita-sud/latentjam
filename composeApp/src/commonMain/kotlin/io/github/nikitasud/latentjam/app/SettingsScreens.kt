@@ -3440,6 +3440,13 @@ private fun LocalBackupSections.hasAnySelection(): Boolean =
 
 private enum class PrivacyRecording { LISTENING, SEARCHES }
 
+/**
+ * Runs [block] to its end even when the caller is cancelled meanwhile. Clearing the listening history is several
+ * writes (the log, SMART's log, the For You journal) started from a screen whose scope dies with it: leaving the
+ * screen in the middle left the log deleted on disk and still read from memory, and the rest never cleared.
+ */
+internal suspend fun runToTheEnd(block: suspend () -> Unit): Unit = withContext(NonCancellable) { block() }
+
 @Composable
 private fun PrivacySettings(
     settings: AppSettings,
@@ -3519,7 +3526,7 @@ private fun PrivacySettings(
             changingHistory = true
             try {
                 if (persist { settings.setSaveListeningHistory(enabled) } && deleteExisting) {
-                    if (clear(onClearListeningHistory)) listens = 0
+                    if (clear { runToTheEnd(onClearListeningHistory) }) listens = 0
                 }
             } finally {
                 changingHistory = false
@@ -3544,7 +3551,7 @@ private fun PrivacySettings(
         scope.launch {
             clearingHistory = true
             try {
-                if (clear(onClearListeningHistory)) listens = 0
+                if (clear { runToTheEnd(onClearListeningHistory) }) listens = 0
             } finally {
                 clearingHistory = false
             }

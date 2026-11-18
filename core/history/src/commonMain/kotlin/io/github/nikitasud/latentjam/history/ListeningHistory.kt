@@ -43,7 +43,8 @@ public interface ListeningHistory {
 
     /**
      * When listening began: the earliest start at or after
-     * [ListeningNormalization.PLAUSIBLE_START_MS], or null when no listen has one. [recentEvents]
+     * [ListeningNormalization.PLAUSIBLE_START_MS] (for an imported listen,
+     * [ListeningNormalization.PLAUSIBLE_IMPORT_START_MS]), or null when no listen has one. [recentEvents]
      * cannot say, since a heavy listener fills any fixed count within weeks.
      */
     public suspend fun firstListenAtMs(): Long? =
@@ -228,9 +229,14 @@ public class DefaultListeningHistory(
 
     override suspend fun clear(): Unit = mutex.withLock {
         ensureLoaded()
-        store.clear()
-        events.clear()
-        aggregates = ListenCounts()
+        // Deleting and forgetting are one step. The store deletes on another dispatcher, and a cancellation
+        // delivered on the way back (the listener left the screen) would otherwise leave the deleted log in
+        // memory: statistics and SMART would go on reading the history that was just cleared.
+        withContext(NonCancellable) {
+            store.clear()
+            events.clear()
+            aggregates = ListenCounts()
+        }
     }
 
     /**
@@ -369,7 +375,7 @@ private fun List<ListenEvent>.firstPlausibleStartMs(): Long? {
     var first = Long.MAX_VALUE
     for (event in this) {
         val start = event.startedAtMs
-        if (start >= ListeningNormalization.PLAUSIBLE_START_MS && start < first) first = start
+        if (start < first && ListeningNormalization.marksLogStart(event)) first = start
     }
     return first.takeIf { it != Long.MAX_VALUE }
 }

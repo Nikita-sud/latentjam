@@ -17,6 +17,7 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.personal.PersonalModel
 import kotlin.concurrent.Volatile
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -110,15 +111,25 @@ internal class PersonalModelCache(
 internal object PersonalSignals {
     private class Mark(val surface: PickSurface, val atMs: Long)
 
+    /**
+     * The last few marks, oldest first. A listen is annotated when it ends, and a pick ended by another pick ends after
+     * that pick's mark: with one mark kept, such a listen was compared with the next pick's mark and lost its surface.
+     */
     @Volatile
-    private var mark: Mark? = null
+    private var marks: List<Mark> = emptyList()
 
     @Volatile
     private var planned: Map<TrackId, Boolean> = emptyMap()
 
+    /** How many picks were marked so far: a start that plans first reads it to learn of a pick made meanwhile. */
+    @Volatile
+    var pickCount: Long = 0L
+        private set
+
     /** The listener is about to start playback from [surface]. */
     fun pick(surface: PickSurface, atMs: Long = epochMillis()) {
-        mark = Mark(surface, atMs)
+        marks = (marks + Mark(surface, atMs)).takeLast(MARKS_KEPT)
+        pickCount++
     }
 
     /** A SMART plan's rows, and which of them the personal term changed. */
@@ -135,9 +146,11 @@ internal object PersonalSignals {
     /** [event] with the pick surface and the personal flag, where known. */
     fun annotate(event: ListenEvent): ListenEvent {
         val origin = event.origin ?: return event
-        val surface = mark?.takeIf {
-            origin.start == ListenStart.USER_PICK && event.startedAtMs - it.atMs in -PICK_AFTER_MS..PICK_BEFORE_MS
-        }?.surface
+        // The mark nearest to the start, among those the start may belong to: its own, not a neighbour's.
+        val surface = if (origin.start != ListenStart.USER_PICK) null else marks
+            .filter { event.startedAtMs - it.atMs in -PICK_AFTER_MS..PICK_BEFORE_MS }
+            .minByOrNull { abs(event.startedAtMs - it.atMs) }
+            ?.surface
         val changed = if (origin.smartPlanPosition != null) planned[event.trackId] else null
         if (surface == null && changed == null) return event
         return event.copy(origin = origin.copy(pickSurface = surface ?: origin.pickSurface, personalChanged = changed ?: origin.personalChanged))
@@ -145,11 +158,12 @@ internal object PersonalSignals {
 
     /** Tests: forget everything. */
     fun reset() {
-        mark = null
+        marks = emptyList()
         planned = emptyMap()
     }
 
     private const val PLANNED_KEPT = 200
+    private const val MARKS_KEPT = 8
     /** A start this long after the mark is still that pick (the player may take a moment to open a file). */
     private const val PICK_BEFORE_MS = 10_000L
     /** A clock that ticked between the mark and the start. */

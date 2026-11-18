@@ -2792,34 +2792,13 @@ private fun AppShell(
                                                 }
                                             },
                                             onPlayHero = { hero ->
-                                                scope.launch {
-                                                    // Personal signal picked the seed; SMART decides
-                                                    // what follows it.
-                                                    val queue = if (!AppGraph.settings.smartEnabled.value) emptyList() else engine.smartQueue(
-                                                        hero.track,
-                                                        eligibleFor(smartEligible, tracks, smartExclusionState),
-                                                        smartQueueLength,
-                                                        smartHistoryFor(AppGraph.history, hero.track),
-                                                        AppGraph.smartCompanionGroups.value,
+                                                forYouPage.playbackLauncher.launch(scope) { isCurrent ->
+                                                    playHeroFromForYou(
+                                                        playback, engine, AppGraph.history, hero,
+                                                        { eligibleFor(smartEligible, tracks, smartExclusionState) }, smartQueueLength,
+                                                        AppGraph.smartCompanionGroups.value, visibleCatalog.songs, isCurrent,
+                                                        smart = { AppGraph.settings.smartEnabled.value },
                                                     )
-                                                    AppGraph.queueSource.value =
-                                                        QueueSource(QueueSourceKind.FOR_YOU)
-                                                    PersonalSignals.pick(PickSurface.FOR_YOU)
-                                                    // SMART switched off (asked again here: planning takes seconds):
-                                                    // the card plays its track and the library on from it.
-                                                    if (!AppGraph.settings.smartEnabled.value) {
-                                                        playLibraryFrom(playback, hero.track, visibleCatalog.songs)
-                                                        hero.resumeAtMs?.let { playback.seekTo(it) }
-                                                        return@launch
-                                                    }
-                                                    val byId = visibleCatalog.songs.associateById()
-                                                    val tail = queue.mapNotNull(byId::get)
-                                                    playback.play(
-                                                        listOf(hero.track) + tail,
-                                                        0,
-                                                        smartPlanPositions(queue),
-                                                    )
-                                                    hero.resumeAtMs?.let { playback.seekTo(it) }
                                                 }
                                             },
                                             onTrackMenu = { sheets.trackMenuRequest = TrackMenuRequest(it) },
@@ -2920,23 +2899,12 @@ private fun AppShell(
                                                 mapPage.mapRegions.getOrNull(region)?.let { world ->
                                                     scope.launch {
                                                         val seed = tracksById[world.representative.id] ?: return@launch
-                                                        val queue = engine.smartQueue(
-                                                            seed,
-                                                            eligibleFor(smartEligible, tracks, smartExclusionState),
-                                                            smartQueueLength,
-                                                            smartHistoryFor(AppGraph.history, seed),
+                                                        playSmartFrom(
+                                                            playback, engine, AppGraph.history, seed,
+                                                            { eligibleFor(smartEligible, tracks, smartExclusionState) }, smartQueueLength,
                                                             AppGraph.smartCompanionGroups.value,
-                                                        )
-                                                        val tail = queue.mapNotNull(tracksById::get)
-                                                        AppGraph.queueSource.value = QueueSource(
-                                                            QueueSourceKind.MAP,
-                                                            shownRegionNames.getOrNull(region) ?: world.name,
-                                                        )
-                                                        PersonalSignals.pick(PickSurface.COLLECTION)
-                                                        playback.play(
-                                                            listOf(seed) + tail,
-                                                            0,
-                                                            smartPlanPositions(queue),
+                                                            QueueSource(QueueSourceKind.MAP, shownRegionNames.getOrNull(region) ?: world.name),
+                                                            PickSurface.COLLECTION, songs = { tracksById },
                                                         )
                                                     }
                                                 }
@@ -4455,24 +4423,15 @@ private fun AppShell(
                     }
                 },
                 onStartSmart = {
-                    scope.launch {
+                    forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                         // The same track the card showed, so the journey starts from the record
                         // the listener was looking at when they chose this.
                         val songs = catalog?.songs.orEmpty()
-                        val queue = engine.smartQueue(
-                            target.track,
-                            eligibleFor(smartEligible, tracks, smartExclusionState),
-                            smartQueueLength,
-                            smartHistoryFor(AppGraph.history, target.track),
-                            AppGraph.smartCompanionGroups.value,
-                        )
-                        val byId = songs.associateById()
-                        AppGraph.queueSource.value = QueueSource(QueueSourceKind.FOR_YOU)
-                        PersonalSignals.pick(PickSurface.FOR_YOU)
-                        playback.play(
-                            listOf(target.track) + queue.mapNotNull(byId::get),
-                            0,
-                            smartPlanPositions(queue),
+                        playSmartFrom(
+                            playback, engine, AppGraph.history, target.track,
+                            { eligibleFor(smartEligible, tracks, smartExclusionState) }, smartQueueLength,
+                            AppGraph.smartCompanionGroups.value, QueueSource(QueueSourceKind.FOR_YOU),
+                            PickSurface.FOR_YOU, songs = { songs.associateById() }, isCurrent = isCurrent,
                         )
                     }
                 },
