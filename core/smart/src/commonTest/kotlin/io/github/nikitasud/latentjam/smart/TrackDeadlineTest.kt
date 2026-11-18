@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.smart
 
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -172,7 +173,9 @@ internal class TrackDeadlineTest {
             override fun abandon() {}
             override val stuck: Int get() = 1_000
         }
-        val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
+        // Nothing here is meant to time out: a budget in wall-clock time short enough to pass on a loaded machine
+        // would make this a test of the machine, so it is long.
+        val decoding = DeadlineDecoding(workers, budget = 60.seconds)
         val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
 
         decoding.each(
