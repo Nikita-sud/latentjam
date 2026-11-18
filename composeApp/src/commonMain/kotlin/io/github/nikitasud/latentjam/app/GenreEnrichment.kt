@@ -39,8 +39,9 @@ import kotlinx.coroutines.yield
  * without one under its folder's name, and that pseudo-album's cover belongs to another song in the
  * folder (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). A folder's name
  * is no album either (issue #39): where the scanner's album is the folder's name and the file was
- * read and is not known to name an album, the song has none, for every reader of the library. A
- * song whose file has not been read at its revision yet keeps what the scanner said until it is.
+ * read whole and names no album, the song has none, for every reader of the library. A song whose
+ * file cannot tell (a tag read in part or refused, a container no reader judges), or has not been
+ * read at its revision yet, keeps what the scanner said, exactly as before.
  *
  * A cache entry is keyed by [TrackDescriptor.sourceRevision]: retagging changes the revision,
  * which makes the entry stale and the file re-read. "Read fine, found nothing" is remembered
@@ -148,8 +149,9 @@ internal class GenreEnrichment(
         val language = language?.shared() ?: track.language
         val albumArtist = albumArtist?.unlessMangling(track.albumArtist)?.shared() ?: track.albumArtist
         val year = track.year ?: year
-        // The scanner's album is the folder's name and the file is not known to name one: it has no album.
-        val folderNamed = album != AlbumFact.NAMED && folderAlbums &&
+        // The scanner's album is the folder's name and the file, read whole, names none: it has no album. A file
+        // that cannot tell keeps the scanner's: it may well have read a real album that is the folder's name.
+        val folderNamed = album == AlbumFact.NONE && folderAlbums &&
             albumIsFolderName(track.album, track.folderPath, track.storageVolume)
         val trackAlbum = if (folderNamed) null else track.album
         val albumArtworkUri = if (folderNamed) null else track.albumArtworkUri
@@ -319,7 +321,8 @@ internal class GenreEnrichment(
 
         /**
          * The file was read, but whether it names an album cannot be told: a tag read in part, or a container no
-         * reader judges. A build that knows only "0" and "1" reads this as "names one" and keeps the fallback.
+         * reader judges. Treated as [NAMED] (the scanner's album and its cover fallback stand); kept apart so the
+         * file is read once. A build that knows only "0" and "1" reads this as "names one" too.
          */
         UNKNOWN("2"),
     }
