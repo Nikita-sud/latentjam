@@ -85,7 +85,7 @@ internal class CoverThumbCache(context: Context) {
 
     private fun fileFor(uri: String, bucket: Int) = File(directory, "${digest(uri)}-$bucket.jpg")
 
-    private fun markerFor(uri: String) = File(directory, "${digest(uri)}.none")
+    private fun markerFor(uri: String) = File(directory, "${digest(uri)}$MARKER_SUFFIX")
 
     /**
      * "No cover" is remembered for a day only. A read can fail for reasons that pass with the URI
@@ -108,14 +108,7 @@ internal class CoverThumbCache(context: Context) {
 
     private fun afterWrite() {
         if (writes.incrementAndGet() % PRUNE_EVERY != 0) return
-        val files = directory.listFiles()?.filter { it.isFile } ?: return
-        var total = files.sumOf { it.length() }
-        if (total <= MAX_BYTES) return
-        for (file in files.sortedBy { it.lastModified() }) {
-            if (total <= MAX_BYTES * 8 / 10) break
-            total -= file.length()
-            file.delete()
-        }
+        pruneCoverThumbs(directory, System.currentTimeMillis(), MAX_BYTES, MISSING_TTL_MS)
     }
 
     private fun digest(uri: String): String =
@@ -139,5 +132,28 @@ internal class CoverThumbCache(context: Context) {
             instance ?: synchronized(this) {
                 instance ?: CoverThumbCache(context.applicationContext).also { instance = it }
             }
+    }
+}
+
+private const val MARKER_SUFFIX = ".none"
+
+/**
+ * Tidies the cover cache in [directory]: first every "no cover" marker older than [markerTtlMs], then, while what is
+ * left weighs more than [maxBytes], the files unused longest until it is back at four fifths of that.
+ *
+ * A marker is only ever read under the locator it was made for, and a locator that changed (a new revision) is never
+ * asked again. Markers are empty files, so the size bound never reached them either: each one stayed for good.
+ */
+internal fun pruneCoverThumbs(directory: File, now: Long, maxBytes: Long, markerTtlMs: Long) {
+    val files = directory.listFiles()?.filter { it.isFile } ?: return
+    val kept = files.filterNot { file ->
+        file.name.endsWith(MARKER_SUFFIX) && now - file.lastModified() > markerTtlMs && file.delete()
+    }
+    var total = kept.sumOf { it.length() }
+    if (total <= maxBytes) return
+    for (file in kept.sortedBy { it.lastModified() }) {
+        if (total <= maxBytes * 8 / 10) break
+        total -= file.length()
+        file.delete()
     }
 }

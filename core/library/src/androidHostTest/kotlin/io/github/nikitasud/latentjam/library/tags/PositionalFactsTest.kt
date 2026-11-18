@@ -60,7 +60,10 @@ class PositionalFactsTest {
         // whether an MP4 file names an album (issue #12).
         val expected = TagFacts.embedded(StreamSource(bytes)) ?: Mp4AlbumProbe.read(ByteArraySource(bytes))
         val actual = TagFacts.embedded(ByteArraySource(bytes))
-        assertEquals(expected, actual, label)
+        if (expected != null) return assertEquals(expected, actual, label)
+        // Where neither reads anything the positional reader still answers, and only for the album:
+        // an untagged MP3's or an ID3v2.2 tag's, or that it cannot tell (issue #39).
+        assertEquals(EmbeddedTagFacts(), actual?.copy(album = null, albumKnown = true), label)
     }
 
     private fun corpus(): List<Pair<String, ByteArray>> {

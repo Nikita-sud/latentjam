@@ -27,8 +27,8 @@ public data class AlbumGroup(
 /**
  * An artist as grouped from track metadata (single-string artist for now).
  *
- * @property albumCount How many of the catalog's albums hold at least one of [tracks], which is
- *   what the artist's page lays out as its album sections.
+ * @property albumCount How many of the catalog's albums hold at least one of [tracks]: the titled
+ *   album sections of the artist's page. Tracks that name no album count for none.
  */
 public data class ArtistGroup(
     public val name: String?,
@@ -56,6 +56,8 @@ public data class FolderGroup(
  * Sorting: albums by title, artists/genres/folders by name (case-insensitive),
  * unknown (null) buckets last; an album's tracks in release order (see [inAlbumOrder]), a
  * folder's tracks in folder order (see [inFolderOrder]), every other group's tracks by title.
+ * Albums have no unknown bucket: a track that names no album is in no album, and is found among
+ * the songs and among its artists', its genres' and its folder's tracks.
  */
 public data class LibraryCatalog(
     public val songs: List<TrackDescriptor>,
@@ -87,8 +89,10 @@ public data class LibraryCatalog(
             // Real albums first: a library assembled from loose downloads is mostly one-track
             // pseudo-albums, and alphabetizing them together drowns the actual albums the tab
             // exists to browse. Two alphabetical blocks — multi-track, then singles.
+            // A track that names no album is in none: it makes no tile here, and stays on every other tab.
             val albums = tracks
                 .albumGroups()
+                .filterKeys { it.normalizedTitle != null }
                 .map { (identity, grouped) ->
                     val ordered = inAlbumOrder(grouped)
                     AlbumGroup(

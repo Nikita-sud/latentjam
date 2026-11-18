@@ -81,7 +81,7 @@ class EmbeddedLyricsTest {
     @Test
     fun flacLyricsComeFromTheCommentBlock() {
         val comment = vorbisComment(listOf("UNSYNCEDLYRICS=text of the song"))
-        val file = "fLaC".encodeToByteArray() + byteArrayOf(
+        val file = "fLaC".encodeToByteArray() + byteArrayOf(0, 0, 0, 34) + ByteArray(34) + byteArrayOf(
             (0x80 or 4).toByte(),
             ((comment.size shr 16) and 0xFF).toByte(),
             ((comment.size shr 8) and 0xFF).toByte(),

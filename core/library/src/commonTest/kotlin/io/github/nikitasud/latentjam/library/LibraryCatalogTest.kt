@@ -111,11 +111,6 @@ internal class LibraryCatalogTest {
                 track("2", title = "b", artist = "ABBA", album = "Hits 1985", artworkUri = "art://9"),
                 track("3", title = "c", artist = "Sade", album = "Hits 1985", artworkUri = "art://9"),
             ),
-            "no album title" to listOf(
-                track("1", title = "a", artist = "Queen", artworkUri = "art://5"),
-                track("2", title = "b", artist = "ABBA", artworkUri = "art://5"),
-                track("3", title = "c", artist = "Sade", artworkUri = "art://5"),
-            ),
         )
         for ((shape, tracks) in shapes) {
             val before = LibraryCatalog.build(tracks)
@@ -195,6 +190,28 @@ internal class LibraryCatalogTest {
         assertEquals(2, catalog.albums.size)
         val queen = catalog.albums.first { it.artist == "Queen" }
         assertContentEquals(listOf("a", "b"), queen.tracks.map { it.title }, "album tracks title-sorted")
+    }
+
+    @Test
+    fun tracksThatNameNoAlbumAreNoAlbumButStayEverywhereElse() {
+        // Issue #39: "the real album or nothing". Whatever covers they carry, they make no tile on the Albums tab.
+        val loose = listOf(
+            track("1", title = "One", artist = "X", genre = "Rock", folderPath = "Music", artworkUri = "cover-1"),
+            track("2", title = "Two", artist = "X", genre = "Rock", folderPath = "Music", artworkUri = "cover-2"),
+            track("3", title = "Three", artist = "Y", folderPath = "Music"),
+        )
+        val catalog = LibraryCatalog.build(loose + track("4", title = "Four", artist = "X", album = "Real", folderPath = "Music"))
+
+        assertEquals(listOf("Real"), catalog.albums.map { it.title })
+        assertEquals(mapOf(TrackId("4") to catalog.albums.single().key), LibraryCatalog.albumKeys(catalog.songs))
+        // Still on the Tracks, Artists, Genres and Folders tabs, and so in Search, which reads the songs.
+        assertEquals(setOf("1", "2", "3", "4"), catalog.songs.map { it.id.value }.toSet())
+        val x = catalog.artists.first { it.name == "X" }
+        assertEquals(setOf("1", "2", "4"), x.tracks.map { it.id.value }.toSet())
+        assertEquals(1, x.albumCount)
+        assertEquals(0, catalog.artists.first { it.name == "Y" }.albumCount)
+        assertEquals(setOf("1", "2"), catalog.genres.first { it.name == "Rock" }.tracks.map { it.id.value }.toSet())
+        assertEquals(setOf("1", "2", "3", "4"), catalog.folders.single().tracks.map { it.id.value }.toSet())
     }
 
     @Test

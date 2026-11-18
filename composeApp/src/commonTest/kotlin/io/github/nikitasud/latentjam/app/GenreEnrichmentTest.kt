@@ -211,25 +211,141 @@ internal class GenreEnrichmentTest {
     fun aSongWhoseFileNamesNoAlbumBorrowsNoAlbumCover() = runTest {
         val settings = MemorySettings()
         val inFolder = track.copy(album = "TAMIL", artworkUri = "song-cover+album")
-        val enrichment = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { EmbeddedTagFacts() }
+        val enrichment = GenreEnrichment(settings, ownCover = { uri, _ -> uri.removeSuffix("+album") }) { EmbeddedTagFacts() }
         assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
         assertTrue(enrichment.backfill(listOf(inFolder)))
         // Only the cover changes: the scanner's folder-named album still lists the song.
         val ownCover = inFolder.copy(artworkUri = "song-cover")
         assertEquals(listOf(ownCover), enrichment.apply(listOf(inFolder)))
 
-        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("a persisted file must stay warm") }
+        val restarted = GenreEnrichment(settings, ownCover = { uri, _ -> uri.removeSuffix("+album") }) { error("a persisted file must stay warm") }
         assertEquals(listOf(ownCover), restarted.apply(listOf(inFolder)))
+    }
+
+    /** A song as Android's scanner files one whose file names no album: under its folder's name, with that "album's" cover. */
+    private val inFolder = track.copy(
+        album = "TAMIL",
+        folderPath = "Music/TAMIL",
+        artworkUri = "song-cover+album",
+        albumArtworkUri = "folder-cover",
+    )
+    private val stripped: (String, String?) -> String = { uri, _ -> uri.removeSuffix("+album") }
+
+    @Test
+    fun aFolderNameIsNotAnAlbum() = runTest {
+        // Issue #39: the file was read whole and names no album, so the folder's name is not one.
+        val settings = MemorySettings()
+        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { EmbeddedTagFacts() }
+        // Not read yet: what the scanner said stands until the file has answered.
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+        assertTrue(enrichment.backfill(listOf(inFolder)))
+        val albumless = inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null)
+        assertEquals(listOf(albumless), enrichment.apply(listOf(inFolder)))
+        // Applied to its own result it changes nothing, and the file is not read again.
+        assertEquals(listOf(albumless), enrichment.apply(listOf(albumless)))
+        val restarted = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { error("a persisted file must stay warm") }
+        assertFalse(restarted.backfill(listOf(inFolder)))
+        assertEquals(listOf(albumless), restarted.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun aFileThatCannotTellItsAlbumLosesOnlyAFolderName() = runTest {
+        // A container no reader judges (WAV, a tag the strict reader refuses): read, remembered, undecided.
+        val settings = MemorySettings()
+        var reads = 0
+        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) {
+            reads++
+            EmbeddedTagFacts(albumKnown = false)
+        }
+        val elsewhere = inFolder.copy(id = TrackId("elsewhere"), album = "Abbey Road")
+        assertTrue(enrichment.backfill(listOf(inFolder, elsewhere)))
+        assertEquals(
+            listOf(inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null), elsewhere),
+            enrichment.apply(listOf(inFolder, elsewhere)),
+        )
+        // Remembered as "cannot tell": a build that knows only 0 and 1 reads it as "names one".
+        assertTrue(settings.trackGenresPayload!!.lines().all { it.endsWith("|2") })
+        assertFalse(GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { error("read once") }.backfill(listOf(inFolder, elsewhere)))
+        assertEquals(2, reads)
+    }
+
+    @Test
+    fun anAlbumTheFileNamesStaysEvenWhenItsFolderHasTheSameName() = runTest {
+        // "Thriller/01.mp3" tagged "Thriller": the descriptor is the scan's, field for field.
+        val settings = MemorySettings()
+        val tagged = inFolder.copy(album = "Thriller", folderPath = "Michael Jackson/Thriller")
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            EmbeddedTagFacts(album = "Thriller")
+        }
+        assertFalse(enrichment.backfill(listOf(tagged)))
+        val applied = enrichment.apply(listOf(tagged))
+        assertEquals(listOf(tagged), applied)
+        assertTrue(applied.single() === tagged)
+    }
+
+    @Test
+    fun aChangedFileKeepsTheScannersAlbumUntilItIsReadAgain() = runTest {
+        // The album tag may be what changed: nothing remembered of the old bytes decides for the new ones.
+        val settings = MemorySettings()
+        var facts = EmbeddedTagFacts()
+        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { facts }
+        enrichment.backfill(listOf(inFolder))
+        val retagged = inFolder.copy(sourceRevision = "revision|2")
+        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+        facts = EmbeddedTagFacts(album = "TAMIL")
+        enrichment.backfill(listOf(retagged))
+        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+    }
+
+    @Test
+    fun whereTheScannerNamesNoAlbumAfterAFolderTheAlbumIsTheFiles() = runTest {
+        // iOS: an album comes from the file or the Music library, whatever the folder is called.
+        val enrichment = GenreEnrichment(MemorySettings(), ownCover = { uri, _ -> uri }, folderAlbums = false) {
+            EmbeddedTagFacts(albumKnown = false)
+        }
+        assertFalse(enrichment.backfill(listOf(inFolder)))
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun aSongOfNoAlbumIsVersionedByItsOwnRevision() = runTest {
+        val seen = ArrayList<String?>()
+        val enrichment = GenreEnrichment(MemorySettings(), ownCover = { uri, revision -> seen += revision; uri }, folderAlbums = true) {
+            EmbeddedTagFacts()
+        }
+        enrichment.backfill(listOf(inFolder))
+        enrichment.apply(listOf(inFolder))
+        assertTrue(seen.isNotEmpty() && seen.all { it == inFolder.sourceRevision })
+    }
+
+    @Test
+    fun onlyTheNameOfTheFilesOwnFolderCountsAsAFolderName() {
+        assertTrue(albumIsFolderName("Rock", "Music/Rock", "external_primary"))
+        assertTrue(albumIsFolderName("Rock", "Rock", null))
+        assertTrue(albumIsFolderName(" Rock ", "Music/Rock/", null))
+        assertFalse(albumIsFolderName("rock", "Music/Rock", null))
+        assertFalse(albumIsFolderName("Music", "Music/Rock", null))
+        assertFalse(albumIsFolderName(null, "Music/Rock", null))
+        assertFalse(albumIsFolderName("", "", null))
+        // The scanner's text was repaired, the path was not.
+        assertTrue(albumIsFolderName("Grüße", "Music/GrÃ¼ÃŸe", null))
+        // A file in a volume's root: the mount point's name, the user's number or the card's id.
+        assertTrue(albumIsFolderName("0", null, "external_primary"))
+        assertTrue(albumIsFolderName("10", null, "external_primary"))
+        assertFalse(albumIsFolderName("1989", null, "external_primary"))
+        assertFalse(albumIsFolderName("Blue", null, "external_primary"))
+        assertTrue(albumIsFolderName("1A2B-3C4D", null, "1a2b-3c4d"))
+        assertFalse(albumIsFolderName("0", null, "1a2b-3c4d"))
     }
 
     @Test
     fun aSongWhoseFileNamesItsAlbumKeepsTheAlbumCoverFallback() = runTest {
         val settings = MemorySettings()
         val tagged = track.copy(album = "Abbey Road", artworkUri = "song-cover+album")
-        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(album = "Abbey Road") }
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }) { EmbeddedTagFacts(album = "Abbey Road") }
         assertFalse(enrichment.backfill(listOf(tagged)))
         assertEquals(listOf(tagged), enrichment.apply(listOf(tagged)))
-        val restarted = GenreEnrichment(settings, ownCover = { error("never stripped") }) { error("a persisted file must stay warm") }
+        val restarted = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }) { error("a persisted file must stay warm") }
         assertEquals(listOf(tagged), restarted.apply(listOf(tagged)))
     }
 
@@ -237,35 +353,43 @@ internal class GenreEnrichmentTest {
     fun aTagReadInPartKeepsTheAlbumCoverFallback() = runTest {
         val settings = MemorySettings()
         val partial = track.copy(artworkUri = "song-cover+album")
-        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { EmbeddedTagFacts(albumKnown = false) }
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }) { EmbeddedTagFacts(albumKnown = false) }
         enrichment.backfill(listOf(partial))
         assertEquals(listOf(partial), enrichment.apply(listOf(partial)))
     }
 
     @Test
-    fun anUnreadableFileKeepsTheAlbumCoverFallback() = runTest {
+    fun aFileThatCouldNotBeOpenedKeepsWhatTheScannerSaid() = runTest {
+        // Narrowed with issue #39: null is now only "the file did not open" (a file that opened always answers,
+        // see aFileThatCannotTellItsAlbumLosesOnlyAFolderName). Nothing was learned, so nothing is taken away,
+        // not even a folder's name, and the file is tried again.
         val settings = MemorySettings()
-        val unknown = track.copy(artworkUri = "song-cover+album")
-        val enrichment = GenreEnrichment(settings, ownCover = { error("never stripped") }) { null }
-        assertFalse(enrichment.backfill(listOf(unknown)))
-        assertEquals(listOf(unknown), enrichment.apply(listOf(unknown)))
+        var reads = 0
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            reads++
+            null
+        }
+        assertFalse(enrichment.backfill(listOf(inFolder)))
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+        assertFalse(enrichment.backfill(listOf(inFolder)))
+        assertEquals(2, reads)
     }
 
     @Test
     fun aV5CacheStillAppliesWhileItsFilesAreReadAgain() = runTest {
         val settings = MemorySettings()
         val inFolder = track.copy(artworkUri = "song-cover+album")
-        GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { facts }.backfill(listOf(inFolder))
+        GenreEnrichment(settings, ownCover = { uri, _ -> uri.removeSuffix("+album") }) { facts }.backfill(listOf(inFolder))
         settings.trackGenresPayload = settings.trackGenresPayload!!
             .replaceFirst("v6|", "v5|").substringBeforeLast('|')
         var reads = 0
-        val upgraded = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { reads++; facts }
+        val upgraded = GenreEnrichment(settings, ownCover = { uri, _ -> uri.removeSuffix("+album") }) { reads++; facts }
         // Before the re-read: the v5 facts apply, and the album fallback is kept.
         assertEquals(listOf(enriched.copy(artworkUri = "song-cover+album")), upgraded.apply(listOf(inFolder)))
         assertTrue(upgraded.backfill(listOf(inFolder)))
         assertEquals(listOf(enriched.copy(artworkUri = "song-cover")), upgraded.apply(listOf(inFolder)))
         assertEquals(1, reads)
-        val restarted = GenreEnrichment(settings, ownCover = { it.removeSuffix("+album") }) { error("re-read once only") }
+        val restarted = GenreEnrichment(settings, ownCover = { uri, _ -> uri.removeSuffix("+album") }) { error("re-read once only") }
         assertFalse(restarted.backfill(listOf(inFolder)))
     }
 
@@ -534,7 +658,7 @@ internal class GenreEnrichmentTest {
         (it.toInt() and 0xff).toString(16).padStart(2, '0')
     }
 
-    private class MemorySettings : AppSettings {
+    class MemorySettings : AppSettings {
         override val themeMode = MutableStateFlow(ThemeMode.SYSTEM)
         override fun setThemeMode(mode: ThemeMode) { themeMode.value = mode }
         override val startPage = MutableStateFlow(StartPage.TRACKS)

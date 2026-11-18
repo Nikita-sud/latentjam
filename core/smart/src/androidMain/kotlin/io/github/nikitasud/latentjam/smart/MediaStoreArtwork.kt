@@ -45,13 +45,33 @@ public object MediaStoreArtwork {
     /**
      * [uri] without its album fallback: a song whose file names no album was filed by MediaStore
      * under its folder's name, and that "album's" cover is another song's (issue #12). Any other
-     * locator, and the version, stay as they are.
+     * locator stays as it is.
+     *
+     * With [revision] (the song's own file revision) the locator's version becomes that file's
+     * alone. The version a scan gives is its album's, and the "album" of such a song is its whole
+     * folder: one new file there gave every song of the folder a new locator, and every cache keyed
+     * by it read all those covers again. Without [revision] the version stays.
      */
-    public fun ownCoverOnly(uri: String): String {
-        if (albumFallback(uri) == null) return uri
-        val kept = uri.substringAfter('?').split('&').filterNot { it.substringBefore('=') == ALBUM }
-        val path = uri.substringBefore('?')
-        return if (kept.isEmpty()) path else path + "?" + kept.joinToString("&")
+    public fun ownCoverOnly(uri: String, revision: String? = null): String {
+        if (audioFallback(uri) == null) return uri
+        val queryStart = uri.indexOf('?')
+        val path = if (queryStart < 0) uri else uri.substring(0, queryStart)
+        val kept = if (queryStart < 0) emptyList() else uri.substring(queryStart + 1).split('&').filterNot {
+            val name = it.substringBefore('=')
+            it.isEmpty() || name == ALBUM || (revision != null && name == VERSION)
+        }
+        val query = if (revision == null) kept else kept + "$VERSION=${ownVersion(revision)}"
+        return if (query.isEmpty()) path else path + "?" + query.joinToString("&")
+    }
+
+    /** A short stable name for [revision] (64-bit FNV-1a): equal revisions give equal versions. */
+    private fun ownVersion(revision: String): String {
+        var hash = -0x340d631b7bdddcdbL
+        for (char in revision) {
+            hash = hash xor char.code.toLong()
+            hash *= 0x100000001b3L
+        }
+        return hash.toULong().toString(16)
     }
 
     /** The audio file named by a song-cover locator; never an arbitrary external or override URI. */

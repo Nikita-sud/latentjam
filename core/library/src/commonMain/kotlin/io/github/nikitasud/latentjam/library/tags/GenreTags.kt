@@ -181,13 +181,21 @@ public object GenreTags {
     }
 
     internal fun flacCommentsAfterMagic(source: ByteSource): List<Pair<String, String>>? {
-        while (true) {
+        // The rules of the tag codec's own walk (FlacTagCodec): a stream opens with its one 34-byte
+        // STREAMINFO, type 127 is invalid, and a chain has an end. Without them a file whose chain
+        // runs into zeros reads as empty STREAMINFO blocks, four bytes at a time, to its last byte.
+        repeat(FLAC_MAX_BLOCKS) { index ->
             val header = source.read(4) ?: return null
             val last = header[0].toInt() and 0x80 != 0
             val type = header[0].toInt() and 0x7F
             val length = ((header[1].toInt() and 0xFF) shl 16) or
                 ((header[2].toInt() and 0xFF) shl 8) or
                 (header[3].toInt() and 0xFF)
+            if (type == FLAC_INVALID || (index == 0) != (type == FLAC_STREAMINFO) ||
+                (index == 0 && length != FLAC_STREAMINFO_LENGTH)
+            ) {
+                return null
+            }
             if (type == FLAC_VORBIS_COMMENT) {
                 if (length > MAX_COMMENT_BLOCK) return null
                 val body = source.read(length) ?: return null
@@ -196,6 +204,7 @@ public object GenreTags {
             if (last) return null
             if (!source.skip(length.toLong())) return null
         }
+        return null
     }
 
     /**
@@ -365,6 +374,12 @@ public object GenreTags {
 
     private val FLAC_MAGIC = byteArrayOf(0x66, 0x4C, 0x61, 0x43) // "fLaC"
     private const val FLAC_VORBIS_COMMENT = 4
+    private const val FLAC_STREAMINFO = 0
+    private const val FLAC_INVALID = 127
+    private const val FLAC_STREAMINFO_LENGTH = 34
+
+    /** Metadata blocks walked before a chain is taken for damaged; the tag codec's own bound. */
+    private const val FLAC_MAX_BLOCKS = 10_000
     private val OGG_MAGIC = byteArrayOf(0x4F, 0x67, 0x67, 0x53) // "OggS"
     private val OPUS_TAGS = "OpusTags".encodeToByteArray()
     private val VORBIS_COMMENT_HEADER = byteArrayOf(0x03) + "vorbis".encodeToByteArray()

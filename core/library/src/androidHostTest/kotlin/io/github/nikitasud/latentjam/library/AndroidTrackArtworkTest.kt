@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.library
 
 import io.github.nikitasud.latentjam.library.tags.ByteArraySource
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
+import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import java.io.ByteArrayInputStream
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -16,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -70,6 +72,37 @@ internal class AndroidTrackArtworkTest {
     @Test
     fun noAlbumIdStillAllowsTheEmbeddedPicture() {
         assertEquals("embedded", loadArtworkWithFallback(song.substringBefore('?'), { null }, { "embedded" }))
+    }
+
+    @Test
+    fun aSongThatBorrowsNoAlbumCoverShowsItsOwnPictureOrNone() {
+        // Issue #39: the provider answers a file without a picture with an image from its folder.
+        val ownOnly = MediaStoreArtwork.ownCoverOnly(song, "revision")
+        val reads = mutableListOf<String>()
+        assertEquals("embedded", loadArtworkWithFallback(ownOnly, { error("the folder's image") }, {
+            reads += it
+            "embedded"
+        }, { error("a picture was found") }))
+        assertEquals(listOf(audio), reads)
+        // Tags read whole, no picture in them: no cover, and the provider is not asked.
+        assertNull(loadArtworkWithFallback<String>(ownOnly, { error("the folder's image") }, { null }, { true }))
+        // Tags no codec reads: the provider's answer is all there is.
+        assertEquals("provider", loadArtworkWithFallback(ownOnly, { if (it == ownOnly) "provider" else null }, { null }, { false }))
+        // A file that is gone is a missing cover, as on every other path.
+        assertNull(loadArtworkWithFallback<String>(ownOnly, { throw FileNotFoundException() }, {
+            throw FileNotFoundException()
+        }, { throw FileNotFoundException() }))
+    }
+
+    @Test
+    fun onlyTagsReadWholeWithoutAPictureSayThereIsNone() {
+        val untagged = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64) + ByteArray(2048)
+        assertTrue(tagsHoldNoPicture(ByteArraySource(untagged)))
+        val wave = "RIFF".encodeToByteArray() + ByteArray(4) + "WAVEfmt ".encodeToByteArray() + ByteArray(64)
+        assertFalse(tagsHoldNoPicture(ByteArraySource(wave)))
+        // An ID3v2.3 tag the codec refuses (the unsynchronisation flag): nothing is known.
+        val refused = "ID3".encodeToByteArray() + byteArrayOf(3, 0, 0x80.toByte(), 0, 0, 0, 20) + ByteArray(20) + untagged
+        assertFalse(tagsHoldNoPicture(ByteArraySource(refused)))
     }
 
     @Test

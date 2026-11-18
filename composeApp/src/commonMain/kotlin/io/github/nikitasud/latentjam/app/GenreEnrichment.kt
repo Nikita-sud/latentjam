@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.smart.idIndex
+import io.github.nikitasud.latentjam.library.FolderTree
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.TextRepair
@@ -34,10 +35,12 @@ import kotlinx.coroutines.yield
  * and the SMART metadata-text embedding re-encodes because the genre string is part of its
  * vector identity.
  *
- * Whether the file names an album at all is one more such fact. The scanner files a song without
- * one under its folder's name, and that pseudo-album's cover belongs to another song in the folder
- * (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). Its album stays as
- * the scanner reported it: the Albums tab still lists the folder.
+ * Whether the file names an album at all is one more such fact. Android's scanner files a song
+ * without one under its folder's name, and that pseudo-album's cover belongs to another song in the
+ * folder (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). A folder's name
+ * is no album either (issue #39): where the scanner's album is the folder's name and the file was
+ * read and is not known to name an album, the song has none, for every reader of the library. A
+ * song whose file has not been read at its revision yet keeps what the scanner said until it is.
  *
  * A cache entry is keyed by [TrackDescriptor.sourceRevision]: retagging changes the revision,
  * which makes the entry stale and the file re-read. "Read fine, found nothing" is remembered
@@ -46,7 +49,9 @@ import kotlinx.coroutines.yield
  */
 internal class GenreEnrichment(
     private val settings: AppSettings,
-    private val ownCover: (String) -> String = ::ownCoverOnly,
+    private val ownCover: (artworkUri: String, revision: String?) -> String = ::ownCoverOnly,
+    /** Whether the scanner names a song's album after its folder when the file names none (Android). */
+    private val folderAlbums: Boolean = scannerNamesAlbumsAfterFolders,
     private val readFacts: suspend (TrackDescriptor) -> EmbeddedTagFacts? = ::readEmbeddedFacts,
 ) {
     private data class Stored(
@@ -58,8 +63,8 @@ internal class GenreEnrichment(
         val albumArtist: String?,
         /** The file's own year; applied only where the scanner reported none. */
         val year: Int?,
-        /** Whether the file names an album; without one it borrows no album's cover. */
-        val namesAlbum: Boolean,
+        /** What the file says of its album; one that names none borrows no album's cover. */
+        val album: AlbumFact,
         /**
          * The file's length from its own header, for an MP4 file the scanner reported none for (Apple Lossless on
          * Android, which the system cannot decode). Null: not asked (the scanner had a length, another container, or
@@ -67,7 +72,7 @@ internal class GenreEnrichment(
          */
         val durationMs: Long? = null,
         /**
-         * Read by the previous format, which did not record [namesAlbum]: applied as it is (the
+         * Read by the previous format, which did not record [album]: applied as it is (the
          * album fallback kept), but its file is read again.
          */
         val stale: Boolean = false,
@@ -143,17 +148,28 @@ internal class GenreEnrichment(
         val language = language?.shared() ?: track.language
         val albumArtist = albumArtist?.unlessMangling(track.albumArtist)?.shared() ?: track.albumArtist
         val year = track.year ?: year
-        val artworkUri = if (namesAlbum) track.artworkUri else track.artworkUri?.let(ownCover)
+        // The scanner's album is the folder's name and the file is not known to name one: it has no album.
+        val folderNamed = album != AlbumFact.NAMED && folderAlbums &&
+            albumIsFolderName(track.album, track.folderPath, track.storageVolume)
+        val trackAlbum = if (folderNamed) null else track.album
+        val albumArtworkUri = if (folderNamed) null else track.albumArtworkUri
+        val artworkUri = if (album == AlbumFact.NONE || folderNamed) {
+            track.artworkUri?.let { ownCover(it, track.sourceRevision) }
+        } else {
+            track.artworkUri
+        }
         // Only where the scanner reported no length.
         val durationMs = track.durationMs ?: durationMs?.takeIf { it > 0 }
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
             albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri &&
-            durationMs == track.durationMs
+            durationMs == track.durationMs && trackAlbum == track.album && albumArtworkUri == track.albumArtworkUri
         ) {
             track
         } else {
             track.copy(
+                album = trackAlbum,
+                albumArtworkUri = albumArtworkUri,
                 genre = genre,
                 artists = artists,
                 originalYear = originalYear,
@@ -231,8 +247,12 @@ internal class GenreEnrichment(
                 language = facts.language?.let(TextRepair::repair),
                 albumArtist = facts.albumArtist?.let(TextRepair::repair),
                 year = facts.year,
-                // A tag read only in part may name an album that was not reached: keep the fallback.
-                namesAlbum = facts.album != null || !facts.albumKnown,
+                // A tag read only in part may name an album that was not reached: it cannot be told.
+                album = when {
+                    facts.album != null -> AlbumFact.NAMED
+                    facts.albumKnown -> AlbumFact.NONE
+                    else -> AlbumFact.UNKNOWN
+                },
                 // Asked only where the scanner reported no length; 0 records that the file gives none either.
                 durationMs = if (track.lengthAskedOfFile()) facts.durationMs ?: 0L else null,
             )
@@ -289,6 +309,21 @@ internal class GenreEnrichment(
 
     private fun Stored.changes(track: TrackDescriptor): Boolean = mergedInto(track) != track
 
+    /** What a song's file says of its album, as a cache line keeps it. */
+    private enum class AlbumFact(val code: String) {
+        /** The file names an album. */
+        NAMED("1"),
+
+        /** The file was read whole and names none. */
+        NONE("0"),
+
+        /**
+         * The file was read, but whether it names an album cannot be told: a tag read in part, or a container no
+         * reader judges. A build that knows only "0" and "1" reads this as "names one" and keeps the fallback.
+         */
+        UNKNOWN("2"),
+    }
+
     private companion object {
         /**
          * v2 added artists and the original year, v3 the language tag, v4 the album artist, v5 the
@@ -338,7 +373,7 @@ internal class GenreEnrichment(
                 PayloadHex.encode(stored.language.orEmpty()),
                 PayloadHex.encode(stored.albumArtist.orEmpty()),
                 stored.year?.toString() ?: "",
-                if (stored.namesAlbum) "1" else "0",
+                stored.album.code,
                 // A trailing field only for a song whose length was asked of its file: every other line is as before.
             ).plus(listOfNotNull(stored.durationMs?.toString())).joinToString("|")
 
@@ -381,7 +416,7 @@ internal class GenreEnrichment(
                 language = language.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 albumArtist = albumArtist.takeIf { it.isNotEmpty() }?.let(TextRepair::repair),
                 year = parts[8].toIntOrNull(),
-                namesAlbum = !current || parts[9] != "0",
+                album = if (!current) AlbumFact.NAMED else AlbumFact.entries.firstOrNull { it.code == parts[9] } ?: AlbumFact.NAMED,
                 durationMs = if (current) parts.getOrNull(10)?.toLongOrNull() else null,
                 stale = previous,
             )
@@ -393,3 +428,23 @@ internal class GenreEnrichment(
 
 /** Splits a (possibly joined) genre string for consumers that group by individual genre. */
 internal fun TrackDescriptor.genreList(): List<String> = GenreTags.split(genre)
+
+/**
+ * Whether [album], as Android's scanner reported it, is only the name of the folder the file is in: the scanner files
+ * a song whose file names no album under its parent folder's name. For a file in a volume's own root that folder is
+ * the mount point: the user's number ("0") on the device's storage, the volume's id on a card.
+ *
+ * The scanner's text went through the mojibake repair and [folderPath] did not, so both spellings count.
+ */
+internal fun albumIsFolderName(album: String?, folderPath: String?, storageVolume: String?): Boolean {
+    val name = album?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+    val folder = folderPath?.replace('\\', '/')?.trim('/')?.substringAfterLast('/')?.trim()?.takeIf { it.isNotEmpty() }
+    if (folder == null) {
+        return if (storageVolume == null || storageVolume == FolderTree.PRIMARY_VOLUME) {
+            name.length <= 3 && name.all { it in '0'..'9' }
+        } else {
+            name.equals(storageVolume, ignoreCase = true)
+        }
+    }
+    return name == folder || name == TextRepair.repair(folder).trim()
+}

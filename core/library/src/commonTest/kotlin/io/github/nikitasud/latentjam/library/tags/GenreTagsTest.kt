@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.library.tags
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class GenreTagsTest {
 
@@ -140,10 +141,58 @@ class GenreTagsTest {
         assertNull(GenreTags.flacGenres(ArraySource("ID3junk".encodeToByteArray())))
     }
 
+    /** Counts the reads and skips a walk makes. */
+    private class CountingSource(private val bytes: ByteArray) : GenreTags.ByteSource {
+        private var position = 0
+        var calls = 0
+            private set
+
+        override fun read(count: Int): ByteArray? {
+            calls++
+            if (position + count > bytes.size) return null
+            return bytes.copyOfRange(position, position + count).also { position += count }
+        }
+
+        override fun readUpTo(count: Int): ByteArray {
+            calls++
+            val end = minOf(bytes.size, position + count)
+            return bytes.copyOfRange(position, end).also { position = end }
+        }
+
+        override fun skip(count: Long): Boolean {
+            calls++
+            if (position + count > bytes.size) return false
+            position += count.toInt()
+            return true
+        }
+    }
+
+    @Test
+    fun aFlacBlockChainThatRunsIntoZerosIsLeftAfterAFewReads() {
+        // STREAMINFO not marked last, then a megabyte of zeros: every four of them read as one more
+        // empty STREAMINFO block, and the walk used to go on to the end of the file at every launch.
+        val file = "fLaC".encodeToByteArray() + byteArrayOf(0, 0, 0, 34) + ByteArray(34) + ByteArray(1 shl 20)
+        val source = CountingSource(file)
+        assertNull(GenreTags.embeddedComments(source))
+        assertTrue(source.calls < 16, "${source.calls} reads")
+    }
+
+    @Test
+    fun aFlacFileMustOpenWithItsStreamInfoAndHoldNoInvalidBlock() {
+        val comment = vorbisComment("v", listOf("GENRE=Rock"))
+        // The comment block first: not a FLAC stream.
+        assertNull(GenreTags.flacGenres(ArraySource(flacFile(listOf(4 to comment)))))
+        // STREAMINFO of another length, a second STREAMINFO, and the invalid block type 127.
+        assertNull(GenreTags.flacGenres(ArraySource(flacFile(listOf(0 to ByteArray(30), 4 to comment)))))
+        assertNull(GenreTags.flacGenres(ArraySource(flacFile(listOf(0 to ByteArray(34), 0 to ByteArray(34), 4 to comment)))))
+        assertNull(GenreTags.flacGenres(ArraySource(flacFile(listOf(0 to ByteArray(34), 127 to ByteArray(8), 4 to comment)))))
+        assertEquals(listOf("Rock"), GenreTags.flacGenres(ArraySource(flacFile(listOf(0 to ByteArray(34), 4 to comment)))))
+    }
+
     @Test
     fun flacTruncatedMidBlockDeclinesRatherThanMisreads() {
         val comment = vorbisComment("v", listOf("GENRE=Rock", "GENRE=Pop"))
-        val file = flacFile(listOf(4 to comment))
+        val file = flacFile(listOf(0 to ByteArray(34), 4 to comment))
         // The block header claims more bytes than the file holds: a corrupt file, declined.
         val cut = file.copyOfRange(0, file.size - 3)
         assertNull(GenreTags.flacGenres(ArraySource(cut)))

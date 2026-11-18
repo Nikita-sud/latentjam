@@ -86,11 +86,36 @@ public object TagFacts {
     /**
      * [embedded] over positional reads; an ID3 tag's pictures are never loaded. An MP4 file, which
      * the one-pass reader has no path for, answers only whether it names an album
-     * ([Mp4AlbumProbe]); null still means "could not read", never "names nothing".
+     * ([Mp4AlbumProbe]), and so does every other file that reader does not take ([albumAlone]).
+     *
+     * A file that was read always gets an answer, so it is read once per revision: one whose album
+     * cannot be judged says so ([EmbeddedTagFacts.albumKnown] false). Only a [source] that fails
+     * (it throws) gives none, and null is kept for callers that tell "could not read" by it.
      */
     public fun embedded(source: RandomAccessSource): EmbeddedTagFacts? {
-        val comments = GenreTags.embeddedComments(source) ?: return Mp4AlbumProbe.read(source)
+        val comments = GenreTags.embeddedComments(source) ?: return Mp4AlbumProbe.read(source) ?: albumAlone(source)
         return fromComments(comments)
+    }
+
+    /**
+     * What a file none of the facts readers takes says of its album, and nothing else.
+     *
+     * - An MP3 or ADTS stream with no ID3v2 tag in front, the commonest file with neither album nor
+     *   cover: it names the album of its ID3v1 trailer, or none. MediaStore files such a song under
+     *   its folder's name, and while this read as "could not read" nothing could tell (issue #39).
+     * - An ID3v2.2 tag: its `TAL` frame ([Id3v22AlbumProbe]).
+     * - Anything else (a tag the strict reader refuses, WAV, WMA): read, but it cannot be told.
+     */
+    private fun albumAlone(source: RandomAccessSource): EmbeddedTagFacts {
+        Id3v22AlbumProbe.read(source)?.let { return it }
+        val head = source.read(0, minOf(source.length, TagCodec.HEAD_BYTES.toLong()).toInt())
+        if (head != null && !Id3Codec.looksLikeTag(head) && Id3Tags.canPrependTag(head)) {
+            val snapshot = Id3TagCodec.read(source)
+            if (snapshot.refusal == null) {
+                return EmbeddedTagFacts(album = snapshot.album?.trim()?.takeIf { it.isNotEmpty() })
+            }
+        }
+        return EmbeddedTagFacts(albumKnown = false)
     }
 
     /** Facts from decoded `KEY=value`-style entries (Vorbis comments or mapped ID3 frames). */

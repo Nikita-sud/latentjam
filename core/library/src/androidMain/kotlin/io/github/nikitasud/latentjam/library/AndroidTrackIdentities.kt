@@ -241,6 +241,10 @@ internal class AndroidTrackIdentities(
     @Synchronized
     fun sourceId(id: TrackId): String = load()[id.value]?.source ?: id.value
 
+    /** The storage volumes the registered tracks are on, as a scan names them (lower case). */
+    @Synchronized
+    fun volumes(): Set<String> = load().values.mapNotNullTo(HashSet()) { it.volume.takeIf(String::isNotEmpty) }
+
     /**
      * [track]'s tags, or null when they could not be read. [tooLarge] is the answer for a file that
      * breaks the reader with an Error (a tag larger than the heap is an OutOfMemoryError): one file
