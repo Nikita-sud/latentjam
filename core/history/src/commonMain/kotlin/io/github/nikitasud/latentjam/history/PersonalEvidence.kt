@@ -22,7 +22,7 @@ public fun personalTrack(track: TrackDescriptor, artists: List<String>): Persona
     id = track.id,
     key = SmartRanker.versionKey(track, artists.firstOrNull().orEmpty(), v2 = true),
     artists = artists,
-    album = track.album?.trim()?.takeIf(String::isNotEmpty)?.let { "${it.lowercase()}|${track.albumArtist?.trim()?.lowercase().orEmpty()}" },
+    album = track.rankingAlbum?.trim()?.takeIf(String::isNotEmpty)?.let { "${it.lowercase()}|${track.albumArtist?.trim()?.lowercase().orEmpty()}" },
     trackNumber = track.trackNumber,
     discNumber = track.discNumber,
     durationMs = track.durationMs,

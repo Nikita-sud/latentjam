@@ -556,7 +556,7 @@ public object LibraryWorlds {
      * would classify "Memento" as a meme because it begins with the same four letters.
      */
     private fun normalizedMetadata(track: TrackDescriptor): String {
-        val raw = listOf(track.title, track.artist, track.album, track.genre)
+        val raw = listOf(track.title, track.artist, track.rankingAlbum, track.genre)
             .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
             .joinToString(" ")
             .lowercase()

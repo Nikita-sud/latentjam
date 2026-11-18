@@ -215,6 +215,43 @@ internal class SmartPressFootprintTest {
         assertEquals(exact.map(Float::toRawBits), warm.hubPenalty.map(Float::toRawBits))
     }
 
+    @Test
+    fun `a folder name the library no longer shows as an album is still what SMART ranks with`() = runTest {
+        // As the scan reports songs whose files name no album: filed under their folder's name. Every sixth
+        // track here, the untagged ones among them, in folders whose names are class words too.
+        val folders = listOf("Audiobooks", "Karaoke", "Interviews", "Music")
+        val scanned = library.mapIndexed { k, track ->
+            if (k % 6 != 1) track else track.copy(album = folders[k % folders.size], folderPath = "Music/" + folders[k % folders.size])
+        }
+        // As the library publishes them: no album to show, the scanner's kept beside it.
+        val shown = scanned.map { if (it.folderPath == null) it else it.copy(album = null, scannerAlbum = it.album) }
+        assertEquals(184, shown.count { it.album == null && it.rankingAlbum != null })
+
+        for (judged in listOf(false, true)) {
+            suspend fun built(tracks: List<TrackDescriptor>): DefaultSimilarityEngine {
+                val engine = engine(FakeIndexStore(), FakeIndexStore(), judged = judged)
+                engine.initialize()
+                engine.indexLibrary(tracks)
+                engine.ensureMetadataVectors(tracks)
+                return engine
+            }
+            val fromScan = built(scanned)
+            val fromShown = built(shown)
+            val expected = requireNotNull(fromScan.smartSnapshot(history))
+            val actual = requireNotNull(fromShown.smartSnapshot(history))
+            assertEquals(digest(expected), digest(actual), "judged=$judged: the rows")
+            // The album of the same-album term, the class text and the repeat identity of an uncredited row.
+            assertEquals(expected.tracks.map { it.meta }, actual.tracks.map { it.meta }, "judged=$judged: the metadata")
+            for (seed in listOf(1, 7, 13, 3, 404, 777)) {
+                assertEquals(
+                    fromScan.smartQueue(scanned[seed], scanned, 12, history),
+                    fromShown.smartQueue(shown[seed], shown, 12, history),
+                    "judged=$judged: the queue from $seed",
+                )
+            }
+        }
+    }
+
     /** A real index that counts the calls that copy a stored vector: [VectorIndex.vector] and [VectorIndex.entries]. */
     private class CopyCountingIndex(private val inner: InMemoryVectorIndex) : VectorIndex by inner {
         var copiedVectors = 0

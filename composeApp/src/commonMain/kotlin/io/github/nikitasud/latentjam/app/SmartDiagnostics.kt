@@ -164,9 +164,9 @@ internal suspend fun diagnoseRecentSmartStarts(
         val tagRe = Regex("r&b|rnb|r'n'b|soul|slow jam|ballad", RegexOption.IGNORE_CASE)
         val probe = LinkedHashMap<TrackId, MutableSet<String>>()
         fun add(id: TrackId, why: String) { if (id != seed.id) probe.getOrPut(id) { LinkedHashSet() } += why }
-        val seedAlbum = seed.album?.takeIf(String::isNotBlank)
+        val seedAlbum = seed.rankingAlbum?.takeIf(String::isNotBlank)
         for (t in library) {
-            if (seedAlbum != null && t.album == seedAlbum) add(t.id, "album")
+            if (seedAlbum != null && t.rankingAlbum == seedAlbum) add(t.id, "album")
             if (seed.folderPath != null && t.folderPath == seed.folderPath) add(t.id, "folder")
             if (t.genre?.let(tagRe::containsMatchIn) == true) add(t.id, "tag")
         }

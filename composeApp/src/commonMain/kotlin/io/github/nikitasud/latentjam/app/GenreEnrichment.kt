@@ -39,8 +39,11 @@ import kotlinx.coroutines.yield
  * without one under its folder's name, and that pseudo-album's cover belongs to another song in the
  * folder (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). A folder's name
  * is no album either (issue #39): where the scanner's album is the folder's name and the file was
- * read and is not known to name an album, the song has none, for every reader of the library. A
- * song whose file has not been read at its revision yet keeps what the scanner said until it is.
+ * read whole and names no album, the song has none, for everything the listener sees. SMART's
+ * ranking keeps reading what the scanner said ([TrackDescriptor.rankingAlbum]). A song whose
+ * file cannot tell (a tag read in part or refused, a container no reader judges), or has not been
+ * read yet, keeps what the scanner said, exactly as before. A file that changed since it was read
+ * keeps its "no album" only while the scanner still gives the folder's name.
  *
  * A cache entry is keyed by [TrackDescriptor.sourceRevision]: retagging changes the revision,
  * which makes the entry stale and the file re-read. "Read fine, found nothing" is remembered
@@ -108,9 +111,30 @@ internal class GenreEnrichment(
                 // The file changed and waits to be read again. Its remembered length still stands in where the scanner
                 // gives none: the engine keys a track's analysis by its length, and a track that lost it for the
                 // minutes until the re-read would be analysed anew, and lose what a tag edit carries over.
-                val length = stored.durationMs?.takeIf { it > 0 && track.durationMs == null } ?: return
-                val target = result ?: library.toMutableList().also { result = it }
-                target[index] = track.copy(durationMs = length)
+                val length = stored.durationMs?.takeIf { it > 0 && track.durationMs == null }
+                // So does its "names no album", while the scanner still gives the folder's name. A tag saved into
+                // such a song (its title, say) otherwise brought the folder back as its album, with the folder's
+                // cover, until the re-read took both away again: a tile that came and went, the catalog built
+                // twice. An album typed meanwhile makes the scanner's album another name, and that one is shown;
+                // one typed that is the folder's name comes back with the re-read ([mergedInto]).
+                val albumless = stored.album == AlbumFact.NONE && folderAlbums &&
+                    albumIsFolderName(track.rankingAlbum, track.folderPath, track.storageVolume)
+                if (length == null && !albumless) return
+                val held = if (albumless) {
+                    track.copy(
+                        durationMs = length ?: track.durationMs,
+                        album = null,
+                        scannerAlbum = track.rankingAlbum,
+                        artworkUri = track.artworkUri?.let { ownCover(it, track.sourceRevision) },
+                    )
+                } else {
+                    track.copy(durationMs = length)
+                }
+                // A library that is already held so (the list published before the re-read) stays as it is.
+                if (held != track) {
+                    val target = result ?: library.toMutableList().also { result = it }
+                    target[index] = held
+                }
                 return
             }
             val merged = stored.mergedInto(track, pool)
@@ -148,12 +172,16 @@ internal class GenreEnrichment(
         val language = language?.shared() ?: track.language
         val albumArtist = albumArtist?.unlessMangling(track.albumArtist)?.shared() ?: track.albumArtist
         val year = track.year ?: year
-        // The scanner's album is the folder's name and the file is not known to name one: it has no album.
-        val folderNamed = album != AlbumFact.NAMED && folderAlbums &&
-            albumIsFolderName(track.album, track.folderPath, track.storageVolume)
-        val trackAlbum = if (folderNamed) null else track.album
-        val albumArtworkUri = if (folderNamed) null else track.albumArtworkUri
-        val artworkUri = if (album == AlbumFact.NONE || folderNamed) {
+        // The scanner's album is the folder's name and the file, read whole, names none: it has no album. A file
+        // that cannot tell keeps the scanner's: it may well have read a real album that is the folder's name.
+        // What the scanner said stays on the descriptor ([TrackDescriptor.scannerAlbum]) for what SMART ranks
+        // with, and is the album again as soon as a line says the file names one.
+        val scanned = track.rankingAlbum
+        val folderNamed = album == AlbumFact.NONE && folderAlbums &&
+            albumIsFolderName(scanned, track.folderPath, track.storageVolume)
+        val trackAlbum = if (folderNamed) null else scanned
+        val scannerAlbum = if (folderNamed) scanned else null
+        val artworkUri = if (album == AlbumFact.NONE) {
             track.artworkUri?.let { ownCover(it, track.sourceRevision) }
         } else {
             track.artworkUri
@@ -163,13 +191,13 @@ internal class GenreEnrichment(
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
             albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri &&
-            durationMs == track.durationMs && trackAlbum == track.album && albumArtworkUri == track.albumArtworkUri
+            durationMs == track.durationMs && trackAlbum == track.album && scannerAlbum == track.scannerAlbum
         ) {
             track
         } else {
             track.copy(
                 album = trackAlbum,
-                albumArtworkUri = albumArtworkUri,
+                scannerAlbum = scannerAlbum,
                 genre = genre,
                 artists = artists,
                 originalYear = originalYear,
@@ -319,7 +347,8 @@ internal class GenreEnrichment(
 
         /**
          * The file was read, but whether it names an album cannot be told: a tag read in part, or a container no
-         * reader judges. A build that knows only "0" and "1" reads this as "names one" and keeps the fallback.
+         * reader judges. Treated as [NAMED] (the scanner's album and its cover fallback stand); kept apart so the
+         * file is read once. A build that knows only "0" and "1" reads this as "names one" too.
          */
         UNKNOWN("2"),
     }

@@ -2258,7 +2258,7 @@ internal class DefaultSimilarityEngine(
         textRow = text,
         energy = energy ?: Float.NaN,
         meta = TrackMeta(
-            title, artist, album, genre, year, durationMs,
+            title, artist, rankingAlbum, genre, year, durationMs,
             primaryArtist = artists.firstOrNull(),
             originalYear = originalYear,
             artistSet = keys,
@@ -2294,7 +2294,7 @@ internal class DefaultSimilarityEngine(
     private fun albumArtists(tracks: Iterable<TrackDescriptor>): Map<String, String> {
         val counts = LinkedHashMap<String, LinkedHashMap<String, Int>>()
         for (t in tracks) {
-            val album = albumKey(t.album) ?: continue
+            val album = albumKey(t.rankingAlbum) ?: continue
             val key = (if (config.artistSets) artistSetOf(t) else listOf(HabitSlots.artistKey(t))).firstOrNull { it.isNotEmpty() } ?: continue
             val m = counts.getOrPut(album) { LinkedHashMap() }
             m[key] = (m[key] ?: 0) + 1
@@ -2316,8 +2316,8 @@ internal class DefaultSimilarityEngine(
         val title = MetadataRerank.normalizeTitle(track.title).ifEmpty { MetadataRerank.normalizeTitle(track.fileName?.substringBeforeLast('.')) }
         if (title.isEmpty()) return null
         val guess = albumArtistGuess ?: albumArtists(knownTracks.values()).also { albumArtistGuess = it }
-        albumKey(track.album)?.let { guess[it] }?.let { return it to title }
-        val named = listOf(track.albumArtist, track.album)
+        albumKey(track.rankingAlbum)?.let { guess[it] }?.let { return it to title }
+        val named = listOf(track.albumArtist, track.rankingAlbum)
             .firstOrNull { !it.isNullOrBlank() && !ArtistSets.isPlaceholder(it) }?.let(ArtistSets::normalize)?.takeIf(String::isNotEmpty)
         if (named != null) return "~$named" to title
         // Only a file name: "01.mp3" in two folders are two songs, so the folder is part of the identity.

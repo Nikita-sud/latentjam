@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.library.AlbumSort
 import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.SongSort
+import io.github.nikitasud.latentjam.library.tags.ByteArraySource
 import io.github.nikitasud.latentjam.library.tags.EmbeddedTagFacts
 import io.github.nikitasud.latentjam.library.tags.GenreTags
 import io.github.nikitasud.latentjam.library.tags.TagFacts
@@ -239,7 +240,7 @@ internal class GenreEnrichmentTest {
         // Not read yet: what the scanner said stands until the file has answered.
         assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
         assertTrue(enrichment.backfill(listOf(inFolder)))
-        val albumless = inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null)
+        val albumless = inFolder.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
         assertEquals(listOf(albumless), enrichment.apply(listOf(inFolder)))
         // Applied to its own result it changes nothing, and the file is not read again.
         assertEquals(listOf(albumless), enrichment.apply(listOf(albumless)))
@@ -249,23 +250,26 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
-    fun aFileThatCannotTellItsAlbumLosesOnlyAFolderName() = runTest {
-        // A container no reader judges (WAV, a tag the strict reader refuses): read, remembered, undecided.
+    fun aFileThatCannotTellItsAlbumKeepsWhatTheScannerSaid() = runTest {
+        // A tag read in part, a tag the strict reader refuses, a container no reader judges (WAV): the scanner
+        // may have read a real album that happens to be the folder's name ("Artist/Album/01.wav"), so nothing is
+        // taken away. Flipped after review: such a file used to lose a folder-named album.
         val settings = MemorySettings()
         var reads = 0
-        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) {
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
             reads++
             EmbeddedTagFacts(albumKnown = false)
         }
         val elsewhere = inFolder.copy(id = TrackId("elsewhere"), album = "Abbey Road")
-        assertTrue(enrichment.backfill(listOf(inFolder, elsewhere)))
-        assertEquals(
-            listOf(inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null), elsewhere),
-            enrichment.apply(listOf(inFolder, elsewhere)),
-        )
-        // Remembered as "cannot tell": a build that knows only 0 and 1 reads it as "names one".
+        assertFalse(enrichment.backfill(listOf(inFolder, elsewhere)))
+        val applied = enrichment.apply(listOf(inFolder, elsewhere))
+        assertEquals(listOf(inFolder, elsewhere), applied)
+        assertTrue(applied[0] === inFolder && applied[1] === elsewhere)
+        // Remembered as "cannot tell", so the file is read once: a build that knows only 0 and 1 reads it as "names one".
         assertTrue(settings.trackGenresPayload!!.lines().all { it.endsWith("|2") })
-        assertFalse(GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { error("read once") }.backfill(listOf(inFolder, elsewhere)))
+        val restarted = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) { error("read once") }
+        assertFalse(restarted.backfill(listOf(inFolder, elsewhere)))
+        assertEquals(listOf(inFolder, elsewhere), restarted.apply(listOf(inFolder, elsewhere)))
         assertEquals(2, reads)
     }
 
@@ -284,17 +288,139 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
-    fun aChangedFileKeepsTheScannersAlbumUntilItIsReadAgain() = runTest {
-        // The album tag may be what changed: nothing remembered of the old bytes decides for the new ones.
+    fun aSavedTagDoesNotBringTheFolderBackAsTheAlbum() = runTest {
+        // The title of an album-less song is edited: the scan after the save meets a line of the old revision.
+        // While the scanner still says the folder's name, that line's "no album" stands, and nothing flashes.
+        val settings = MemorySettings()
+        var reads = 0
+        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) {
+            reads++
+            EmbeddedTagFacts()
+        }
+        enrichment.backfill(listOf(inFolder))
+        val saved = inFolder.copy(title = "A new title", sourceRevision = "revision|2")
+        val albumless = saved.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
+        assertEquals(listOf(albumless), enrichment.apply(listOf(saved)))
+        // The re-read says the same: nothing is published a second time.
+        assertFalse(enrichment.backfill(listOf(albumless)))
+        assertEquals(2, reads)
+        assertEquals(listOf(albumless), enrichment.apply(listOf(saved)))
+    }
+
+    @Test
+    fun anAlbumTypedIntoAnAlbumlessSongIsShownAtOnce() = runTest {
+        // The scanner's album is no longer the folder's name: it came from the file, whatever the old line said.
+        val settings = MemorySettings()
+        GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { EmbeddedTagFacts() }.backfill(listOf(inFolder))
+        val typed = inFolder.copy(album = "Kaadhal", sourceRevision = "revision|2")
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            EmbeddedTagFacts(album = "Kaadhal")
+        }
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
+        assertFalse(enrichment.backfill(listOf(typed)))
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
+    }
+
+    @Test
+    fun anAlbumTypedThatIsTheFoldersNameComesBackWithTheReRead() = runTest {
+        // The one case the scanner's text cannot settle: the old line holds until the file is read again,
+        // and then the album the scan reported is given back without waiting for another scan.
         val settings = MemorySettings()
         var facts = EmbeddedTagFacts()
         val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { facts }
         enrichment.backfill(listOf(inFolder))
-        val retagged = inFolder.copy(sourceRevision = "revision|2")
-        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+        val typed = inFolder.copy(sourceRevision = "revision|2")
+        val published = enrichment.apply(listOf(typed))
+        assertEquals(listOf(typed.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")), published)
         facts = EmbeddedTagFacts(album = "TAMIL")
-        enrichment.backfill(listOf(retagged))
-        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+        assertTrue(enrichment.backfill(published))
+        // The album and its identity are back; the cover keeps to the song's own until the next scan.
+        assertEquals(listOf(typed.copy(artworkUri = "song-cover")), enrichment.apply(published))
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
+    }
+
+    private val mpegAudio = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64) + ByteArray(1024)
+
+    /** An ID3v2.3 tag holding one text frame, under the header's [flags]. */
+    private fun id3v23(frameName: String, value: String, flags: Int): ByteArray {
+        val text = byteArrayOf(0) + value.encodeToByteArray()
+        val frame = frameName.encodeToByteArray() + byteArrayOf(0, 0, 0, text.size.toByte(), 0, 0) + text
+        return "ID3".encodeToByteArray() + byteArrayOf(3, 0, flags.toByte(), 0, 0, 0, frame.size.toByte()) + frame
+    }
+
+    @Test
+    fun aTagTheReaderRefusesKeepsTheAlbumTheScannerReadFromIt() = runTest {
+        // "Abbey Road/01.mp3" tagged "Abbey Road", in a tag with the unsynchronisation flag: the strict reader
+        // refuses it, Android's scanner reads it. The album is the file's own and must stay, with its cover.
+        assertEquals("Abbey Road", TagFacts.embedded(ByteArraySource(id3v23("TALB", "Abbey Road", flags = 0) + mpegAudio))?.album)
+        val file = id3v23("TALB", "Abbey Road", flags = 0x80) + mpegAudio
+        val tagged = inFolder.copy(album = "Abbey Road", folderPath = "The Beatles/Abbey Road")
+        val settings = MemorySettings()
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            TagFacts.embedded(ByteArraySource(file))
+        }
+        assertFalse(enrichment.backfill(listOf(tagged)))
+        val applied = enrichment.apply(listOf(tagged)).single()
+        assertTrue(applied === tagged)
+        assertEquals("song-cover+album", applied.artworkUri)
+        // Remembered, so the file is not opened again at every publish.
+        assertTrue(settings.trackGenresPayload!!.endsWith("|2"))
+        assertFalse(enrichment.backfill(listOf(tagged)))
+    }
+
+    @Test
+    fun onlyAFileReadWholeThatNamesNoAlbumLosesAFolderName() = runTest {
+        val albumless = inFolder.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
+        val id3v1 = ByteArray(128).also { "TAG".encodeToByteArray().copyInto(it) }
+        val readWhole = mapOf(
+            "an untagged MP3" to mpegAudio,
+            "an ID3v1 trailer without an album" to mpegAudio + id3v1,
+            "an ID3v2 tag without TALB" to id3v23("TIT2", "A title", flags = 0) + mpegAudio,
+        )
+        for ((kind, file) in readWhole) {
+            val enrichment = GenreEnrichment(MemorySettings(), ownCover = stripped, folderAlbums = true) {
+                TagFacts.embedded(ByteArraySource(file))
+            }
+            assertTrue(enrichment.backfill(listOf(inFolder)), kind)
+            assertEquals(listOf(albumless), enrichment.apply(listOf(inFolder)), kind)
+        }
+        // A container no reader judges: the scanner's album stands, as 0.9.5 showed it.
+        val wave = "RIFF".encodeToByteArray() + ByteArray(4) + "WAVEfmt ".encodeToByteArray() + ByteArray(64)
+        val enrichment = GenreEnrichment(MemorySettings(), ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            TagFacts.embedded(ByteArraySource(wave))
+        }
+        assertFalse(enrichment.backfill(listOf(inFolder)))
+        assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun whatSmartRanksWithIsStillWhatTheScannerSaid() = runTest {
+        // Owner's limit: SMART's inputs stay as in 0.9.5. The listener sees no album; SMART reads the scanner's.
+        val tagged = inFolder.copy(id = TrackId("tagged"), album = "Thriller", folderPath = "Michael Jackson/Thriller")
+        val unread = inFolder.copy(id = TrackId("unread"))
+        val enrichment = GenreEnrichment(MemorySettings(), ownCover = stripped, folderAlbums = true) { track ->
+            when (track.id.value) {
+                "tagged" -> EmbeddedTagFacts(album = "Thriller")
+                "unread" -> null
+                else -> EmbeddedTagFacts()
+            }
+        }
+        enrichment.backfill(listOf(inFolder, tagged, unread))
+        val (albumless, named, unjudged) = enrichment.apply(listOf(inFolder, tagged, unread))
+
+        assertNull(albumless.album)
+        assertEquals("TAMIL", albumless.scannerAlbum)
+        assertEquals(inFolder.album, albumless.rankingAlbum)
+        // Nothing else SMART reads moved: with the album and the cover put back it is the scan's descriptor.
+        assertEquals(inFolder, albumless.copy(album = inFolder.album, scannerAlbum = null, artworkUri = inFolder.artworkUri))
+        // A track nobody corrected carries nothing extra: its ranking album is its album.
+        for ((scan, applied) in listOf(tagged to named, unread to unjudged)) {
+            assertTrue(applied === scan)
+            assertNull(applied.scannerAlbum)
+            assertEquals(applied.album, applied.rankingAlbum)
+        }
+        assertEquals("Blue", TrackDescriptor(TrackId("plain"), album = "Blue").rankingAlbum)
+        assertNull(TrackDescriptor(TrackId("plain")).rankingAlbum)
     }
 
     @Test
