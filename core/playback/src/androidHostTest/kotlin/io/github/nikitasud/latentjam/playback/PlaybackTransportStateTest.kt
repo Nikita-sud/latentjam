@@ -35,4 +35,14 @@ class PlaybackTransportStateTest {
         assertFalse(showPauseButton(true, Player.STATE_IDLE, pausePending = false))
         assertFalse(showPauseButton(true, Player.STATE_ENDED, pausePending = false))
     }
+
+    @Test
+    fun onlyThePlayersOwnStopAtTheEndOfARowCountsAsPlayedOut() {
+        assertTrue(pausedAtEndOfItem(playWhenReady = false, reason = Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM))
+        // A pause by the listener, by a call or by unplugged headphones leaves the row unfinished.
+        assertFalse(pausedAtEndOfItem(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST))
+        assertFalse(pausedAtEndOfItem(false, Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS))
+        assertFalse(pausedAtEndOfItem(false, Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY))
+        assertFalse(pausedAtEndOfItem(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST))
+    }
 }

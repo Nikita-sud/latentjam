@@ -165,6 +165,13 @@ internal class AndroidPlaybackController(
 
     /** Main-thread only: an edit of several player commands is under way; see [retainQueue]. */
     private var bulkQueueEdit = false
+
+    /**
+     * Main-thread only: the row the player stopped at by itself, at its end ([NowPlaying.pausedAtItemEnd]); null once
+     * it plays again or the listener seeks. Kept by id: a new cover or tag for that row re-describes it and changes
+     * nothing about where it stands.
+     */
+    private var pausedAtEndOfId: String? = null
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
 
@@ -241,6 +248,7 @@ internal class AndroidPlaybackController(
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             pendingAdvance.invalidate()
+            pausedAtEndOfId = controller?.currentMediaItem?.mediaId?.takeIf { pausedAtEndOfItem(playWhenReady, reason) }
             pushState()
         }
 
@@ -388,6 +396,8 @@ internal class AndroidPlaybackController(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
+            // A seek away from the end: the row is no longer played out.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) pausedAtEndOfId = null
             pendingAdvance.invalidate()
             pushState()
         }
@@ -1661,6 +1671,8 @@ internal class AndroidPlaybackController(
             smartContinuationIds = continuationSnapshot.get(visibleQueue, smartContinuationIds),
             smartPlanPositions = planPositionSnapshot.get(visibleQueue, smartPlanPositions),
             playbackStart = AndroidPlaybackStarts.current.value,
+            pausedAtItemEnd = pausedAtEndOfId != null && player?.playWhenReady == false &&
+                player.currentMediaItem?.mediaId == pausedAtEndOfId,
         )
     }
 
