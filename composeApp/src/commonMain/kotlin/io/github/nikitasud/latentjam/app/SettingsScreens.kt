@@ -2275,15 +2275,10 @@ private fun IntelligenceSettings(
             onConfirm = {
                 confirmRebuild = false
                 scope.launch {
-                    rebuilding = true
-                    try {
+                    // The flag is down before the failure is shown: the notice stays for seconds.
+                    snackbarHostState.showAfterBusy({ rebuilding = it }, operationFailed) {
                         onRebuildAnalysis()
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Throwable) {
-                        snackbarHostState.showSnackbar(operationFailed)
-                    } finally {
-                        rebuilding = false
+                        null
                     }
                 }
             },
