@@ -10,7 +10,6 @@ import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.playback.allowed
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
-import kotlinx.coroutines.flow.first
 
 /** One unconditional composition owner for launch restore and external playback requests. */
 @Composable
@@ -100,16 +99,21 @@ private suspend fun restoreSavedQueue(
     loaded: List<TrackDescriptor>,
     authoritative: Boolean,
     playlistsState: PlaylistsState,
-    /** False when a hold is being settled: the saved session's writer ends it once the player has the new queue. */
-    assignHold: Boolean = true,
+    /**
+     * Given when a hold is being settled ([settleHeldResumeQueue]): asked right before the queue is handed to the
+     * player, and a "no" leaves the player as it is. The hold is then not assigned either: the saved session's
+     * writer ends it once the player has the new queue. The mode is the player's own already and is not set again.
+     */
+    stillWanted: (() -> Boolean)? = null,
 ) {
+    val assignHold = stillWanted == null
     // The mode is the more important half — restore it even when the track is gone
     // (deleted, SD card unmounted): SMART being on is what the user asked to keep.
     // While SMART is switched off a session saved in SMART comes back in plain order, with its rows as plain rows.
     val storedMode = ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode }
     val savedMode = storedMode?.allowed(AppGraph.settings.smartEnabled.value)
     val smartKept = savedMode == storedMode
-    savedMode?.let { playback.setShuffleMode(it) }
+    if (stillWanted == null) savedMode?.let { playback.setShuffleMode(it) }
     // Prefer the queue that was ACTUALLY playing — a playlist stays that playlist across
     // a restart. Tracks deleted meanwhile drop out; if the saved track itself is gone or
     // no queue was saved, fall back to wrapping the track in the whole library.
@@ -135,9 +139,14 @@ private suspend fun restoreSavedQueue(
     // Assigned either way: a hold left by an earlier restore does not describe this one.
     if (assignHold) {
         resumeQueueHold.value = if (savedQueueIndex < 0) null else {
-            heldResumeQueue(saved, resolvedSavedQueue.map { it.first }, byId::containsKey, authoritative)
+            heldResumeQueue(
+                saved, resolvedSavedQueue.map { it.first }, byId::containsKey, authoritative,
+                // Before the restore below: its own start is nobody's hand, a request made after it is.
+                madeAt = playback.resumeHoldMoment(),
+            )
         }
     }
+    if (stillWanted?.invoke() == false) return
     if (savedQueueIndex >= 0) {
         playback.restoreQueue(
             tracks = savedQueue,
@@ -177,7 +186,8 @@ private suspend fun restoreSavedQueue(
  * Settles [hold] against the first scan that can vouch for itself ([request]). Rows that scan shows and the player
  * lacks are put back by restoring the stored queue again at the player's own track and position; with none to put
  * back the missing rows are gone, and the queue is stored as it is from then on. It waits for a pause, since a
- * restore loads its queue paused, and does nothing once the listener has another queue.
+ * restore loads its queue paused, and does nothing once the listener has another queue or has used the player
+ * since the hold was made ([listenerActedSince]): the hold then stays, and the next start restores the stored queue.
  */
 private suspend fun settleHeldResumeQueue(
     playback: PlaybackController,
@@ -185,7 +195,7 @@ private suspend fun settleHeldResumeQueue(
     request: () -> AutomaticIndexingRequest?,
     playlistsState: PlaylistsState,
 ) {
-    val now = playback.state.first { !it.isPlaying }
+    val now = awaitRestForHeldQueue(playback, hold.madeAt) ?: return
     val current = request()?.takeIf { it.librarySnapshotAuthoritative } ?: return
     if (resumeQueueHold.value !== hold) return
     val liveIds = now.queue.map { it.id.value }
@@ -213,7 +223,9 @@ private suspend fun settleHeldResumeQueue(
     }
     // The hold is left as it is: a player that takes the queue shows other rows, which ends the hold where the
     // session is written; one that declines (the listener pressed play meanwhile) still needs it.
-    restoreSavedQueue(playback, saved, current.tracks, authoritative = true, playlistsState, assignHold = false)
+    restoreSavedQueue(playback, saved, current.tracks, authoritative = true, playlistsState) {
+        playback.atRestSince(hold.madeAt)
+    }
 }
 
 /** Whether a library holding [known] has a row of [saved]'s queue or source that the player ([liveIds], [liveSourceIds]) lacks. */
