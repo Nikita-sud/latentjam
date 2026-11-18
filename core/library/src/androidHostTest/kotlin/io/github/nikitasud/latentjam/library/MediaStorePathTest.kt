@@ -47,6 +47,7 @@ class MediaStorePathTest {
 
         assertEquals(emptyList(), scan.tracks)
         assertFalse(scan.complete)
+        assertFalse(scan.answered)
     }
 
     @Test
@@ -55,6 +56,7 @@ class MediaStorePathTest {
 
         assertEquals(emptyList(), scan.tracks)
         assertFalse(scan.complete)
+        assertFalse(scan.answered)
     }
 
     @Test
@@ -78,5 +80,6 @@ class MediaStorePathTest {
 
         assertEquals(emptyList(), scan.tracks)
         assertTrue(scan.complete)
+        assertTrue(scan.answered)
     }
 }

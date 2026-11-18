@@ -209,6 +209,39 @@ internal class AndroidTrackIdentities(
         return resolved
     }
 
+    /**
+     * [tracks] under the app ids that are on storage already, for a scan whose registry [resolve] could not save
+     * (storage full) or read (a damaged file): the library stays on screen, and nothing is shown that a restart
+     * would take back. A row keeps the id of its registered entry. An unregistered one goes by its own number, as
+     * [resolve] would name it, unless that number is an app id the registry gave to another song: such a row waits
+     * for a scan that can be saved. Nothing is relocated, registered or written, so the caller must not take the
+     * result for a complete scan.
+     *
+     * With no readable registry every row goes by its own number, and the file is left exactly as it is: a song
+     * that had been relocated is then without what is kept under its old id, which nothing here can name.
+     */
+    @Synchronized
+    fun durable(tracks: List<TrackDescriptor>, rowIds: RowIds = RowIds.UNVERSIONED): List<TrackDescriptor> {
+        val known = try {
+            load()
+        } catch (_: IOException) {
+            null
+        }
+        val aliases = sourceAliases
+        val seen = HashSet<String>(tracks.size * 2)
+        return tracks.mapNotNull { track ->
+            val source = track.id.value
+            if (!seen.add(source)) return@mapNotNull null
+            if (known == null) return@mapNotNull track
+            val entry = entryForSource(known, aliases, source)?.takeIf { sameFile(it, track, rowIds) }
+            when {
+                entry != null -> if (entry.id == source) track else track.copy(id = TrackId(entry.id))
+                source in known -> null
+                else -> track
+            }
+        }
+    }
+
     /** Cheap launch first; learn metadata in the existing background enrichment phase. */
     fun remember(cancellationCheck: () -> Unit = {}) {
         // No copy of the published map: scans replace it with a new one, and only this pass's own

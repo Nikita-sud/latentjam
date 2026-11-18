@@ -294,7 +294,8 @@ internal class MediaStoreMusicLibrary(
     private suspend fun queryTracks(): LibraryScan {
         val job = currentCoroutineContext()
         return synchronized(scanLock) {
-            mediaStoreLibraryScan {
+            var durable = true
+            mediaStoreLibraryScan(durable = { durable }) {
                 val tracks = queryRawTracks() ?: return@mediaStoreLibraryScan null
                 val version = providerVersion()
                 val rowIds = rowIds(current = version, recorded = recordedProviderVersion())
@@ -308,15 +309,19 @@ internal class MediaStoreMusicLibrary(
                         cancellationCheck = { job.ensureActive() },
                     )
                 } catch (_: java.io.IOException) {
-                    // A registry that could not be read or committed is not an authoritative scan.
-                    return@mediaStoreLibraryScan null
+                    // A registry that could not be read or committed (storage full, a damaged file) is not an
+                    // authoritative scan, but the music is still there: an empty answer emptied the library on
+                    // screen and SMART's. The rows go by the ids already on storage, and the scan is not complete.
+                    durable = false
+                    identities.durable(tracks, rowIds)
                 }
                 // Only now that the registry holds this scan's rows: recorded before, a scan that then failed would
                 // leave the next one believing ids it never checked. A version that cannot be kept is checked again.
-                if (rowIds == RowIds.NEW_DATABASE && version != null) {
+                if (durable && rowIds == RowIds.NEW_DATABASE && version != null) {
                     runCatching { providerVersionFile.atomicReplaceText(version) }
                 }
-                // Only a complete scan may tell the cover overrides which songs are gone.
+                // Only a complete scan may tell the cover overrides which songs are gone: one that is not durable dates
+                // a missing song at most, and it is undated again by the next scan that holds it.
                 coverOverrides.apply(withAlbumArtVersions(resolved))
             }
         }
@@ -735,13 +740,15 @@ private class ChannelSource(private val channel: FileChannel) : RandomAccessSour
  * A successfully returned empty list remains complete and can prove that the library is empty.
  */
 internal fun mediaStoreLibraryScan(
+    /** Asked after [query]: false when its rows go by ids the identity registry could not put on storage. */
+    durable: () -> Boolean = { true },
     query: () -> List<TrackDescriptor>?,
 ): LibraryScan = try {
     val tracks = query()
-    if (tracks == null) LibraryScan(tracks = emptyList(), complete = false)
-    else LibraryScan(tracks = tracks, complete = true)
+    if (tracks == null) LibraryScan(tracks = emptyList(), complete = false, answered = false)
+    else LibraryScan(tracks = tracks, complete = durable())
 } catch (_: SecurityException) {
-    LibraryScan(tracks = emptyList(), complete = false)
+    LibraryScan(tracks = emptyList(), complete = false, answered = false)
 }
 
 /**

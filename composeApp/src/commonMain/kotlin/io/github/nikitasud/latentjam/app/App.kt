@@ -377,6 +377,7 @@ private fun AppShell(
             // iOS may resolve its Music-library prompt inside scan(); Android refreshes here as
             // a second line of defence around a return from system settings.
             AppGraph.permissions.refresh()
+            if (keepsShownLibrary(scan, tracks)) return tracks.orEmpty()
             // Remembered embedded genres upgrade the scan before anything downstream sees it:
             // the system scanner keeps one genre per track, the files themselves keep them all.
             val enriched = genreEnrichment.apply(scan.tracks)

@@ -34,6 +34,12 @@ public data class LibrarySource(
 public data class LibraryScan(
     public val tracks: List<TrackDescriptor>,
     public val complete: Boolean,
+    /**
+     * False when the platform source gave no answer at all (Android's provider returned no cursor or refused the
+     * query): [tracks] is then empty and says nothing about the library, not even that it may be empty. An
+     * incomplete scan that was answered is a reading of what can be seen now, and may truly be empty.
+     */
+    public val answered: Boolean = true,
 )
 
 /**

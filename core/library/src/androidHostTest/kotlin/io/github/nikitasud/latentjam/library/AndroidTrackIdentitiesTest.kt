@@ -290,6 +290,58 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals(RowIds.UNVERSIONED, rowIds(current = null, recorded = null))
     }
 
+    @Test fun aRegistryThatCannotBeSavedStillServesTheLibraryUnderItsDurableIds() {
+        // Storage full and one new file: the registry must be rewritten and cannot be.
+        val f = Fixture(tags)
+        f.scan(track("10")); f.remember()
+        val baseline = f.disk.payload
+        f.disk.fail = true
+        val rows = listOf(track("10", "retagged"), track("11"))
+        assertFailsWith<IOException> { f.scan(*rows.toTypedArray()) }
+        var durable = true
+        val scan = mediaStoreLibraryScan(durable = { durable }) { durable = false; f.registry.durable(rows) }
+        assertEquals(rows, scan.tracks)
+        assertFalse(scan.complete, "ids that are not on storage prove nothing gone")
+        assertTrue(scan.answered)
+        assertEquals(baseline, f.disk.payload)
+        // Nothing was registered meanwhile: the next scan that can be saved does it.
+        f.disk.fail = false
+        assertEquals(rows, f.scan(*rows.toTypedArray()))
+        assertTrue(f.disk.payload != baseline)
+    }
+
+    @Test fun anUnsavedRelocationIsServedUnderItsRowAndAReusedIdIsNotServedAtAll() {
+        val f = Fixture(tags)
+        // Only the song that moves carries the release-track id: a second copy of it would veto the relocation.
+        f.reader = { if (it.id.value == "30") TrackIdentityTags() else tags }
+        f.scan(track("10"), row("30", "old song.mp3", seconds = 200, size = 4_800_000)); f.remember()
+        f.disk.fail = true
+        f.rowIds = RowIds.NEW_DATABASE
+        // 20 is the song of 10, moved: its old id is not durable for this row yet. 30 now names another file, and
+        // "30" is the app id of the song it named before.
+        val moved = track("20")
+        val reused = row("30", "another song.flac", seconds = 300, size = 31_000_000, generation = 2)
+        assertEquals(listOf(moved), f.registry.durable(listOf(moved, reused, moved), f.rowIds))
+        assertEquals("10", f.registry.sourceId(TrackId("10")))
+        f.disk.fail = false
+        val saved = f.scan(moved, reused)
+        assertEquals(TrackId("10"), saved[0].id)
+        assertTrue(saved[1].id != TrackId("30"))
+    }
+
+    @Test fun aDamagedRegistryServesTheRowsUnderTheirOwnNumbersAndIsLeftAlone() {
+        val f = Fixture(tags)
+        f.scan(track("10")); f.remember()
+        f.disk.payload = f.disk.payload!! + "x"
+        val damaged = f.disk.payload
+        f.restart()
+        val rows = listOf(track("10"), track("11"))
+        assertFailsWith<IOException> { f.scan(*rows.toTypedArray()) }
+        assertEquals(rows, f.registry.durable(rows))
+        assertEquals(damaged, f.disk.payload)
+        assertEquals(0, f.disk.writes - 2, "the baseline and the tag pass, nothing since")
+    }
+
     @Test fun corruptedRegistryIsNeverSilentlyReplaced() {
         val f = Fixture(tags)
         f.scan(track("10")); f.remember()
