@@ -56,7 +56,8 @@ class TagFactsTest {
         val header = byteArrayOf(
             0x84.toByte(), (body.size shr 16).toByte(), (body.size shr 8).toByte(), body.size.toByte(),
         )
-        val facts = assertNotNull(TagFacts.embedded(ArraySource("fLaC".encodeToByteArray() + header + body)))
+        val streamInfo = byteArrayOf(0, 0, 0, 34) + ByteArray(34)
+        val facts = assertNotNull(TagFacts.embedded(ArraySource("fLaC".encodeToByteArray() + streamInfo + header + body)))
         assertEquals("ron", facts.language)
         assertEquals(1987, facts.originalYear)
         assertEquals(2012, facts.year)
@@ -199,6 +200,79 @@ class TagFactsTest {
             TagEdits(albumArtist = "Various Artists"),
         )!!
         assertEquals("Various Artists", TagFacts.embedded(ArraySource(tagged))?.albumArtist)
+    }
+
+    private val mpegAudio = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64) + ByteArray(1024)
+
+    private fun id3v1(album: String): ByteArray = ByteArray(128).also { trailer ->
+        "TAG".encodeToByteArray().copyInto(trailer)
+        "A title".encodeToByteArray().copyInto(trailer, 3)
+        album.encodeToByteArray().copyInto(trailer, 63)
+        trailer[127] = 0xFF.toByte()
+    }
+
+    /** An ID3v2.2 tag: three-letter frame names and three-byte frame sizes. */
+    private fun id3v22(frames: List<Pair<String, ByteArray>>, padding: Int = 16, flags: Int = 0): ByteArray {
+        var body = ByteArray(0)
+        for ((name, content) in frames) {
+            body += name.encodeToByteArray() +
+                byteArrayOf((content.size shr 16).toByte(), (content.size shr 8).toByte(), content.size.toByte()) + content
+        }
+        body += ByteArray(padding)
+        val size = byteArrayOf(
+            ((body.size shr 21) and 0x7F).toByte(), ((body.size shr 14) and 0x7F).toByte(),
+            ((body.size shr 7) and 0x7F).toByte(), (body.size and 0x7F).toByte(),
+        )
+        return "ID3".encodeToByteArray() + byteArrayOf(2, 0, flags.toByte()) + size + body
+    }
+
+    @Test
+    fun anMp3WithoutAnyTagIsReadAndNamesNoAlbum() {
+        // The commonest file with neither album nor cover (issue #39): it used to read as "could not read".
+        val facts = assertNotNull(TagFacts.embedded(ByteArraySource(mpegAudio)))
+        assertNull(facts.album)
+        assertTrue(facts.albumKnown)
+        assertTrue(facts.isEmpty)
+    }
+
+    @Test
+    fun anMp3WithOnlyAnId3v1TrailerNamesThatTrailersAlbum() {
+        assertEquals("Blue", TagFacts.embedded(ByteArraySource(mpegAudio + id3v1("Blue")))?.album)
+        val blank = assertNotNull(TagFacts.embedded(ByteArraySource(mpegAudio + id3v1(""))))
+        assertNull(blank.album)
+        assertTrue(blank.albumKnown)
+    }
+
+    @Test
+    fun anId3v22TagAnswersWhetherItNamesAnAlbum() {
+        val title = "TT2" to (byteArrayOf(0) + "A title".encodeToByteArray())
+        val album = "TAL" to (byteArrayOf(0) + "Abbey Road".encodeToByteArray() + byteArrayOf(0))
+        val picture = "PIC" to ByteArray(3_000) { 0x55 }
+        assertEquals(
+            "Abbey Road",
+            TagFacts.embedded(ByteArraySource(id3v22(listOf(title, picture, album)) + mpegAudio))?.album,
+        )
+        val utf16 = "TAL" to (byteArrayOf(1, 0xFF.toByte(), 0xFE.toByte(), 'H'.code.toByte(), 0, 'i'.code.toByte(), 0))
+        assertEquals("Hi", TagFacts.embedded(ByteArraySource(id3v22(listOf(utf16), padding = 0) + mpegAudio))?.album)
+        val none = assertNotNull(TagFacts.embedded(ByteArraySource(id3v22(listOf(title, picture)) + mpegAudio)))
+        assertNull(none.album)
+        assertTrue(none.albumKnown)
+    }
+
+    @Test
+    fun aFileNoReaderCanJudgeIsReadButCannotTellItsAlbum() {
+        val wave = "RIFF".encodeToByteArray() + ByteArray(4) + "WAVEfmt ".encodeToByteArray() + ByteArray(64)
+        // An ID3v2.2 tag whose frames cannot be followed: unsynchronised, or cut short.
+        val album = "TAL" to (byteArrayOf(0) + "Abbey Road".encodeToByteArray())
+        val unsynchronised = id3v22(listOf(album), flags = 0x80) + mpegAudio
+        val cut = id3v22(listOf(album)).copyOf(18)
+        // An ID3v2.3 tag the strict reader refuses (the unsynchronisation flag).
+        val refused = "ID3".encodeToByteArray() + byteArrayOf(3, 0, 0x80.toByte(), 0, 0, 0, 20) + ByteArray(20) + mpegAudio
+        for (bytes in listOf(wave, unsynchronised, cut, refused, ByteArray(0))) {
+            val facts = assertNotNull(TagFacts.embedded(ByteArraySource(bytes)))
+            assertFalse(facts.albumKnown)
+            assertTrue(facts.isEmpty)
+        }
     }
 
     private fun littleEndian(value: Int): ByteArray = ByteArray(4) { (value ushr (it * 8)).toByte() }
