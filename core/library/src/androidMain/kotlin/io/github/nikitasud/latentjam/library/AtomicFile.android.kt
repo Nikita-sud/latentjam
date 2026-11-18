@@ -9,6 +9,7 @@ import android.system.OsConstants
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.OutputStreamWriter
 import java.io.Writer
 
@@ -26,7 +27,9 @@ internal fun File.atomicReplace(write: (Writer) -> Unit) {
             writer.flush()
             stream.fd.sync()
         }
-        check(temporary.renameTo(this)) { "Could not atomically replace $name" }
+        // An IOException like every other way a write fails: callers that keep going on a full or failing disk catch
+        // that, and the unchecked exception this used to be went past all of them.
+        if (!temporary.renameTo(this)) throw IOException("Could not atomically replace $name")
         // The temporary's own bytes are on storage, but the directory entry that now names them is
         // not: after a power cut the rename could be lost and the old file read back instead.
         syncDirectory(parentFile)

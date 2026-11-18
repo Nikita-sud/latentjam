@@ -68,11 +68,41 @@ internal class AndroidTrackIdentities(
     private val shared = HashMap<String, String>()
 
     @Synchronized
-    fun needsRelocationProbe(tracks: List<TrackDescriptor>): Boolean {
+    fun needsRelocationProbe(tracks: List<TrackDescriptor>, rowIds: RowIds = RowIds.UNVERSIONED): Boolean {
         val known = load()
         val ids = tracks.mapTo(HashSet()) { it.id.value }
         return known.values.any { it.tags?.releaseTrack != null && it.source !in ids } &&
-            tracks.any { entryForSource(known, sourceAliases, it.id.value)?.volume != volume(it) }
+            tracks.any { track -> entryForSource(known, sourceAliases, track.id.value)?.takeIf { sameFile(it, track, rowIds) } == null }
+    }
+
+    /**
+     * Whether [track], the row now at [old]'s source, is the file [old] was registered for. A row id names one file
+     * only for as long as MediaStore keeps its database: ids are never handed out twice within one, but a rebuilt
+     * one (its data cleared in the system settings, a recovery after damage, the app's data restored onto another
+     * phone) numbers the files anew, and playlists, favourites and history keyed by the old id would attach to
+     * whatever file the number now names.
+     *
+     * - [RowIds.SAME_DATABASE]: the row is believed, as it always was. An edit in place may change anything.
+     * - [RowIds.NEW_DATABASE]: it is the same file when its revision (size, modified, generation) is the one
+     *   registered, or when the format is and the length is within a second. A retag in place changes the revision
+     *   and may move the length a little; a file re-encoded to another format is another file.
+     * - [RowIds.UNVERSIONED] (before Android 10 the provider cannot say which database it is): the test runs at
+     *   every scan, so it must spare a file trimmed in place, which keeps its row and changes its length. The
+     *   length is therefore believed only when the size also changed by more than half: a trim seldom takes that
+     *   much, and a cover that doubles a file leaves its length alone. Two songs of one format and a similar size
+     *   pass; that much reuse is not detected there.
+     */
+    private fun sameFile(old: Entry, track: TrackDescriptor, rowIds: RowIds): Boolean {
+        if (old.volume != volume(track)) return false
+        if (rowIds == RowIds.SAME_DATABASE) return true
+        val revision = revision(track)
+        if (!revision.isEmpty() && old.revision == revision) return true
+        val extension = extension(track)
+        if (old.extension.isNotEmpty() && extension.isNotEmpty() && old.extension != extension) return false
+        if (rowIds == RowIds.UNVERSIONED && !old.revision.sizeChangedByMoreThanHalf(revision)) return true
+        val before = old.duration
+        val now = track.durationMs
+        return before == null || now == null || kotlin.math.abs(before - now) <= SAME_FILE_DURATION_MS
     }
 
     /** Query and this call must be serialized by the library, so an older query cannot win. */
@@ -81,6 +111,7 @@ internal class AndroidTrackIdentities(
         tracks: List<TrackDescriptor>,
         allAudioIds: Set<String>?,
         storageAvailable: Boolean,
+        rowIds: RowIds = RowIds.UNVERSIONED,
         cancellationCheck: () -> Unit = {},
     ): List<TrackDescriptor> {
         val previous = load()
@@ -93,7 +124,8 @@ internal class AndroidTrackIdentities(
         val tracks = tracks.filter { seenIds.add(it.id.value) }
         val currentIds: Set<String> = seenIds
         fun bySource(source: String): Entry? = entryForSource(previous, aliases, source)
-        val unknown = tracks.filter { bySource(it.id.value)?.volume != volume(it) }
+        fun retained(track: TrackDescriptor): Entry? = bySource(track.id.value)?.takeIf { sameFile(it, track, rowIds) }
+        val unknown = tracks.filter { retained(it) == null }
         val missing = previous.values.filter { it.source !in currentIds }
         val canRelocate = storageAvailable && allAudioIds != null &&
             missing.any { it.tags?.releaseTrack != null && it.source !in allAudioIds } && unknown.isNotEmpty()
@@ -104,9 +136,9 @@ internal class AndroidTrackIdentities(
             // make a seemingly unique match. Cached current revisions require no file I/O.
             for (track in tracks) {
                 cancellationCheck()
-                val old = bySource(track.id.value)
+                val old = retained(track)
                 val current = revision(track)
-                val tags = if (old?.volume == volume(track) && old.checked != null &&
+                val tags = if (old?.checked != null &&
                     !current.isEmpty() && old.checked == current) old.tags
                 else safelyRead(track)
                 facts[track.id.value] = tags
@@ -142,13 +174,12 @@ internal class AndroidTrackIdentities(
         val resolved = tracks.mapIndexed { index, track ->
             cancellationCheck()
             val source = track.id.value
-            val retained = bySource(source)?.takeIf { it.volume == volume(track) }
-            val old = retained ?: matches[source]
+            val old = retained(track) ?: matches[source]
             // The scan's own strings where the values agree: the decoded ones are a private copy.
             val id = old?.id?.let { if (it == source) source else it }
                 ?: freshId(source) { it in previous || it in currentIds || it in minted }
             if (id != source && id !in previous) minted += id
-            // A source number reappearing on a different volume must not steal an old app ID.
+            // A source number reappearing on a different volume, or for another file, must not steal an old app ID.
             bySource(source)?.takeIf { it.id != id }?.let { next[it.id] = it.copy(source = "") }
             val tags = if (facts.containsKey(source)) facts[source] else old?.tags
             // One instance for the entry, its check mark and the row: a compact descriptor forms a new string per read.
@@ -176,6 +207,39 @@ internal class AndroidTrackIdentities(
         currentRows = rows as Array<Entry>
         currentAudio = audio
         return resolved
+    }
+
+    /**
+     * [tracks] under the app ids that are on storage already, for a scan whose registry [resolve] could not save
+     * (storage full) or read (a damaged file): the library stays on screen, and nothing is shown that a restart
+     * would take back. A row keeps the id of its registered entry. An unregistered one goes by its own number, as
+     * [resolve] would name it, unless that number is an app id the registry gave to another song: such a row waits
+     * for a scan that can be saved. Nothing is relocated, registered or written, so the caller must not take the
+     * result for a complete scan.
+     *
+     * With no readable registry every row goes by its own number, and the file is left exactly as it is: a song
+     * that had been relocated is then without what is kept under its old id, which nothing here can name.
+     */
+    @Synchronized
+    fun durable(tracks: List<TrackDescriptor>, rowIds: RowIds = RowIds.UNVERSIONED): List<TrackDescriptor> {
+        val known = try {
+            load()
+        } catch (_: IOException) {
+            null
+        }
+        val aliases = sourceAliases
+        val seen = HashSet<String>(tracks.size * 2)
+        return tracks.mapNotNull { track ->
+            val source = track.id.value
+            if (!seen.add(source)) return@mapNotNull null
+            if (known == null) return@mapNotNull track
+            val entry = entryForSource(known, aliases, source)?.takeIf { sameFile(it, track, rowIds) }
+            when {
+                entry != null -> if (entry.id == source) track else track.copy(id = TrackId(entry.id))
+                source in known -> null
+                else -> track
+            }
+        }
     }
 
     /** Cheap launch first; learn metadata in the existing background enrichment phase. */
@@ -315,6 +379,9 @@ internal class AndroidTrackIdentities(
         private const val MEDIA_STORE_SONGS = "content://media/external/audio/media/"
         private const val NO_DURATION = Long.MIN_VALUE
 
+        /** How far MediaStore's length for one file moves between two readings of it (a retag, another extractor). */
+        private const val SAME_FILE_DURATION_MS = 1_000L
+
         /** Tag reads per registry commit in [remember]. */
         private const val REMEMBER_CHUNK = 16_384
 
@@ -434,6 +501,25 @@ internal class AndroidTrackIdentities(
     }
 }
 
+/** What a scan knows of whether MediaStore's row ids still name the files they named when the registry was saved. */
+internal enum class RowIds {
+    /** The provider's database is the one the registry was last saved under. */
+    SAME_DATABASE,
+
+    /** Another database than at the last save, or none on record: every row id may name another file now. */
+    NEW_DATABASE,
+
+    /** The provider does not say which database it is (before Android 10, or it could not be asked). */
+    UNVERSIONED,
+}
+
+/** [RowIds] from MediaStore's version now ([current], null when it has none) and the one last scanned under. */
+internal fun rowIds(current: String?, recorded: String?): RowIds = when {
+    current == null -> RowIds.UNVERSIONED
+    current == recorded -> RowIds.SAME_DATABASE
+    else -> RowIds.NEW_DATABASE
+}
+
 /**
  * A song's source revision as the registry keeps it: MediaStore's `android-mediastore-v1:<size>:<modified>:<generation>`
  * as its three numbers, any other string as itself. Parsing is canonical (a number is kept only when it prints back
@@ -446,6 +532,12 @@ internal class Revision private constructor(
     private val text: String?,
 ) {
     fun isEmpty(): Boolean = text != null && text.isEmpty()
+
+    /** Whether both name a size and one is more than twice the other; false when either has none. */
+    fun sizeChangedByMoreThanHalf(other: Revision): Boolean {
+        if (text != null || other.text != null || size < 0 || other.size < 0) return false
+        return minOf(size, other.size) < maxOf(size, other.size) / 2
+    }
 
     override fun toString(): String = text ?: buildString {
         append(PREFIX)

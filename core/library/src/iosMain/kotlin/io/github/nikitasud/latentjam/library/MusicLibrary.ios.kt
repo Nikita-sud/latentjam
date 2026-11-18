@@ -129,11 +129,14 @@ internal class IosMusicLibrary : MusicLibrary {
         val snapshot = sourceSnapshot(prompt = true)
         val documents = snapshot.documents.filterNot { sourceId(it) in excludedSources }
         val device = if (DEVICE_MUSIC_SOURCE_ID in excludedSources) emptyList() else snapshot.device
+        val shown = mergeSources(documents, device)
+            .filterNot { it.id.value in hidden }
+            .sortedBy { it.title?.lowercase() ?: "" }
         return LibraryScan(
-            tracks = mergeSources(documents, device)
-                .filterNot { it.id.value in hidden }
-                .sortedBy { it.title?.lowercase() ?: "" },
+            tracks = shown,
             complete = isCompleteSnapshot(snapshot, excludedSources),
+            // Hidden, of a source switched off, or a Music.app song an import stands in for: out of sight, not gone.
+            notShown = notShownIds(known = snapshot.documents + snapshot.device, shown = shown),
         )
     }
 

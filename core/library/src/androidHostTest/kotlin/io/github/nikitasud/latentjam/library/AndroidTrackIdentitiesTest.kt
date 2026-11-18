@@ -39,8 +39,9 @@ internal class AndroidTrackIdentitiesTest {
             { contents -> disk.save(StringWriter().also(contents).toString()) },
         ) { reads++; reader(it) }
         var registry = fresh()
+        var rowIds = RowIds.UNVERSIONED
         fun scan(vararg tracks: TrackDescriptor, present: Set<String>? = tracks.map { it.id.value }.toSet(), storage: Boolean = true) =
-            registry.resolve(tracks.toList(), present, storage)
+            registry.resolve(tracks.toList(), present, storage, rowIds)
         fun remember() = registry.remember()
         fun restart() { registry = fresh() }
     }
@@ -232,6 +233,139 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals("10", f.registry.sourceId(result[1].id))
         f.restart()
         assertEquals(result, f.scan(track("20"), track("10", "other-file")))
+    }
+
+    /** A MediaStore row as the provider reports it: its file's format, length and size:modified:generation. */
+    private fun row(id: String, name: String, seconds: Int, size: Long, modified: Long = 1_700_000_000, generation: Long = 7) =
+        track(id, androidMediaSourceRevision(size, modified, generation)).copy(fileName = name, durationMs = seconds * 1_000L)
+
+    @Test fun aRowIdHandedToAnotherFileDoesNotKeepTheOldAppId() {
+        // MediaStore's database rebuilt (its data cleared, or recovered after damage): row ids are handed out anew.
+        for (mode in listOf(RowIds.UNVERSIONED, RowIds.NEW_DATABASE)) {
+            val f = Fixture(tags)
+            val old = row("10", "old song.mp3", seconds = 200, size = 4_800_000)
+            assertEquals(TrackId("10"), f.scan(old).single().id)
+            f.remember()
+            f.rowIds = mode
+            val other = row("10", "another song.flac", seconds = 300, size = 31_000_000, modified = 1_600_000_000, generation = 2)
+            val resolved = f.scan(other).single()
+            assertTrue(resolved.id != TrackId("10"), "$mode: playlists and history keyed by 10 would attach to another song")
+            assertEquals("10", f.registry.sourceId(resolved.id))
+            assertEquals(resolved.id, f.registry.logicalId("10"))
+            assertEquals(other.audioUri, resolved.audioUri)
+            f.restart()
+            assertEquals(resolved, f.scan(other).single())
+            // The id stays taken: a third file at the row gets one of its own, never the first song's.
+            f.rowIds = RowIds.NEW_DATABASE
+            val third = f.scan(row("10", "third.flac", seconds = 120, size = 9_000_000, generation = 3)).single()
+            assertEquals(3, setOf(TrackId("10"), resolved.id, third.id).size)
+        }
+    }
+
+    @Test fun aNewDatabaseKeepsTheIdOfTheSameFileAndOfNoOtherOfItsFormat() {
+        val f = Fixture(tags)
+        val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
+        val neighbour = row("11", "next.mp3", seconds = 240, size = 5_000_000)
+        f.scan(original, neighbour); f.remember()
+        f.rowIds = RowIds.NEW_DATABASE
+        // A rebuilt database starts its generations again; the files, and here their numbers, are the same.
+        val rescanned = listOf(original, neighbour).map { it.copy(sourceRevision = it.sourceRevision!!.substringBeforeLast(':') + ":1") }
+        assertEquals(listOf(TrackId("10"), TrackId("11")), f.scan(*rescanned.toTypedArray()).map { it.id })
+        // The same numbers for two other files of that format: neither inherits anything.
+        val swapped = f.scan(
+            row("10", "next.mp3", seconds = 240, size = 5_000_000, generation = 2),
+            row("11", "song.mp3", seconds = 200, size = 4_800_000, generation = 3),
+        )
+        assertTrue(swapped.none { it.id == TrackId("10") || it.id == TrackId("11") })
+    }
+
+    @Test fun anEditInPlaceKeepsTheAppId() {
+        val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
+        // Retagged: a new revision, the length read a little differently. With a cover: twice the size, the same length.
+        val retagged = row("10", "song.mp3", seconds = 200, size = 4_810_000, modified = 1_700_000_500, generation = 9)
+            .copy(title = "New title", durationMs = 200_400)
+        val withCover = row("10", "song.mp3", seconds = 200, size = 11_000_000, modified = 1_700_000_900, generation = 10)
+        // Trimmed in place: the row and most of the bytes stay, the length does not.
+        val trimmed = row("10", "song.mp3", seconds = 150, size = 3_600_000, modified = 1_700_001_000, generation = 11)
+        for (mode in RowIds.entries) for (edited in listOf(retagged, withCover)) {
+            val f = Fixture(tags)
+            f.scan(original); f.remember()
+            f.rowIds = mode
+            assertEquals(edited, f.scan(edited).single(), "$mode")
+        }
+        for (mode in listOf(RowIds.SAME_DATABASE, RowIds.UNVERSIONED)) {
+            val f = Fixture(tags)
+            f.scan(original); f.remember()
+            f.rowIds = mode
+            assertEquals(trimmed, f.scan(trimmed).single(), "$mode")
+        }
+        // While the database is the same one, a row id names its file whatever became of it.
+        val f = Fixture(tags)
+        f.scan(original); f.remember()
+        f.rowIds = RowIds.SAME_DATABASE
+        val converted = row("10", "song.flac", seconds = 300, size = 31_000_000, generation = 12)
+        assertEquals(converted, f.scan(converted).single())
+    }
+
+    @Test fun rowIdsAreBelievedOnlyUnderTheDatabaseTheRegistryWasSavedWith() {
+        assertEquals(RowIds.SAME_DATABASE, rowIds(current = "12:abc", recorded = "12:abc"))
+        assertEquals(RowIds.NEW_DATABASE, rowIds(current = "12:def", recorded = "12:abc"))
+        // The first scan of a build that records it: nothing says the ids were never renumbered.
+        assertEquals(RowIds.NEW_DATABASE, rowIds(current = "12:abc", recorded = null))
+        assertEquals(RowIds.UNVERSIONED, rowIds(current = null, recorded = "12:abc"))
+        assertEquals(RowIds.UNVERSIONED, rowIds(current = null, recorded = null))
+    }
+
+    @Test fun aRegistryThatCannotBeSavedStillServesTheLibraryUnderItsDurableIds() {
+        // Storage full and one new file: the registry must be rewritten and cannot be.
+        val f = Fixture(tags)
+        f.scan(track("10")); f.remember()
+        val baseline = f.disk.payload
+        f.disk.fail = true
+        val rows = listOf(track("10", "retagged"), track("11"))
+        assertFailsWith<IOException> { f.scan(*rows.toTypedArray()) }
+        var durable = true
+        val scan = mediaStoreLibraryScan(durable = { durable }) { durable = false; f.registry.durable(rows) }
+        assertEquals(rows, scan.tracks)
+        assertFalse(scan.complete, "ids that are not on storage prove nothing gone")
+        assertTrue(scan.answered)
+        assertEquals(baseline, f.disk.payload)
+        // Nothing was registered meanwhile: the next scan that can be saved does it.
+        f.disk.fail = false
+        assertEquals(rows, f.scan(*rows.toTypedArray()))
+        assertTrue(f.disk.payload != baseline)
+    }
+
+    @Test fun anUnsavedRelocationIsServedUnderItsRowAndAReusedIdIsNotServedAtAll() {
+        val f = Fixture(tags)
+        // Only the song that moves carries the release-track id: a second copy of it would veto the relocation.
+        f.reader = { if (it.id.value == "30") TrackIdentityTags() else tags }
+        f.scan(track("10"), row("30", "old song.mp3", seconds = 200, size = 4_800_000)); f.remember()
+        f.disk.fail = true
+        f.rowIds = RowIds.NEW_DATABASE
+        // 20 is the song of 10, moved: its old id is not durable for this row yet. 30 now names another file, and
+        // "30" is the app id of the song it named before.
+        val moved = track("20")
+        val reused = row("30", "another song.flac", seconds = 300, size = 31_000_000, generation = 2)
+        assertEquals(listOf(moved), f.registry.durable(listOf(moved, reused, moved), f.rowIds))
+        assertEquals("10", f.registry.sourceId(TrackId("10")))
+        f.disk.fail = false
+        val saved = f.scan(moved, reused)
+        assertEquals(TrackId("10"), saved[0].id)
+        assertTrue(saved[1].id != TrackId("30"))
+    }
+
+    @Test fun aDamagedRegistryServesTheRowsUnderTheirOwnNumbersAndIsLeftAlone() {
+        val f = Fixture(tags)
+        f.scan(track("10")); f.remember()
+        f.disk.payload = f.disk.payload!! + "x"
+        val damaged = f.disk.payload
+        f.restart()
+        val rows = listOf(track("10"), track("11"))
+        assertFailsWith<IOException> { f.scan(*rows.toTypedArray()) }
+        assertEquals(rows, f.registry.durable(rows))
+        assertEquals(damaged, f.disk.payload)
+        assertEquals(0, f.disk.writes - 2, "the baseline and the tag pass, nothing since")
     }
 
     @Test fun corruptedRegistryIsNeverSilentlyReplaced() {

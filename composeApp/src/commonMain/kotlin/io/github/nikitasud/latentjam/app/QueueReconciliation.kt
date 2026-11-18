@@ -16,5 +16,7 @@ internal fun queueRetentionIds(
     return snapshot.tracks.mapTo(HashSet()) { it.id }.also { known ->
         // Hiding a track changes browsing/recommendations, not an existing listening session.
         hiddenTracks.mapTo(known) { it.id }
+        // Nor does switching a source off: its tracks are in neither list, and they are still on the device.
+        known += snapshot.notShown
     }
 }

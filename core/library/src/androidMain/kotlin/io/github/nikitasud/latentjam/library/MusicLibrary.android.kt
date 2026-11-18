@@ -72,6 +72,25 @@ internal class MediaStoreMusicLibrary(
         },
     )
 
+    /** MediaStore's version as of the last scan the registry was saved under; see [RowIds]. */
+    private val providerVersionFile = java.io.File(context.filesDir, "track-identities-provider.txt")
+
+    /**
+     * MediaStore's opaque version, which changes when its database is replaced (and with it every row id). Null
+     * before Android 10, which has none, and when the provider cannot be asked.
+     */
+    private fun providerVersion(): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) MediaStore.getVersion(context) else null
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun recordedProviderVersion(): String? = try {
+        if (providerVersionFile.exists()) providerVersionFile.readText() else null
+    } catch (_: Exception) {
+        null
+    }
+
     override suspend fun rememberTrackIdentities(): Unit = withContext(Dispatchers.IO) {
         val job = currentCoroutineContext()
         try {
@@ -133,10 +152,13 @@ internal class MediaStoreMusicLibrary(
         val hidden = visibilityMutex.withLock { readHiddenIds() }
         val excludedSources = visibilityMutex.withLock { readExcludedSourceIds() }
         val snapshot = queryTracks()
+        val shown = snapshot.tracks.filterNot { track ->
+            track.id.value in hidden || sourceId(track.folderPath) in excludedSources
+        }
         snapshot.copy(
-            tracks = snapshot.tracks.filterNot { track ->
-                track.id.value in hidden || sourceId(track.folderPath) in excludedSources
-            },
+            tracks = shown,
+            // Out of sight, not gone: with these a complete scan no longer reads as "their files were deleted".
+            notShown = notShownIds(known = snapshot.tracks, shown = shown),
             // MediaStore answers for mounted volumes only. With a card out, ejected or still being checked after a
             // boot, its songs are simply absent from the rows: such a scan is no evidence that they are gone. Taken
             // for a complete one, it let the analysis of every song on the card be dropped, to be done again from
@@ -296,21 +318,34 @@ internal class MediaStoreMusicLibrary(
     private suspend fun queryTracks(): LibraryScan {
         val job = currentCoroutineContext()
         return synchronized(scanLock) {
-            mediaStoreLibraryScan {
+            var durable = true
+            mediaStoreLibraryScan(durable = { durable }) {
                 val tracks = queryRawTracks() ?: return@mediaStoreLibraryScan null
+                val version = providerVersion()
+                val rowIds = rowIds(current = version, recorded = recordedProviderVersion())
                 val resolved = try {
-                    val probe = identities.needsRelocationProbe(tracks)
+                    val probe = identities.needsRelocationProbe(tracks, rowIds)
                     identities.resolve(
                         tracks,
                         allAudioIds = if (probe) audioRowIds()?.mapTo(HashSet(), TrackId::value) else null,
                         storageAvailable = probe && !storageMayBeMissing(),
+                        rowIds = rowIds,
                         cancellationCheck = { job.ensureActive() },
                     )
                 } catch (_: java.io.IOException) {
-                    // A registry that could not be read or committed is not an authoritative scan.
-                    return@mediaStoreLibraryScan null
+                    // A registry that could not be read or committed (storage full, a damaged file) is not an
+                    // authoritative scan, but the music is still there: an empty answer emptied the library on
+                    // screen and SMART's. The rows go by the ids already on storage, and the scan is not complete.
+                    durable = false
+                    identities.durable(tracks, rowIds)
                 }
-                // Only a complete scan may tell the cover overrides which songs are gone.
+                // Only now that the registry holds this scan's rows: recorded before, a scan that then failed would
+                // leave the next one believing ids it never checked. A version that cannot be kept is checked again.
+                if (durable && rowIds == RowIds.NEW_DATABASE && version != null) {
+                    runCatching { providerVersionFile.atomicReplaceText(version) }
+                }
+                // Only a complete scan may tell the cover overrides which songs are gone: one that is not durable dates
+                // a missing song at most, and it is undated again by the next scan that holds it.
                 coverOverrides.apply(withAlbumArtVersions(resolved))
             }
         }
@@ -729,13 +764,15 @@ private class ChannelSource(private val channel: FileChannel) : RandomAccessSour
  * A successfully returned empty list remains complete and can prove that the library is empty.
  */
 internal fun mediaStoreLibraryScan(
+    /** Asked after [query]: false when its rows go by ids the identity registry could not put on storage. */
+    durable: () -> Boolean = { true },
     query: () -> List<TrackDescriptor>?,
 ): LibraryScan = try {
     val tracks = query()
-    if (tracks == null) LibraryScan(tracks = emptyList(), complete = false)
-    else LibraryScan(tracks = tracks, complete = true)
+    if (tracks == null) LibraryScan(tracks = emptyList(), complete = false, answered = false)
+    else LibraryScan(tracks = tracks, complete = durable())
 } catch (_: SecurityException) {
-    LibraryScan(tracks = emptyList(), complete = false)
+    LibraryScan(tracks = emptyList(), complete = false, answered = false)
 }
 
 /** A storage volume the system lists: its name as tracks carry it (null when it has none) and its state. */

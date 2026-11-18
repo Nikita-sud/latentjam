@@ -631,6 +631,8 @@ object AppGraph {
         tracks: List<TrackDescriptor>,
         librarySnapshotAuthoritative: Boolean,
         notificationTitle: String,
+        /** Tracks on the device that [tracks] leaves out (LibraryScan.notShown): their analysis is not pruned. */
+        notShown: Set<TrackId> = emptySet(),
         force: Boolean = false,
         /**
          * With [force], the remembered failures Retry clears (D3: only those it was pressed for); null clears every
@@ -644,6 +646,7 @@ object AppGraph {
         val key = AutomaticIndexingRequest(
             tracks = tracks,
             librarySnapshotAuthoritative = librarySnapshotAuthoritative,
+            notShown = notShown,
         )
         lastAnalysisCall = LastAnalysisCall(key, notificationTitle, notices, notificationText)
         // SMART switched off (settings): the library is not analysed, whoever asks: a library refresh, the app coming to
@@ -792,6 +795,7 @@ object AppGraph {
                 engine.synchronizeLibrary(
                     library = tracks,
                     pruneMissing = librarySnapshotAuthoritative,
+                    notShown = notShown,
                 )
                 // D2: a file that timed out twice waits out its hour, left out of this pass and of the count of work
                 // left; Retry makes the files it was pressed for eligible again (every one for the recovery Retry).
@@ -1088,6 +1092,7 @@ object AppGraph {
         ensureAutomaticIndexing(
             tracks = last.key.tracks,
             librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notShown = last.key.notShown,
             notificationTitle = last.title,
             call = AnalysisCall.AUTOMATIC,
             notices = last.notices,
@@ -1140,6 +1145,7 @@ object AppGraph {
         ensureAutomaticIndexing(
             tracks = last.key.tracks,
             librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notShown = last.key.notShown,
             notificationTitle = last.title,
             call = AnalysisCall.CONTINUE,
             notices = last.notices,
@@ -1167,6 +1173,7 @@ object AppGraph {
         ensureAutomaticIndexing(
             tracks = last.key.tracks,
             librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+            notShown = last.key.notShown,
             notificationTitle = last.title,
             call = AnalysisCall.AUTOMATIC,
             notices = last.notices,
@@ -1195,6 +1202,7 @@ object AppGraph {
                 ensureAutomaticIndexing(
                     tracks = last.key.tracks,
                     librarySnapshotAuthoritative = last.key.librarySnapshotAuthoritative,
+                    notShown = last.key.notShown,
                     notificationTitle = last.title,
                     call = AnalysisCall.REBUILD,
                     notices = last.notices,
@@ -1518,6 +1526,8 @@ internal class AnalysisOutOfMemory(cause: Throwable) : RuntimeException(cause)
 internal data class AutomaticIndexingRequest(
     val tracks: List<TrackDescriptor>,
     val librarySnapshotAuthoritative: Boolean,
+    /** Songs on the device that [tracks] leaves out (hidden, or of a source switched off): see LibraryScan.notShown. */
+    val notShown: Set<TrackId> = emptySet(),
 )
 
 data class AutomaticIndexingState(

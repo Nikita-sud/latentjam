@@ -32,6 +32,21 @@ class QueueReconciliationTest {
     }
 
     @Test
+    fun aSourceSwitchedOffKeepsItsTracksInThePlayingQueue() {
+        // Its songs are in no list: not the visible library, and not the hidden one either.
+        val visible = track("visible")
+        val playing = track("in-the-folder-switched-off")
+        val deleted = track("deleted")
+        val complete = AutomaticIndexingRequest(
+            listOf(visible), librarySnapshotAuthoritative = true, notShown = setOf(playing.id),
+        )
+
+        val retained = queueRetentionIds(complete, hiddenTracks = emptyList()).orEmpty()
+
+        assertEquals(listOf(visible, playing), listOf(visible, playing, deleted).filter { it.id in retained })
+    }
+
+    @Test
     fun authoritativeScanRetainsVisibleAndHiddenTracksButExcludesDeletedRows() {
         val visible = track("visible")
         val hidden = track("hidden")

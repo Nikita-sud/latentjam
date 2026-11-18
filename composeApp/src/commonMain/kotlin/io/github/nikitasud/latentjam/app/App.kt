@@ -355,9 +355,10 @@ private fun AppShell(
         fun publishLibraryTracks(
             value: List<TrackDescriptor>,
             authoritative: Boolean,
+            notShown: Set<TrackId>,
         ) {
             tracks = value
-            libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative)
+            libraryIndexingRequest = AutomaticIndexingRequest(value, authoritative, notShown)
         }
         suspend fun scanLibrary(): List<TrackDescriptor> {
             val scanToken = libraryScan.order.begin()
@@ -377,6 +378,7 @@ private fun AppShell(
             // iOS may resolve its Music-library prompt inside scan(); Android refreshes here as
             // a second line of defence around a return from system settings.
             AppGraph.permissions.refresh()
+            if (keepsShownLibrary(scan, tracks)) return tracks.orEmpty()
             // Remembered embedded genres upgrade the scan before anything downstream sees it:
             // the system scanner keeps one genre per track, the files themselves keep them all.
             val enriched = genreEnrichment.apply(scan.tracks)
@@ -398,6 +400,7 @@ private fun AppShell(
                     scanCompleted = scan.complete,
                     permissionStatus = AppGraph.permissions.audioLibraryStatus.value,
                 ),
+                notShown = scan.notShown,
             )
             // A recovered app ID may now point at a different MediaStore row. Only relocated
             // queued tracks need a media-source replacement; an ordinary scan leaves playback alone.
@@ -444,6 +447,7 @@ private fun AppShell(
                 publishLibraryTracks(
                     value = richer,
                     authoritative = request.librarySnapshotAuthoritative,
+                    notShown = request.notShown,
                 )
                 // A playing or soon-playing song that turned out to name no album loses a borrowed
                 // cover (issue #12): the player, notification and widget follow at once. Only the
@@ -1247,6 +1251,7 @@ private fun AppShell(
             AppGraph.ensureAutomaticIndexing(
                 tracks = loaded,
                 librarySnapshotAuthoritative = request.librarySnapshotAuthoritative,
+                notShown = request.notShown,
                 notificationTitle = notificationTitle,
                 notices = ::analysisNoticeText,
             ) { done, total, etaMinutes ->
@@ -1938,6 +1943,7 @@ private fun AppShell(
                     tracks = loaded,
                     librarySnapshotAuthoritative =
                         libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
+                    notShown = libraryIndexingRequest?.notShown.orEmpty(),
                     notificationTitle = notificationTitle,
                     force = true,
                     retryIds = retryIds,
@@ -4248,6 +4254,8 @@ private fun AppShell(
                             publishLibraryTracks(
                                 remaining,
                                 libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
+                                // Hidden, not deleted: its analysis and its place in the playing queue stay.
+                                libraryIndexingRequest?.notShown.orEmpty() + target.id,
                             )
                         }
                         libraryScan.hasHiddenTracks = true
@@ -4352,6 +4360,8 @@ private fun AppShell(
                             publishLibraryTracks(
                                 remaining,
                                 libraryIndexingRequest?.librarySnapshotAuthoritative ?: false,
+                                // Hidden, not deleted: their analysis and their place in the playing queue stay.
+                                libraryIndexingRequest?.notShown.orEmpty() + hiddenIds,
                             )
                         }
                         libraryScan.hasHiddenTracks = true
