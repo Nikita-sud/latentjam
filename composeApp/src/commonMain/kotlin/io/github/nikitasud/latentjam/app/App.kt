@@ -2092,6 +2092,8 @@ private fun AppShell(
                 // Going somewhere must also leave where you were: the collection renders in the
                 // browse branch, so a full player or search screen left open would keep covering
                 // the destination — the tap would look like it did nothing.
+                // A selection made on the page left behind (kept under the player) is not this page's.
+                updateTrackSelection(emptySet())
                 showNowPlaying = false
                 showSearch = false
                 },
@@ -2103,6 +2105,7 @@ private fun AppShell(
                 build = { artist.toSelection(settings.artistAlbumSort.value) },
                 afterOpen = {
                 // Same as showAlbumOf: navigation closes the surfaces above the destination.
+                updateTrackSelection(emptySet())
                 showNowPlaying = false
                 showSearch = false
                 },
