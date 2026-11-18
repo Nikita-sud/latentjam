@@ -128,7 +128,8 @@ internal object VorbisFields {
         DATE to listOf("YEAR"),
         TRACK_TOTAL to listOf("TOTALTRACKS"),
         DISC_TOTAL to listOf("TOTALDISCS"),
-        LYRICS to listOf("UNSYNCEDLYRICS"),
+        // "UNSYNCED LYRICS" is foobar2000's name for the field; the player reads all three ([EmbeddedLyrics]).
+        LYRICS to listOf("UNSYNCEDLYRICS", "UNSYNCED LYRICS"),
     )
 
     /** Every name whose value the editor owns; anything else is preserved untouched. */
