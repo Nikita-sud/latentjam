@@ -1333,8 +1333,11 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
 
         val destination = fixture(emptyList())
-        val kept = destination.playlists.create("Kept")
-        destination.playlists.addTracks(kept.id, listOf(TrackId("kept")))
+        // An id of its own: two stores that create a playlist in the same millisecond give both the same id, and a
+        // merge takes two playlists with one id for one playlist.
+        destination.playlists.replaceAll(
+            listOf(io.github.nikitasud.latentjam.library.Playlist("kept-id", "Kept", listOf("kept"))),
+        )
         destination.history.record(event(TrackId("kept"), 50))
 
         val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
