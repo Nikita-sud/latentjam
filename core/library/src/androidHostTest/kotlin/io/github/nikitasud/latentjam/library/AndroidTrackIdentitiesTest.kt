@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -183,6 +184,57 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals(6, f.reads)
         f.scan(*more); f.remember()
         assertEquals(7, f.reads)
+    }
+
+    /** A read of a file whose reader asks for [asked] bytes of tag and then has no memory left. */
+    private fun outOfMemoryAfter(asked: Int): TrackIdentityTags? =
+        identityTagsOf(file) { source ->
+            source.read(0, 10)
+            source.read(0, asked)
+            // Past the end of the file: refused, and nothing is allocated for it.
+            source.read(file.length - 5, 4 * 1024 * 1024)
+            throw OutOfMemoryError("no room")
+        }
+
+    /** A 16 MiB file; no test here looks at its bytes. */
+    private val file = object : RandomAccessSource {
+        override val length = 16L * 1024 * 1024
+        override fun read(offset: Long, count: Int): ByteArray? = if (count <= length - offset) ByteArray(0) else null
+    }
+
+    @Test fun aReadThatRanOutOfMemoryOnAnOrdinaryTagIsTriedAgainAtTheNextLaunch() {
+        // The heap was full of something else (the analysis, on a small heap) while a file with ordinary tags was
+        // read: recorded as "read, no tags", it could never again be relocated by its MusicBrainz id.
+        val f = Fixture(tags)
+        val tracks = (1..5).map { track(it.toString()) }.toTypedArray()
+        f.scan(*tracks)
+        f.reader = { if (it.id.value == "3") outOfMemoryAfter(asked = 40 * 1024) else tags }
+        f.remember()
+        assertEquals(5, f.reads)
+        f.restart(); f.scan(*tracks)
+        f.reader = { tags }
+        f.remember()
+        assertEquals(6, f.reads, "the file that could not be read for want of memory is read now")
+        f.restart(); f.scan(*tracks); f.remember()
+        assertEquals(6, f.reads)
+        // A tag that is itself large fails the same way each time, and is still recorded once.
+        val g = Fixture(tags)
+        g.scan(*tracks)
+        g.reader = { if (it.id.value == "3") outOfMemoryAfter(asked = 3 * 1024 * 1024) else tags }
+        g.remember()
+        g.restart(); g.scan(*tracks); g.remember()
+        assertEquals(5, g.reads)
+    }
+
+    @Test fun onlyAFailureByMemoryOnASmallReadIsLeftForLater() {
+        assertEquals(null, outOfMemoryAfter(asked = 0))
+        assertEquals(null, outOfMemoryAfter(asked = 1024 * 1024 - 11))
+        assertFailsWith<OutOfMemoryError> { outOfMemoryAfter(asked = 1024 * 1024) }
+        // Any other Error is the file's own (a tag nested without end), at whatever size.
+        assertFailsWith<StackOverflowError> {
+            identityTagsOf(file) { throw StackOverflowError() }
+        }
+        assertEquals(tags, identityTagsOf(file) { tags })
     }
 
     @Test fun aPotentialDuplicateTooLargeToReadVetoesAMatchLikeAnyUnreadFile() {

@@ -17,6 +17,7 @@ import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
+import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.library.tags.readTrackIdentityTags
 import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -71,7 +72,7 @@ internal class MediaStoreMusicLibrary(
             uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.let { descriptor ->
                 // The stream owns the descriptor: one close releases both, nothing left to a finalizer.
                 ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
-                    readTrackIdentityTags(ChannelSource(input.channel))
+                    identityTagsOf(ChannelSource(input.channel))
                 }
             }
         },
@@ -781,6 +782,45 @@ internal fun mediaStoreLibraryScan(
 } catch (_: SecurityException) {
     LibraryScan(tracks = emptyList(), complete = false, answered = false)
 }
+
+/**
+ * The identity tags [read] finds in [source]; null, as for a file that could not be opened, when memory ran out on
+ * a tag of ordinary size.
+ *
+ * The registry records a file whose read ends in an Error as read, with no tags: a tag too large for the heap fails
+ * the same way at every launch. But the heap can also be full of something else (the analysis, on a 48 MB heap)
+ * while a file with ordinary tags is read, and recorded like that the song could not be relocated by its
+ * MusicBrainz id again until its file changed. What tells the two apart is how much of the file the reader had asked
+ * for when memory ran out: it reads a tag whole, pictures included, and never more than its own bound of 8 MiB.
+ * Under [ORDINARY_TAG_BYTES] the tag was not what filled the heap, and the file is left to be read again; reading
+ * it again costs no more than that much.
+ */
+internal fun identityTagsOf(
+    source: RandomAccessSource,
+    read: (RandomAccessSource) -> TrackIdentityTags? = ::readTrackIdentityTags,
+): TrackIdentityTags? {
+    var asked = 0L
+    val counted = object : RandomAccessSource {
+        override val length: Long get() = source.length
+        override fun read(offset: Long, count: Int): ByteArray? {
+            // What the source refuses outright (a range past the end of the file) it never allocates.
+            if (count > 0 && offset >= 0 && count <= length - offset) asked += count
+            return source.read(offset, count)
+        }
+    }
+    return try {
+        read(counted)
+    } catch (failure: OutOfMemoryError) {
+        if (asked >= ORDINARY_TAG_BYTES) throw failure
+        null
+    }
+}
+
+/**
+ * A tag's text and one cover as LatentJam itself embeds them fit in this twice over: its covers are at most 1,000
+ * pixels on the long edge, and a picture kept as it was is at most 500 KiB (TAG_COVER_PNG_KEEP_BYTES in the app).
+ */
+private const val ORDINARY_TAG_BYTES = 1024L * 1024
 
 /**
  * Whether a scan may record MediaStore's version as the one the registry was saved under; see [RowIds]. Only a scan
