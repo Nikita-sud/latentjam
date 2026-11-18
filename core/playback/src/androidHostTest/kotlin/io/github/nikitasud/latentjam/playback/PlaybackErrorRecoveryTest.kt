@@ -22,7 +22,7 @@ internal class PlaybackErrorRecoveryTest {
     fun aChainThatFoundNothingReadablePutsThePlayheadBackWhereItBegan() {
         // Ten rows, every one failed in turn from row 3 at 2:30; the chain ended on the last row.
         val ids = List(10) { "row-$it" }
-        val origin = RecoveryOrigin("row-3", index = 3, positionMs = 150_000, cause = StartCause.USER_PICK)
+        val origin = RecoveryOrigin("row-3", index = 3, positionMs = 150_000, start = null)
 
         // Walks the queue exactly as the controller does: each failure adds its id and asks for the next row.
         val failed = mutableSetOf<String>()
@@ -40,7 +40,7 @@ internal class PlaybackErrorRecoveryTest {
 
     @Test
     fun aChainThatNeverLeftItsRowKeepsThePlayersOwnPosition() {
-        val origin = RecoveryOrigin("only", index = 0, positionMs = 90_000, cause = null)
+        val origin = RecoveryOrigin("only", index = 0, positionMs = 90_000, start = null)
 
         assertNull(recoveryReturnRow(listOf("only"), failedIndex = 0, origin = origin))
         assertNull(recoveryReturnRow(listOf("a", "b"), failedIndex = 1, origin = null))
@@ -49,7 +49,7 @@ internal class PlaybackErrorRecoveryTest {
     @Test
     fun theOriginIsFoundAgainByItsIdWhenTheQueueChangedUnderTheChain() {
         // A row before it was removed, and the same track is queued twice: the nearer row is the one.
-        val origin = RecoveryOrigin("b", index = 2, positionMs = 0, cause = null)
+        val origin = RecoveryOrigin("b", index = 2, positionMs = 0, start = null)
 
         assertEquals(1, recoveryReturnRow(listOf("a", "b", "c", "b"), failedIndex = 3, origin = origin))
         assertNull(recoveryReturnRow(listOf("a", "c"), failedIndex = 1, origin = origin))

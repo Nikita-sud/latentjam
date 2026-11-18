@@ -72,6 +72,11 @@ internal object AndroidPlaybackStarts {
         ledger.announce(cause, target)
     }
 
+    /** See [PlaybackStartLedger.announceReturn]. */
+    fun announceReturn(target: TrackId, earlier: PlaybackStart?) {
+        ledger.announceReturn(target, earlier)
+    }
+
     /** See [PlaybackStartLedger.queuedByHand]. */
     fun queuedByHand(trackId: TrackId) {
         ledger.queuedByHand(trackId)

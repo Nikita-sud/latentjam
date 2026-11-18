@@ -12,15 +12,16 @@ import android.provider.MediaStore
 import io.github.nikitasud.latentjam.library.FolderTree
 
 /**
- * Where a chain of playback errors began: the row that failed first, the point in it playback had reached, and how
- * that play had begun ([cause], null when nobody could say). When the chain finds nothing that can play, the playhead
- * goes back here, so the listener's place is still theirs once the files can be read again.
+ * Where a chain of playback errors began: the row that failed first, the point in it playback had reached, and the
+ * [start] of that play (null when none was recorded for it). When the chain finds nothing that can play, the playhead
+ * goes back here, so the listener's place is still theirs once the files can be read again; the play carries on as
+ * the one that was interrupted ([PlaybackStartLedger.announceReturn]).
  */
 internal data class RecoveryOrigin(
     val mediaId: String,
     val index: Int,
     val positionMs: Long,
-    val cause: StartCause?,
+    val start: PlaybackStart?,
 )
 
 /**

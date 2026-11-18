@@ -314,7 +314,7 @@ internal class AndroidPlaybackController(
                     mediaId = failedId,
                     index = failedIndex,
                     positionMs = player.currentPosition.coerceAtLeast(0L),
-                    cause = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId }?.cause,
+                    start = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId },
                 )
             }
             failedRecoveryIds += failedId
@@ -359,7 +359,8 @@ internal class AndroidPlaybackController(
                 val origin = recoveryOrigin
                 recoveryOrigin = null
                 recoveryReturnRow(mediaIds, failedIndex, origin)?.let { row ->
-                    announceStart(player, origin?.cause ?: StartCause.AUTO_ADVANCE, row)
+                    // The interrupted play carries on; going back begins no new one.
+                    AndroidPlaybackStarts.announceReturn(TrackId(mediaIds[row]), origin?.start)
                     player.seekTo(row, origin?.positionMs ?: 0L)
                 }
                 rebuildQueueSnapshot()

@@ -19,6 +19,62 @@ internal class PlaybackStartsTest {
     private val c = TrackId("c")
 
     @Test
+    fun `a return to the row an error chain began on begins no new play`() {
+        val ledger = PlaybackStartLedger()
+        ledger.announce(StartCause.USER_PICK, target = a)
+        val picked = ledger.begin(a, observed = null)
+        // A could no longer be read; the rows after it were tried in turn and none played.
+        ledger.announce(StartCause.AUTO_ADVANCE, target = b)
+        ledger.begin(b, observed = StartCause.SKIP_NEXT)
+        ledger.announce(StartCause.AUTO_ADVANCE, target = c)
+        ledger.begin(c, observed = StartCause.SKIP_NEXT)
+
+        // The playhead goes back to A. The player reports the jump as a seek to a row far from the playhead.
+        ledger.announceReturn(target = a, earlier = picked)
+        val returned = ledger.begin(a, observed = StartCause.USER_PICK)
+
+        // The play that was interrupted, under its own number and with no cause: nobody picked A a second time.
+        assertEquals(PlaybackStart(picked.sequence, a, cause = null), returned)
+        assertEquals(returned, ledger.current)
+        // What begins next is counted on from the rows the chain tried.
+        assertEquals(PlaybackStart(4, b, StartCause.AUTO_ADVANCE), ledger.begin(b, observed = StartCause.AUTO_ADVANCE))
+    }
+
+    @Test
+    fun `a return to a row whose start nobody recorded has no cause either`() {
+        val ledger = PlaybackStartLedger()
+        ledger.begin(b, observed = StartCause.AUTO_ADVANCE)
+
+        ledger.announceReturn(target = a, earlier = null)
+        assertEquals(PlaybackStart(2, a, cause = null), ledger.begin(a, observed = StartCause.USER_PICK))
+
+        // An earlier start of another track is not this row's.
+        ledger.announceReturn(target = c, earlier = PlaybackStart(1, b, StartCause.AUTO_ADVANCE))
+        assertEquals(PlaybackStart(3, c, cause = null), ledger.begin(c, observed = StartCause.SKIP_PREVIOUS))
+    }
+
+    @Test
+    fun `a return that never came true labels nothing later`() {
+        val ledger = PlaybackStartLedger()
+        val first = ledger.begin(a, observed = StartCause.USER_PICK)
+        ledger.announceReturn(target = a, earlier = first)
+
+        // Another row became current instead; a later pick of A is a pick.
+        ledger.begin(b, observed = StartCause.SKIP_NEXT)
+        assertEquals(PlaybackStart(3, a, StartCause.USER_PICK), ledger.begin(a, observed = StartCause.USER_PICK))
+    }
+
+    @Test
+    fun `a return leaves a track queued by hand marked for when it plays`() {
+        val ledger = PlaybackStartLedger()
+        ledger.queuedByHand(a)
+        ledger.announceReturn(target = a, earlier = null)
+        ledger.begin(a, observed = StartCause.USER_PICK)
+
+        assertEquals(StartCause.QUEUED, ledger.begin(a, observed = StartCause.AUTO_ADVANCE).cause)
+    }
+
+    @Test
     fun `an announced start labels the track it named`() {
         val ledger = PlaybackStartLedger()
         ledger.announce(StartCause.USER_PICK, target = a)
