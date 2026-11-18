@@ -72,6 +72,25 @@ internal class MediaStoreMusicLibrary(
         },
     )
 
+    /** MediaStore's version as of the last scan the registry was saved under; see [RowIds]. */
+    private val providerVersionFile = java.io.File(context.filesDir, "track-identities-provider.txt")
+
+    /**
+     * MediaStore's opaque version, which changes when its database is replaced (and with it every row id). Null
+     * before Android 10, which has none, and when the provider cannot be asked.
+     */
+    private fun providerVersion(): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) MediaStore.getVersion(context) else null
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun recordedProviderVersion(): String? = try {
+        if (providerVersionFile.exists()) providerVersionFile.readText() else null
+    } catch (_: Exception) {
+        null
+    }
+
     override suspend fun rememberTrackIdentities(): Unit = withContext(Dispatchers.IO) {
         val job = currentCoroutineContext()
         try {
@@ -277,17 +296,25 @@ internal class MediaStoreMusicLibrary(
         return synchronized(scanLock) {
             mediaStoreLibraryScan {
                 val tracks = queryRawTracks() ?: return@mediaStoreLibraryScan null
+                val version = providerVersion()
+                val rowIds = rowIds(current = version, recorded = recordedProviderVersion())
                 val resolved = try {
-                    val probe = identities.needsRelocationProbe(tracks)
+                    val probe = identities.needsRelocationProbe(tracks, rowIds)
                     identities.resolve(
                         tracks,
                         allAudioIds = if (probe) audioRowIds()?.mapTo(HashSet(), TrackId::value) else null,
                         storageAvailable = probe && !storageMayBeMissing(recentVolumeStates()),
+                        rowIds = rowIds,
                         cancellationCheck = { job.ensureActive() },
                     )
                 } catch (_: java.io.IOException) {
                     // A registry that could not be read or committed is not an authoritative scan.
                     return@mediaStoreLibraryScan null
+                }
+                // Only now that the registry holds this scan's rows: recorded before, a scan that then failed would
+                // leave the next one believing ids it never checked. A version that cannot be kept is checked again.
+                if (rowIds == RowIds.NEW_DATABASE && version != null) {
+                    runCatching { providerVersionFile.atomicReplaceText(version) }
                 }
                 // Only a complete scan may tell the cover overrides which songs are gone.
                 coverOverrides.apply(withAlbumArtVersions(resolved))
