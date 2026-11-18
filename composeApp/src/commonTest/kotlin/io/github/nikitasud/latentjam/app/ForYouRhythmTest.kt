@@ -303,6 +303,28 @@ class ForYouRhythmTest {
     }
 
     @Test
+    fun aPhaseIsNamedAfterItsArtistNotAfterACollaborationCredit() {
+        val primary: (String) -> String = { it.lowercase().substringBefore(" feat.") }
+        val artists = mapOf<TrackId, String?>(
+            TrackId("solo") to "New", TrackId("duet") to "New feat. Guest", TrackId("old") to "Old",
+        )
+        // Newest first, as the page reads the log; the oldest listen of the week is the collaboration.
+        val week = (0 until 11).map { n -> event("solo", now - n * hour) } + event("duet", now - 5 * day)
+        val events = week + event("old", now - 30 * day)
+        assertEquals("New", ForYouRhythm.currentBinge(events, now, { artists[it] }, primary)?.artistName)
+        // A week of collaborations only still names the artist they share.
+        val duets = (0 until 12).map { n -> event("duet", now - n * hour) } + event("old", now - 30 * day)
+        assertEquals("New", ForYouRhythm.currentBinge(duets, now, { artists[it] }, primary)?.artistName)
+        // A band whose name the key cuts keeps its whole name.
+        val band = mapOf<TrackId, String?>(TrackId("solo") to "Sleeping with Sirens", TrackId("old") to "Old")
+        val bandWeek = (0 until 12).map { n -> event("solo", now - n * hour) } + event("old", now - 30 * day)
+        assertEquals(
+            "Sleeping with Sirens",
+            ForYouRhythm.currentBinge(bandWeek, now, { band[it] }, { it.lowercase().substringBefore(" with ") })?.artistName,
+        )
+    }
+
+    @Test
     fun aPhaseNeedsTwoWeeksOfHistoryBeforeIt() {
         val artists = mapOf<TrackId, String?>(TrackId("new0") to "New", TrackId("old") to "Old")
         val week = (0 until 12).map { n -> event("new0", now - (n % 6) * day + n * hour) }
