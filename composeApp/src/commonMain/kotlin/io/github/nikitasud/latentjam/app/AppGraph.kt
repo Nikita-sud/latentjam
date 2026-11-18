@@ -439,7 +439,7 @@ object AppGraph {
                             shuffleMode = now.shuffleMode.name,
                             positionMs = resumePositionMs(now.positionMs, now.isPlaying),
                             sourceKind = source?.kind?.name,
-                            sourceName = source?.name,
+                            sourceName = source?.savedName(settings.rememberSearches.value),
                             sourceReference = source?.reference,
                             // The queue itself, so a restart resumes the playlist that was
                             // actually playing. A whole-library queue is exactly what the
