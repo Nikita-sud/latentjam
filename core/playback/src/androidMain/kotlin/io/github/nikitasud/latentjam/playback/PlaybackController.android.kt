@@ -53,7 +53,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import kotlin.coroutines.resume
@@ -1637,16 +1636,12 @@ internal class AndroidPlaybackController(
         return true
     }
 
-    private suspend fun hasReadableArtwork(uri: String): Boolean = try {
+    private suspend fun hasReadableArtwork(uri: String): Boolean = readableCover {
         readPlaybackArtworkInterruptibly {
             val bitmap = AndroidTrackArtwork.loadBitmap(context.contentResolver, Uri.parse(uri), 32)
             bitmap?.recycle()
             bitmap != null
         }
-    } catch (_: IOException) {
-        false
-    } catch (_: SecurityException) {
-        false
     }
 
     /** Connects to [PlaybackService] on first use; cached afterwards. */
