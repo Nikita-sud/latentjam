@@ -30,6 +30,12 @@ internal interface InFlightMarker {
     /** [chunk] is about to be analysed and has tracks that need it. */
     fun begin(chunk: List<TrackDescriptor>) = Unit
 
+    /**
+     * The engine ran out of memory in [chunk]. The pass survives that (it stops as a failed pass does), so no process
+     * ends with the chunk in flight: the chunk is told here instead, and counts as one that ended the process.
+     */
+    fun crashed(chunk: List<TrackDescriptor>) = Unit
+
     /** [chunk] is over; [completed]: the engine returned for it (whatever each track's outcome). */
     fun end(chunk: List<TrackDescriptor>, completed: Boolean) = Unit
 
@@ -91,15 +97,21 @@ internal class AnalysisInFlight(
     private var marked = false
     private var suspects: Set<TrackId> = decodeIds(store.crashSuspects)
 
+    /** The tracks of chunks that ran out of memory in this process and have not been charged yet. */
+    private var crashedHere: List<TrackDescriptor> = emptyList()
+
     /** The tracks the pass analyses one per chunk. */
     val alone: Set<TrackId> get() = suspects
 
     /**
-     * The tracks of [tracks] that get one ledger attempt for the marker an earlier process left; empty from the second
-     * call on. [authoritative]: [tracks] is the whole library, so suspects no longer in it are dropped.
+     * The tracks that get one ledger attempt now: those of [tracks] named by the marker an earlier process left (read
+     * by the first call only), and those of chunks that ran out of memory in this process since the last call
+     * ([crashed]). [authoritative]: [tracks] is the whole library, so suspects no longer in it are dropped.
      */
     fun charged(tracks: List<TrackDescriptor>, authoritative: Boolean): List<TrackDescriptor> {
-        if (settled || tracks.isEmpty()) return emptyList()
+        val here = crashedHere
+        crashedHere = emptyList()
+        if (settled || tracks.isEmpty()) return here
         settled = true
         val stored = store.inFlight
         val marker = decodeIds(stored?.substringAfter('\n', ""))
@@ -109,7 +121,14 @@ internal class AnalysisInFlight(
         store.inFlightSeen = encodeIds(verdict.seen)
         val live = if (authoritative || verdict.charged.isNotEmpty()) tracks.associateBy { it.id } else emptyMap()
         keep(if (authoritative) verdict.suspects.filterTo(LinkedHashSet()) { it in live } else verdict.suspects)
-        return verdict.charged.mapNotNull(live::get)
+        return (verdict.charged.mapNotNull(live::get) + here).distinct()
+    }
+
+    override fun crashed(chunk: List<TrackDescriptor>) {
+        // Suspects at once and stored, so the next pass takes them one per chunk even in a new process; the ledger
+        // attempt waits for that pass, which has the ledger in hand.
+        crashedHere = crashedHere + chunk
+        keep(suspects + chunk.map { it.id })
     }
 
     /** [ids] are settled some other way (remembered as failed): no longer suspects. */

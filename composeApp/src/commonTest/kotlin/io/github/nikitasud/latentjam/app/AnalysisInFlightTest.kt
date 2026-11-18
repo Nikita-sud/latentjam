@@ -144,5 +144,44 @@ class AnalysisInFlightTest {
         assertEquals(tracks.chunked(8), analysisChunks(tracks, alone = emptySet()))
     }
 
+    @Test
+    fun `a file that runs the pass out of memory is found and held within one process`() {
+        // The pass catches the error and goes on living, so there is no process end to read: each pass that runs
+        // out of memory in a chunk says so itself.
+        val inFlight = AnalysisInFlight(store, pid = { 7 }, exitOf = { error("no earlier process") })
+        fun pass(): Boolean {
+            val charged = inFlight.charged(tracks, authoritative = true)
+            val exhausted = charged.filter(ledger::timedOut)
+            failed += exhausted.map { it.id }
+            inFlight.forget(exhausted.map { it.id })
+            val order = tracks.filterNot { ledger.holding(it) || it.id in failed }
+            for (chunk in analysisChunks(order, inFlight.alone)) {
+                val todo = chunk.filter { it.id !in analysed }
+                if (todo.isNotEmpty()) inFlight.begin(chunk)
+                if (poison in todo) {
+                    inFlight.crashed(chunk)
+                    inFlight.end(chunk, completed = false)
+                    return false
+                }
+                analysed += todo.map { it.id }
+                todo.forEach { ledger.forget(it.id) }
+                inFlight.end(chunk, completed = true)
+            }
+            return true
+        }
+
+        assertFalse(pass(), "its chunk runs out of memory")
+        assertEquals(null, store.inFlight)
+        assertEquals(8, inFlight.alone.size)
+        // The chunk's tracks one by one: three get through, the file runs out of memory alone.
+        assertFalse(pass())
+        assertEquals(setOf(TrackId("t0"), TrackId("t1"), TrackId("t2")), analysed)
+        // Its second attempt holds it back, and this pass finishes the library without it.
+        assertTrue(pass())
+        assertTrue(ledger.holding(poison))
+        assertEquals(tracks.size - 1, analysed.size)
+        assertEquals(setOf(poison.id), inFlight.alone)
+    }
+
     private fun ids(range: IntRange) = range.mapTo(LinkedHashSet()) { TrackId("t$it") }
 }

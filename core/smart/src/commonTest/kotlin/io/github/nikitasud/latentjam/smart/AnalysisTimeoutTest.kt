@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
@@ -41,7 +42,9 @@ internal class AnalysisTimeoutTest {
         var hanging: Set<TrackId>,
         budget: Duration = 300.milliseconds,
     ) : EmbeddingBackend {
-        val decodes = mutableListOf<TrackId>()
+        // Decodes begin on several worker threads at once: recorded with an atomic update, so none is lost.
+        private val begun = kotlinx.coroutines.flow.MutableStateFlow<List<TrackId>>(emptyList())
+        val decodes: List<TrackId> get() = begun.value
         private val decoding = DeadlineDecoding(
             object : DecodeWorkers {
                 override val dispatcher: CoroutineDispatcher = Dispatchers.Default
@@ -53,7 +56,7 @@ internal class AnalysisTimeoutTest {
         override suspend fun loadModel(): Result<Unit> = Result.success(Unit)
 
         private suspend fun decode(track: TrackDescriptor): FloatArray {
-            decodes += track.id
+            begun.update { it + track.id }
             if (track.id in hanging) withContext(NonCancellable) { stuck.await() }
             return floatArrayOf(1f, track.id.value.length.toFloat(), 0f)
         }
@@ -182,5 +185,34 @@ internal class AnalysisTimeoutTest {
         assertEquals(listOf("two", "three", "four5"), report.errors.keys.map { it.value })
         assertTrue(report.errors.values.all { it.isAnalysisTimeout() })
         assertEquals(2, engine.missingFromIndexOf(library.takeLast(2)))
+    }
+
+    @Test
+    fun `three hung files next to each other cost three stuck decodes and the rest is analysed in the same pass`() = runTest {
+        val hung = listOf("hungA", "hungB", "hungC")
+        val library = (hung + (1..20).map { "ok$it" }).map {
+            TrackDescriptor(id = TrackId(it), audioUri = "file:///music/$it.mp3", sourceRevision = "size=1|mtime=2")
+        }
+        val backend = DecodingBackend(hanging = hung.map(::TrackId).toSet(), budget = 200.milliseconds)
+        val engine = engine(backend, FakeIndexStore())
+        engine.initialize()
+
+        // The pass as the app runs it: chunks of eight, and a stalled chunk staged again without what timed out.
+        var stalls = 0
+        for (chunk in library.chunked(8)) {
+            var work = chunk
+            while (true) {
+                val report = engine.stageLibraryIndex(work)
+                if (!report.stalled) break
+                stalls++
+                work = work.filterNot { report.errors[it.id]?.isAnalysisTimeout() == true }
+            }
+        }
+
+        assertEquals(1, stalls)
+        assertEquals(0, engine.missingFromIndexOf(library.drop(3)))
+        assertEquals(3, engine.missingFromIndexOf(library.take(3)))
+        // Each hung file was begun once: one stuck decode each, whatever was decoding ahead when a pool was replaced.
+        assertEquals(hung, backend.decodes.map { it.value }.filter { it in hung }.sorted())
     }
 }

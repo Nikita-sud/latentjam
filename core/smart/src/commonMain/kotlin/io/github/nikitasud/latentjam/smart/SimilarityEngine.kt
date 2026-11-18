@@ -116,6 +116,16 @@ public interface SimilarityEngine {
     ): Int
 
     /**
+     * Tells the engine which tracks on the device the library does not show (LibraryScan.notShown), without a
+     * library to reconcile: what [synchronizeLibrary] learns, for a caller that has not synchronized yet. Their rows
+     * are restored with the index, so until the engine is told, a plan made from history would read a hidden track's
+     * row again. Call it before [initialize] wherever a plan can follow with no [synchronizeLibrary] first (playback
+     * resumed with no screen open), and before the first pass's [initialize]. [complete] false: the scan saw only
+     * part of the device, so [notShown] adds to what is already out of sight.
+     */
+    public suspend fun setNotShown(notShown: Set<TrackId>, complete: Boolean = true): Unit = Unit
+
+    /**
      * Re-keys audio vectors across verified tag-only writes, before [synchronizeLibrary] would
      * discard them for their file's new revision. A carry-over settles when its track appears in
      * [library] with a revision other than its old one. It applies when the stored vector was made
@@ -253,6 +263,13 @@ public interface SimilarityEngine {
      * a paused or waiting pass still lists them (docs/analysis-094-plan.md 1e-min, "The failure list while gated").
      */
     public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
+
+    /**
+     * Loads the audio model now if it is not loaded, as the next [stageLibraryIndex] with a track to analyse would:
+     * a caller that marks tracks as "being analysed" calls it first, so that the load is not part of that. A failed
+     * load is not reported here; the staging call reports it per track, as before.
+     */
+    public suspend fun prepareAudioAnalysis(): Unit = Unit
 
     /** Battery Saver (2e): [slow] analysis decodes one track at a time; the vectors are the same. */
     public fun setAnalysisPacing(slow: Boolean): Unit = Unit

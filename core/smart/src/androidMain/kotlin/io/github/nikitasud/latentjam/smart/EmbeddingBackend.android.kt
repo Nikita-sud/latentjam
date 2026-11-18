@@ -185,7 +185,6 @@ internal class OnnxEmbeddingBackend(
     ) {
         if ((tracks.size < 2 && upcoming.isEmpty()) || session == null) {
             decoding.dropCarried()
-            decoding.refuseWhenStuck()
             for (track in tracks) {
                 val result = analyse(track)
                 onResult(track, result)

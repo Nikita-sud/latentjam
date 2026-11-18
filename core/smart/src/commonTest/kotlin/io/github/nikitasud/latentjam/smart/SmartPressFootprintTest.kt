@@ -120,6 +120,54 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
+    fun `an engine told what the library does not show plans without those tracks before any sync`() = runTest {
+        // A process with no screen (a headset, a car, the widget) restores the index and plans; nothing has
+        // synchronized the library there. The last hundred tracks are hidden, four of them in the history.
+        val shown = library.dropLast(100)
+        val notShown = library.takeLast(100).mapTo(HashSet()) { it.id }
+        suspend fun stored(): Pair<FakeIndexStore, FakeIndexStore> {
+            val audioStore = FakeIndexStore()
+            val textStore = FakeIndexStore()
+            val built = engine(audioStore, textStore)
+            built.initialize()
+            built.indexLibrary(library)
+            built.ensureMetadataVectors(library)
+            built.persistPendingAnalysis()
+            built.release()
+            return audioStore to textStore
+        }
+        // As 0.9.5 had it: the hidden tracks' rows pruned.
+        val pruned = stored().let { (audio, text) -> engine(audio, text) }
+        pruned.initialize()
+        pruned.synchronizeLibrary(shown, pruneMissing = true)
+
+        val headless = stored().let { (audio, text) -> engine(audio, text) }
+        headless.setNotShown(notShown)
+        headless.initialize()
+        assertEquals(notShown.size, notShown.count { headless.embedding(it) != null }, "their analysis is restored")
+
+        for (seed in listOf(3, 404, 777)) {
+            val queue = headless.smartQueue(library[seed], shown, 12, history)
+            assertEquals(pruned.smartQueue(library[seed], shown, 12, history), queue)
+            assertEquals(emptyList(), queue.filter { it in notShown })
+        }
+        val rows = requireNotNull(headless.smartSnapshot(history)).tracks.map { it.id }
+        assertEquals(emptyList(), rows.filter { it in notShown }, "no hidden track is a row, history or not")
+        assertEquals(digest(requireNotNull(pruned.smartSnapshot(history))), digest(requireNotNull(headless.smartSnapshot(history))))
+        assertEquals(pruned.state.value, headless.state.value, "the count is of the shown tracks")
+        assertEquals(emptyList(), headless.semanticSearch("Rock", limit = library.size).filter { it.trackId in notShown })
+        assertEquals(emptyList(), headless.audioNeighbours(library[3].id, k = library.size).filter { it.trackId in notShown })
+        val next = headless.nextTrack(ListeningContext(seed = library.last()))
+        assertEquals(false, (next as? NextTrackResult.Match)?.trackId in notShown, "the nearest track to a hidden one is a shown one")
+
+        // A scan that saw only part of the device adds to what is out of sight and takes nothing away.
+        val also = shown.last().id
+        headless.setNotShown(setOf(also), complete = false)
+        val after = requireNotNull(headless.smartSnapshot(history)).tracks.map { it.id }
+        assertEquals(emptyList(), after.filter { it in notShown })
+    }
+
+    @Test
     fun `with the hub kept a cold press computes the exact hub and every press plans the recorded queues`() = runTest {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
