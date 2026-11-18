@@ -164,12 +164,17 @@ object AppGraph {
         // have free, so those phones stay as they were, SMART choosing from the list the queue came from;
         // a 96 MB heap, the smallest measured to hold 10,000 songs with room, has it when a resume starts.
         if (heapHeadroomBytes() < HEADLESS_SMART_HEADROOM_BYTES) return
+        // The scan first, for what it does not show: hidden tracks keep their analysis, so the restored index holds
+        // their rows, and nothing synchronizes the library in a process with no screen. Told before the index is
+        // read, the engine never plans with them (a hidden track with history was a snapshot row again).
+        val scan = library.scan()
+        engine.setNotShown(scan.notShown, complete = scan.complete)
         // The index the screens load as they start: without it SMART has every track to choose from and
         // nothing to choose by, and fills the queue with its stand-in rows. Loading reads what is stored;
         // nothing is analysed here. If it cannot be read, the resume stays as it was.
         if (engine.initialize().isFailure) return
         // The same list the screens build: the scan with its remembered tags, minus what SMART is told to leave out.
-        val tracks = GenreEnrichment(settings).apply(library.tracks())
+        val tracks = GenreEnrichment(settings).apply(scan.tracks)
         if (tracks.isEmpty()) return
         val exclusions = smartExclusions.load()
         val eligible = withContext(Dispatchers.Default) { tracks.filterNot(exclusions.hidesFromSmart()) }
@@ -784,6 +789,9 @@ object AppGraph {
                     }
                 },
             ) {
+                // Before the index is read: its rows include those of tracks the library does not show, and a press
+                // may plan between the restore and the sync below.
+                engine.setNotShown(notShown, complete = librarySnapshotAuthoritative)
                 engine.initialize().getOrThrow()
                 // A denied/not-yet-resolved permission is represented by an empty (or on iOS,
                 // partial app-owned-files-only) scan. Index the rows we can see, but do not let

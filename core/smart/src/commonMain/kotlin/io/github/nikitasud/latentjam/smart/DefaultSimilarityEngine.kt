@@ -133,10 +133,26 @@ internal class DefaultSimilarityEngine(
 
     /**
      * Tracks on the device that the library does not show (hidden, or of a source switched off), as the last
-     * [synchronizeLibrary] named them. Their analysis is kept, so showing them again analyses nothing anew, and that is
+     * [synchronizeLibrary] or [setNotShown] named them. Their analysis is kept, so showing them again analyses nothing anew, and that is
      * all: they are in no snapshot, search result, transition sample or count, exactly as when it was dropped.
      */
     private var notShownIds: Set<TrackId> = emptySet()
+
+    override suspend fun setNotShown(notShown: Set<TrackId>, complete: Boolean): Unit = withContext(dispatcher) {
+        mutex.withLock {
+            // In any state: told before initialize, the restored rows are out of sight from the first plan on.
+            val outOfSight = if (complete) notShown else notShownIds + notShown
+            if (outOfSight != notShownIds) {
+                notShownIds = outOfSight
+                // What the snapshot, the transition sample and the count read changed, though no row did.
+                indexRevision++
+                snapshotCache = null
+                if (mutableState.value is EngineState.Ready) {
+                    mutableState.value = EngineState.Ready(indexedCount = shownVectors())
+                }
+            }
+        }
+    }
 
     /** Stored audio vectors of the tracks the library shows: what [EngineState.Ready] counts. */
     private fun shownVectors(): Int =
@@ -653,6 +669,8 @@ internal class DefaultSimilarityEngine(
                 add(seed.id)
                 addAll(context.recentTrackIds)
                 addAll(context.excludedTrackIds)
+                // Out of sight is never offered, here as in a plan.
+                addAll(notShownIds)
             }
             val best = index.nearest(query = seedVector, k = 1, exclude = excluded).firstOrNull()
                 ?: return@withLock NextTrackResult.NoCandidates
@@ -833,7 +851,7 @@ internal class DefaultSimilarityEngine(
         mutex.withLock {
             if (k <= 0) return@withLock emptyList()
             val vector = index.vector(trackId) ?: return@withLock emptyList()
-            runCatching { index.nearest(vector, k, exclude = setOf(trackId)) }.getOrDefault(emptyList())
+            runCatching { index.nearest(vector, k, exclude = notShownIds + trackId) }.getOrDefault(emptyList())
         }
     }
 

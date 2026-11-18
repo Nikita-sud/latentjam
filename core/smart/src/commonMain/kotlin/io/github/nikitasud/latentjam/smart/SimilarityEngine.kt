@@ -116,6 +116,16 @@ public interface SimilarityEngine {
     ): Int
 
     /**
+     * Tells the engine which tracks on the device the library does not show (LibraryScan.notShown), without a
+     * library to reconcile: what [synchronizeLibrary] learns, for a caller that has not synchronized yet. Their rows
+     * are restored with the index, so until the engine is told, a plan made from history would read a hidden track's
+     * row again. Call it before [initialize] wherever a plan can follow with no [synchronizeLibrary] first (playback
+     * resumed with no screen open), and before the first pass's [initialize]. [complete] false: the scan saw only
+     * part of the device, so [notShown] adds to what is already out of sight.
+     */
+    public suspend fun setNotShown(notShown: Set<TrackId>, complete: Boolean = true): Unit = Unit
+
+    /**
      * Re-keys audio vectors across verified tag-only writes, before [synchronizeLibrary] would
      * discard them for their file's new revision. A carry-over settles when its track appears in
      * [library] with a revision other than its old one. It applies when the stored vector was made
