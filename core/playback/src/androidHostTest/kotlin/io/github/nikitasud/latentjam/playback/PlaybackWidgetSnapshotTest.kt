@@ -27,6 +27,37 @@ internal class PlaybackWidgetSnapshotTest {
     }
 
     @Test
+    fun aPhoneCallFreezesTheClockAndKeepsTheButton() {
+        // Transient loss of audio focus: the transport still means to play, the sound is held back.
+        val duringTheCall = snapshot(
+            positionMs = 2_000,
+            durationMs = 5_000,
+            capturedElapsedRealtimeMs = 10_000,
+            capturedBootCount = 7,
+        ).copy(suppressed = true)
+
+        // A call far longer than the rest of the track: nothing was heard of it meanwhile.
+        assertEquals(2_000, duringTheCall.projectedPositionMs(600_000, 7))
+        assertFalse(duringTheCall.isProgressRunning(600_000, 7))
+        assertTrue(duringTheCall.isLivePlaying(600_000, 7))
+
+        // The call ends: the service publishes a fresh anchor and the clock runs on from there.
+        val afterTheCall = duringTheCall.copy(suppressed = false, capturedElapsedRealtimeMs = 600_000)
+        assertEquals(3_000, afterTheCall.projectedPositionMs(601_000, 7))
+        assertTrue(afterTheCall.isProgressRunning(601_000, 7))
+    }
+
+    @Test
+    fun aClockRunsOnlyWhileThePositionAdvances() {
+        val playing = snapshot(positionMs = 2_000, durationMs = 5_000, capturedElapsedRealtimeMs = 10_000, capturedBootCount = 7)
+
+        assertTrue(playing.isProgressRunning(11_000, 7))
+        assertFalse(playing.copy(isPlaying = false).isProgressRunning(11_000, 7))
+        assertFalse(playing.isProgressRunning(20_000, 7))
+        assertFalse(playing.isProgressRunning(500, 8))
+    }
+
+    @Test
     fun rebootFreezesPositionAndInvalidatesLivePlayingState() {
         val snapshot = snapshot(
             positionMs = 2_000,

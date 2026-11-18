@@ -45,6 +45,28 @@ internal object AndroidPlaybackStarts {
      */
     val externalQueues: StateFlow<Long> = mutableExternalQueues.asStateFlow()
 
+    /**
+     * The media ids of the queue a controller outside the app last announced, until the app's controller has taken its
+     * rows as its own source ([takeExternalQueue]). The announcement comes before Media3 installs the queue, so the
+     * controller compares it with what the player holds each time the player's queue changes.
+     */
+    private var externalQueueIds: List<String>? = null
+
+    /** An announced queue has not been taken yet; asked before the player's rows are read for [takeExternalQueue]. */
+    val awaitsExternalQueue: Boolean get() = externalQueueIds != null
+
+    /** True, once, when the player holds exactly the announced queue ([playerIds], in the player's order). */
+    fun takeExternalQueue(playerIds: List<String>): Boolean {
+        if (externalQueueIds != playerIds) return false
+        externalQueueIds = null
+        return true
+    }
+
+    /** The app's controller installed a queue of its own: an announced one that never arrived is not waited for. */
+    fun forgetExternalQueue() {
+        externalQueueIds = null
+    }
+
     /** The command about to run will make [target] current because of [cause]. */
     fun announce(cause: StartCause, target: TrackId) {
         ledger.announce(cause, target)
@@ -75,6 +97,7 @@ internal object AndroidPlaybackStarts {
         // Even when no start can be named, the queue now belongs to whoever sent it.
         MediaBrowseRegistry.onExternalQueue?.invoke()
         mutableExternalQueues.value++
+        externalQueueIds = mediaItems.map { it.mediaId }
         ledger.forgetQueued()
         val start = externalQueueStart(
             mediaItems,

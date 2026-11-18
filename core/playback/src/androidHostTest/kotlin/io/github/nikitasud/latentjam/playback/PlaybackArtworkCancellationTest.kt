@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -38,5 +39,24 @@ internal class PlaybackArtworkCancellationTest {
         assertSame(failure, assertFailsWith<InterruptedIOException> {
             readPlaybackArtworkInterruptibly<String> { throw failure }
         })
+    }
+
+    @Test
+    fun aCoverNoReaderCanHandleIsNoReadableCoverAndEndsNothing() = runTest {
+        assertFalse(readableCover { throw IllegalArgumentException("Unknown URL") })
+        assertFalse(readableCover { throw IllegalStateException("damaged tag") })
+        assertFalse(readableCover { throw ArrayIndexOutOfBoundsException(7) })
+        assertFalse(readableCover { throw OutOfMemoryError("a 16 MiB cover on a 48 MB heap") })
+        assertFalse(readableCover { throw java.io.IOException("volume away") })
+        assertFalse(readableCover { throw SecurityException("grant revoked") })
+        assertFalse(readableCover { readPlaybackArtworkInterruptibly<Boolean> { throw OutOfMemoryError("on the reader's thread") } })
+        assertTrue(readableCover { true })
+    }
+
+    @Test
+    fun aCancelledCoverProbeStaysACancellation() = runTest {
+        assertFailsWith<kotlinx.coroutines.CancellationException> {
+            readableCover { throw kotlinx.coroutines.CancellationException("the track changed") }
+        }
     }
 }

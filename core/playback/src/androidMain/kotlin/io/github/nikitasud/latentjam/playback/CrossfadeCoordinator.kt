@@ -24,8 +24,15 @@ internal class CrossfadeCoordinator(
     private val context: Context,
     private val player: Player,
     private val settings: CrossfadeSettings = AndroidCrossfade.settings,
+    /**
+     * Tells the player whether to stop by itself at the end of the row it plays. Following
+     * [CrossfadeSettings.finishingTrack], the sleep timer's "end of track": the timer learns of the
+     * end only once the player has moved on, and its pause then let the next track's opening sound.
+     */
+    private val pauseAtItemEnd: (Boolean) -> Unit = {},
 ) {
     private val handler = Handler(player.applicationLooper)
+    private var pausesAtItemEnd = false
     private var seam: Seam? = null
     private var capture: CrossfadeIntroCapture? = null
 
@@ -109,6 +116,11 @@ internal class CrossfadeCoordinator(
     /** Re-evaluates the seam ahead; also the periodic check while playing. */
     fun update() {
         if (released) return
+        val finishing = settings.finishingTrack
+        if (finishing != pausesAtItemEnd) {
+            pausesAtItemEnd = finishing
+            pauseAtItemEnd(finishing)
+        }
         resumeInterruptedJoin()
         handler.removeCallbacks(tick)
         // The album edges arrive from the controller without an event of their own, so a seam is

@@ -53,7 +53,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.IOException
 import org.koin.core.module.Module
 import org.koin.dsl.module
 import kotlin.coroutines.resume
@@ -163,6 +162,9 @@ internal class AndroidPlaybackController(
     private val continuationSnapshot = PlaybackContinuationSnapshot()
     private val planPositionSnapshot = PlaybackPlanPositionSnapshot()
     private val pendingAdvance = PendingPlaybackAdvance()
+
+    /** Main-thread only: an edit of several player commands is under way; see [retainQueue]. */
+    private var bulkQueueEdit = false
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
 
@@ -175,6 +177,9 @@ internal class AndroidPlaybackController(
      * follow a transient I/O failure.
      */
     private val failedRecoveryIds = mutableSetOf<String>()
+
+    /** Where the current recovery chain began; forgotten with [failedRecoveryIds]. */
+    private var recoveryOrigin: RecoveryOrigin? = null
     private val mutablePlaybackFailures =
         MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val playbackFailures: Flow<PlaybackFailure> = mutablePlaybackFailures.asSharedFlow()
@@ -212,6 +217,7 @@ internal class AndroidPlaybackController(
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
+            controller?.let(::adoptExternalQueue)
             rebuildQueueSnapshot()
             pushState()
             mainScope.launch {
@@ -223,6 +229,7 @@ internal class AndroidPlaybackController(
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
+            controller?.let(::adoptExternalQueue)
             rebuildQueueSnapshot()
             pushState()
         }
@@ -242,6 +249,7 @@ internal class AndroidPlaybackController(
             // that completed chain so a later repeat/session may legitimately retry those tracks.
             if (playbackState == Player.STATE_READY) {
                 failedRecoveryIds.clear()
+                recoveryOrigin = null
                 sinkResumedIds.clear()
             }
             // The one moment no queue transition follows. Without this, a SMART queue that reached
@@ -293,6 +301,14 @@ internal class AndroidPlaybackController(
                 pushState()
                 return
             }
+            if (failedRecoveryIds.isEmpty()) {
+                recoveryOrigin = RecoveryOrigin(
+                    mediaId = failedId,
+                    index = failedIndex,
+                    positionMs = player.currentPosition.coerceAtLeast(0L),
+                    cause = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId }?.cause,
+                )
+            }
             failedRecoveryIds += failedId
             // The listener is told why this row did not play: it is skipped, or playback stops at it, without a word
             // otherwise.
@@ -309,20 +325,35 @@ internal class AndroidPlaybackController(
                 )
             }
             val traversalOrder = playerTraversalOrder(player)
+            val mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+            // A file on storage that is not there (a card taken out) fails like every other row of that storage
+            // would: those rows are left out instead of each being tried and failing in turn.
+            val missing = if (error.errorCode in FILE_ERROR_CODES) {
+                rowsOnMissingStorage(mediaIds, failedId, { trackById(it)?.storageVolume }, storagePresence(context))
+            } else {
+                emptySet()
+            }
             val replacement = nextPlaybackErrorRecoveryIndex(
-                mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
+                mediaIds = mediaIds,
                 failedIndex = failedIndex,
                 repeatAll = player.repeatMode == Player.REPEAT_MODE_ALL,
                 traversalOrder = traversalOrder,
-                failedIds = failedRecoveryIds,
+                failedIds = if (missing.isEmpty()) failedRecoveryIds else failedRecoveryIds + missing,
             )
 
             if (replacement == null) {
                 AndroidCrossfade.settings.interruptedMix = null
-                // Every reachable row failed exactly once. Park on the final failed row with honest
-                // paused state; a later explicit Play/Next clears the attempt set and may retry after
-                // transient storage access returns.
+                // Every reachable row failed exactly once, or cannot be read at all. Stop with honest paused
+                // state where the chain began, at the point the listener had reached: parked on the last row
+                // tried, the queue and the saved session would have lost their place. A later explicit
+                // Play/Next clears the attempt set and may retry after transient storage access returns.
                 player.pause()
+                val origin = recoveryOrigin
+                recoveryOrigin = null
+                recoveryReturnRow(mediaIds, failedIndex, origin)?.let { row ->
+                    announceStart(player, origin?.cause ?: StartCause.AUTO_ADVANCE, row)
+                    player.seekTo(row, origin?.positionMs ?: 0L)
+                }
                 rebuildQueueSnapshot()
                 pushState()
                 return
@@ -383,6 +414,7 @@ internal class AndroidPlaybackController(
         withContext(Dispatchers.Main.immediate) {
             val player = controller()
             adoptActiveResumption(player)
+            adoptExternalQueue(player)
             rebuildQueueSnapshot()
             pushState()
         }
@@ -401,30 +433,26 @@ internal class AndroidPlaybackController(
                 else -> 0
             }
             // Generated tracks are normally resolved through smartById rather than the source
-            // queue's poolById. Preserve descriptors through the current item before replacing the
-            // eligible map, or excluding the playing artist would make NowPlaying disappear.
-            val retainedHistory = if (mode == ShuffleMode.SMART && player != null) {
-                (0..keepThrough)
-                    .mapNotNull { index ->
-                        val id = player.getMediaItemAt(index).mediaId
-                        (prepared.second[id] ?: trackById(id))?.let { id to it }
-                    }
-                    .toMap()
-            } else {
-                emptyMap()
-            }
+            // queue's poolById. Preserve the descriptor of every row the player holds before
+            // replacing the eligible map, whatever the mode: or excluding the playing artist would
+            // make NowPlaying disappear, also for a SMART pick now playing in order or shuffled.
+            val queueIds = player?.let { List(it.mediaItemCount) { index -> it.getMediaItemAt(index).mediaId } }.orEmpty()
+            val retainedRows = descriptorsLeavingLibrary(queueIds, inLibrary = { it in prepared.second }, known = ::trackById)
             smartLibrary = prepared.first
-            smartById = if (retainedHistory.isEmpty()) prepared.second else prepared.second.plusTracks(retainedHistory.values)
+            smartById = if (retainedRows.isEmpty()) prepared.second else prepared.second.plusTracks(retainedRows)
             smartLibrarySupplied = true
             queueGeneration++
             if (mode == ShuffleMode.SMART && player != null) {
                 // An eligibility change is stronger than a queue planned before it. Preserve what
-                // already played and the current seed, then remove newly ineligible future rows.
-                for (index in player.mediaItemCount - 1 downTo keepThrough + 1) {
-                    if (player.getMediaItemAt(index).mediaId !in prepared.second) {
-                        player.removeMediaItem(index)
-                    }
-                }
+                // already played and the current seed, then remove the future rows SMART itself put
+                // there that are newly ineligible. A row the listener queued by hand stays.
+                val dropped = smartRowsToDrop(
+                    ids = queueIds,
+                    keepThrough = keepThrough,
+                    eligible = { it in prepared.second },
+                    smartOwned = { TrackId(it).let { id -> id in smartPlanPositions || id in smartContinuationIds } },
+                )
+                for (index in dropped) player.removeMediaItem(index)
                 rebuildQueueSnapshot()
                 pushState()
                 appendSmartNextIfNeeded()
@@ -602,6 +630,7 @@ internal class AndroidPlaybackController(
                 }
                 smartRemovedIds.clear()
                 AndroidPlaybackStarts.forgetQueued()
+                AndroidPlaybackStarts.forgetExternalQueue()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
@@ -806,16 +835,18 @@ internal class AndroidPlaybackController(
     override suspend fun retainQueue(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
         val keep = trackIds.mapTo(HashSet()) { it.value }
-        // Backwards, so surviving indices stay valid while earlier ones are removed. Media3
-        // treats removing the current item as that item ending: playback advances on its own.
-        var removed = false
-        for (index in player.mediaItemCount - 1 downTo 0) {
-            if (player.getMediaItemAt(index).mediaId !in keep) {
-                player.removeMediaItem(index)
-                removed = true
-            }
+        // Backwards, so surviving indices stay valid while earlier ones are removed, and in runs of
+        // neighbouring rows: one command each. Media3 treats removing the current item as that item
+        // ending: playback advances on its own.
+        val ranges = queueRemovalRanges(List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }) { it in keep }
+        if (ranges.isEmpty()) return@withContext
+        // Every command reports the changed queue at once; the snapshot is rebuilt and published once, below.
+        bulkQueueEdit = true
+        try {
+            for (range in ranges) player.removeMediaItems(range.first, range.last + 1)
+        } finally {
+            bulkQueueEdit = false
         }
-        if (!removed) return@withContext
         queueGeneration++
         pool = pool.filter { it.id.value in keep }
         poolById = poolById.values.filter { it.id.value in keep }.associateByIdValue()
@@ -966,12 +997,15 @@ internal class AndroidPlaybackController(
             return@withContext
         }
         val count = player.mediaItemCount
-        if (from !in 0 until count || to !in 0 until count || from == to) return@withContext
+        // Row numbers are the visible queue's; the player's differ when it holds a row the queue cannot show.
+        val (fromMediaIndex, toMediaIndex) = visibleMoveInPlayer(cachedQueueMediaIndices, from, to) ?: return@withContext
+        if (fromMediaIndex !in 0 until count || toMediaIndex !in 0 until count) return@withContext
         queueGeneration++
-        if (movedTowardPlayhead(from, to, player.currentMediaItemIndex.takeIf { it >= 0 })) {
-            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(from).mediaId))
+        val current = cachedVisibleQueueIndices.getOrNull(player.currentMediaItemIndex)?.takeIf { it >= 0 }
+        if (movedTowardPlayhead(from, to, current)) {
+            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(fromMediaIndex).mediaId))
         }
-        player.moveMediaItem(from, to)
+        player.moveMediaItem(fromMediaIndex, toMediaIndex)
         rebuildQueueSnapshot()
         pool = sourceQueueAfterVisibleReorder(pool, cachedQueue, mode)
         pushState()
@@ -1081,6 +1115,7 @@ internal class AndroidPlaybackController(
             }
             smartRemovedIds.clear()
             AndroidPlaybackStarts.forgetQueued()
+            AndroidPlaybackStarts.forgetExternalQueue()
             curatedTailId = null
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
@@ -1166,6 +1201,20 @@ internal class AndroidPlaybackController(
                     }
                 }
                 ShuffleMode.ON -> {
+                    // Straight from SMART (the mode menu): the player holds what SMART left in it,
+                    // not the list the queue came from. Exchange the rows around the playing one
+                    // as OFF does, then shuffle those; SMART's marks go with its rows.
+                    val smartSource = shuffleSourceLeavingSmart(
+                        previousMode = previousMode,
+                        source = pool,
+                        current = player.currentMediaItem?.mediaId?.let(::trackById),
+                    )
+                    if (smartSource != null && replaceQueueAroundCurrent(player, smartSource)) {
+                        val current = smartSource.tracks[smartSource.currentIndex]
+                        smartContinuationIds.retainAll(setOf(current.id))
+                        smartPlanPositions.keys.retainAll(setOf(current.id))
+                        poolById = poolById.plusTracks(listOf(current))
+                    }
                     player.shuffleModeEnabled = true
                     enqueueShuffleAnchor(player)
                 }
@@ -1443,9 +1492,20 @@ internal class AndroidPlaybackController(
 
     /** Main-thread only. */
     private fun rebuildQueueSnapshot() {
+        if (bulkQueueEdit) return
         val player = controller ?: return
+        // A row no map names (one added to the queue from outside the app) is named from the player's own item and
+        // joins the source, as a row added in the app does: a playing item always has a track to publish.
+        val unnamed = LinkedHashMap<String, TrackDescriptor>(0)
         val physicalRows = (0 until player.mediaItemCount).map { itemIndex ->
-            trackById(player.getMediaItemAt(itemIndex).mediaId)
+            val item = player.getMediaItemAt(itemIndex)
+            trackById(item.mediaId)
+                ?: unnamed[item.mediaId]
+                ?: item.toProvisionalTrack()?.also { unnamed[item.mediaId] = it }
+        }
+        if (unnamed.isNotEmpty()) {
+            poolById = poolById.plusTracks(unnamed.values)
+            pool = pool + unnamed.values
         }
         val traversalOrder = playerTraversalOrder(player)
         val snapshot = playbackQueueSnapshot(
@@ -1487,6 +1547,7 @@ internal class AndroidPlaybackController(
 
     private fun beginFreshRecoveryAttempt() {
         failedRecoveryIds.clear()
+        recoveryOrigin = null
     }
 
     private fun trackById(id: String): TrackDescriptor? = smartById[id] ?: poolById[id]
@@ -1523,6 +1584,30 @@ internal class AndroidPlaybackController(
         MediaBrowseRegistry.clearActiveResumption(resume)
     }
 
+    /**
+     * Takes a queue installed from outside the app (Android Auto, a voice request, another app) as this controller's
+     * own once the player holds it: its rows become the source the saved session names and the list that leaving
+     * shuffle or SMART goes back to, and what was remembered about the queue before it is dropped. Until then the
+     * source of the queue the app built last would stand in for it.
+     */
+    private fun adoptExternalQueue(player: Player) {
+        if (!AndroidPlaybackStarts.awaitsExternalQueue) return
+        val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
+        if (!AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId })) return
+        pool = adoptedQueueRows(
+            ids = items.map { it.mediaId },
+            named = ::trackById,
+            provisional = { row -> items[row].toProvisionalTrack() },
+        )
+        poolById = pool.associateByIdValue()
+        smartContinuationIds.clear()
+        smartPlanPositions.clear()
+        curatedTailId = null
+        anticipatedResumption = null
+        beginFreshRecoveryAttempt()
+        queueGeneration++
+    }
+
     /** Coarse position refresh while playing; idle otherwise. */
     private fun updateTicker(isPlaying: Boolean) {
         if (isPlaying) {
@@ -1541,6 +1626,8 @@ internal class AndroidPlaybackController(
     }
 
     private fun pushState() {
+        // Between the commands of one edit the cached queue is not the player's: nothing is published from it.
+        if (bulkQueueEdit) return
         val player = controller
         val anticipated = anticipatedResumption?.takeIf { player?.mediaItemCount == 0 }
         val anticipatedTrack = anticipated?.tracks?.getOrNull(anticipated.startIndex)
@@ -1637,16 +1724,12 @@ internal class AndroidPlaybackController(
         return true
     }
 
-    private suspend fun hasReadableArtwork(uri: String): Boolean = try {
+    private suspend fun hasReadableArtwork(uri: String): Boolean = readableCover {
         readPlaybackArtworkInterruptibly {
             val bitmap = AndroidTrackArtwork.loadBitmap(context.contentResolver, Uri.parse(uri), 32)
             bitmap?.recycle()
             bitmap != null
         }
-    } catch (_: IOException) {
-        false
-    } catch (_: SecurityException) {
-        false
     }
 
     /** Connects to [PlaybackService] on first use; cached afterwards. */
@@ -1666,6 +1749,7 @@ internal class AndroidPlaybackController(
             built.addListener(playerListener)
             built.shuffleModeEnabled = mode == ShuffleMode.ON
             adoptActiveResumption(built)
+            adoptExternalQueue(built)
             if (pool.isEmpty() && built.mediaItemCount > 0) {
                 // The service can be populated by Android Auto or playback resumption before this
                 // controller exists. MediaItem metadata is enough for an honest provisional state;
