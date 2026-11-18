@@ -70,7 +70,7 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         do {
             let url: URL
             do {
-                url = try localURL(uri)
+                url = try IosAudioWindowDecoder.localURL(uri)
             } catch {
                 // A file can become reachable again without its library identity changing (for
                 // example after permission/storage restoration), so access failures are retryable.
@@ -87,9 +87,9 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             for start in starts {
                 let window: DecodedWindow?
                 do {
-                    window = try decodeWindow(url: url, startMs: start)
+                    window = try IosAudioWindowDecoder.decodeWindow(url: url, startMs: start)
                 } catch {
-                    switch classifyAudioDecodeError(error, url: url) {
+                    switch IosAudioWindowDecoder.classify(error, url: url) {
                     case .invalidAudio:
                         invalidDecode = invalidDecode ?? error.localizedDescription
                     case .unavailable:
@@ -116,9 +116,9 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             if used == 0, durationMs > 10_000 {
                 let window: DecodedWindow?
                 do {
-                    window = try decodeWindow(url: url, startMs: 0)
+                    window = try IosAudioWindowDecoder.decodeWindow(url: url, startMs: 0)
                 } catch {
-                    switch classifyAudioDecodeError(error, url: url) {
+                    switch IosAudioWindowDecoder.classify(error, url: url) {
                     case .invalidAudio:
                         invalidDecode = invalidDecode ?? error.localizedDescription
                     case .unavailable:
@@ -180,35 +180,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
             embedding: nil,
             technicalDetail: detail
         )
-    }
-
-    private enum DecodeFailureClass {
-        case invalidAudio
-        case unavailable
-    }
-
-    private func classifyAudioDecodeError(_ error: Error, url: URL) -> DecodeFailureClass {
-        let nsError = error as NSError
-        let fileManager = FileManager.default
-        // Missing/unreadable/protected storage and explicit permission failures may recover while
-        // the library descriptor remains unchanged.
-        if !fileManager.fileExists(atPath: url.path)
-            || !fileManager.isReadableFile(atPath: url.path)
-            || nsError.domain == NSCocoaErrorDomain && [
-                NSFileNoSuchFileError,
-                NSFileReadNoPermissionError,
-                NSFileReadNoSuchFileError,
-                NSFileReadUnknownError,
-            ].contains(nsError.code)
-        {
-            return .unavailable
-        }
-        // Allocation/resource pressure is also temporary. AVFoundation's remaining failures for
-        // a present, readable local file are media-format/read/conversion facts and are durable.
-        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadTooLargeError {
-            return .unavailable
-        }
-        return .invalidAudio
     }
 
     func loadSemantic() -> String? {
@@ -309,6 +280,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         guard ProcessInfo.processInfo.environment["LATENTJAM_SMART_SMOKE"] == "1" else { return }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
+            #if DEBUG
+            // The Music library reader against the file reader, on files written for the purpose.
+            print("[SMART_SMOKE] \(IosAudioWindowDecoder.compareReaders())")
+            #endif
             let started = CFAbsoluteTimeGetCurrent()
             do {
                 if let error = self.loadAudio() { throw OrtError.message(error) }
@@ -349,25 +324,10 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
         }
     }
 
-    private func localURL(_ value: String) throws -> URL {
-        if let url = URL(string: value), url.isFileURL { return url }
-        let url = URL(fileURLWithPath: value)
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw OrtError.message("Audio file is not locally readable")
-        }
-        return url
-    }
-
     private func windowStarts(durationMs: Int64) -> [Int64] {
         guard durationMs > 10_000 else { return [0] }
         let span = durationMs - 10_000
         return [0.2, 0.5, 0.8].map { Int64(Double(span) * $0) }
-    }
-
-    /// One decoded window: 320,000 samples, of which the first `valid` came from the file and the rest are zeros.
-    private struct DecodedWindow {
-        var waveform: [Float]
-        let valid: Int
     }
 
     /// WindowCoverage (core/smart commonMain) on this host's decode, the same rule as Android (AUD-02): a window short
@@ -391,63 +351,6 @@ final class IosOnnxInferenceProvider: NSObject, SmartIosInferenceProvider {
 
     private func coverageDetail(_ window: DecodedWindow, startMs: Int64) -> String {
         "Window at \(startMs)ms decoded \(window.valid) of \(window.waveform.count) samples"
-    }
-
-    private func decodeWindow(url: URL, startMs: Int64) throws -> DecodedWindow? {
-        let file = try AVAudioFile(forReading: url)
-        let inputFormat = file.processingFormat
-        let requestedFrame = AVAudioFramePosition(
-            Double(max(0, startMs)) * inputFormat.sampleRate / 1_000
-        )
-        // AVAudioFile throws an Objective-C NSException (not a Swift Error) when
-        // framePosition is outside the real stream. Imported metadata can overstate
-        // duration, especially for damaged VBR files, so reject that window before
-        // touching the exception-raising setter. Other valid windows can still be used.
-        guard requestedFrame < file.length else { return nil }
-        // A FLAC-in-MP4 file opens but raises from both calls below, even at frame 0. Caught, that
-        // is a durable decode error like any other (0.9.3 crashed here on every pass).
-        try LJSafeAudioFile.setFramePosition(requestedFrame, of: file)
-        let inputFrames = AVAudioFrameCount((10 * inputFormat.sampleRate).rounded(.up))
-        guard let input = AVAudioPCMBuffer(pcmFormat: inputFormat, frameCapacity: inputFrames) else {
-            return nil
-        }
-        try LJSafeAudioFile.read(file, into: input, frameCount: inputFrames)
-        guard input.frameLength > 0,
-              let outputFormat = AVAudioFormat(
-                commonFormat: .pcmFormatFloat32,
-                sampleRate: 32_000,
-                channels: 1,
-                interleaved: false
-              ),
-              let converter = AVAudioConverter(from: inputFormat, to: outputFormat),
-              let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: 320_000)
-        else { return nil }
-
-        var supplied = false
-        var conversionError: NSError?
-        converter.convert(to: output, error: &conversionError) { _, status in
-            if supplied {
-                status.pointee = .endOfStream
-                return nil
-            }
-            supplied = true
-            status.pointee = .haveData
-            return input
-        }
-        if let conversionError { throw conversionError }
-        guard let channel = output.floatChannelData?[0] else { return nil }
-        var waveform = [Float](repeating: 0, count: 320_000)
-        let count = min(Int(output.frameLength), waveform.count)
-        waveform.withUnsafeMutableBufferPointer { destination in
-            destination.baseAddress?.update(from: channel, count: count)
-        }
-        // AVAudioConverter can also produce finite overshoot. Keep the shared waveform contract
-        // identical to Android before running the FP16-weight audio graph.
-        for index in 0..<count {
-            let sample = waveform[index]
-            waveform[index] = sample.isFinite ? min(1, max(-1, sample)) : 0
-        }
-        return DecodedWindow(waveform: waveform, valid: count)
     }
 
     private enum WindowRun {

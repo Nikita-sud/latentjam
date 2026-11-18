@@ -43,6 +43,7 @@ import platform.AVFoundation.metadataItemsFromArray
 import platform.AVFoundation.stringValue
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.Foundation.NSCalendar
+import platform.Foundation.NSBundle
 import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
@@ -77,7 +78,12 @@ import kotlin.coroutines.resume
  * across reinstalls and some OS updates, so absolute paths would orphan every
  * history row and index entry the first time that happened.
  */
-internal class IosMusicLibrary : MusicLibrary {
+internal class IosMusicLibrary(
+    /** Where covers and the stored scan are kept; a test gives a folder of its own. */
+    private val caches: () -> String? = { IosPaths.caches() },
+    /** The app build a stored scan belongs to: an update reads every file once more with its own reader. */
+    private val build: String = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleVersion") as? String ?: "",
+) : MusicLibrary {
 
     /** Guards [cache] — [tracks] may be called from several screens at once. */
     private val scanMutex = Mutex()
@@ -88,8 +94,18 @@ internal class IosMusicLibrary : MusicLibrary {
     /** Serializes the small app-only visibility file. */
     private val visibilityMutex = Mutex()
 
-    /** Relative path → last scan result, reused while size and mtime agree. */
+    /**
+     * Relative path → last scan result, reused while size and mtime agree. Kept between launches in
+     * [ImportScanCache.FILE_NAME]: without that every cold start opened every imported file again.
+     */
     private val cache = mutableMapOf<String, CachedTrack>()
+
+    /** Whether the stored scan was asked for: once, before the first walk. */
+    private var storedScanLoaded = false
+
+    /** How many files this library opened to read their tags, the stored scan's whole point being that it is few. */
+    internal var filesRead: Int = 0
+        private set
 
     /**
      * The Music.app half of the last scan and the library revision it was read at.
@@ -99,11 +115,7 @@ internal class IosMusicLibrary : MusicLibrary {
     private var deviceCache: List<TrackDescriptor> = emptyList()
     private var deviceCacheRevision: Double? = null
 
-    private data class CachedTrack(
-        val modifiedAtMs: Long,
-        val sizeBytes: Long,
-        val descriptor: TrackDescriptor,
-    )
+    private class CachedTrack(val entry: ImportScanEntry, val descriptor: TrackDescriptor)
 
     private data class SourceSnapshot(
         val documents: List<TrackDescriptor>,
@@ -482,8 +494,13 @@ internal class IosMusicLibrary : MusicLibrary {
         // enumeratorAtPath recurses and yields paths RELATIVE to the root, which is
         // exactly the identity we want — no string surgery on absolute paths.
         val walker = manager.enumeratorAtPath(documents) ?: return emptyList()
+        if (!storedScanLoaded) {
+            storedScanLoaded = true
+            loadStoredScan(documents)
+        }
         val found = mutableListOf<TrackDescriptor>()
         val live = mutableSetOf<String>()
+        var changed = false
 
         while (true) {
             val entry = walker.nextObject() ?: break
@@ -505,7 +522,7 @@ internal class IosMusicLibrary : MusicLibrary {
 
             live += relativePath
             val cached = cache[relativePath]
-            if (cached != null && cached.sizeBytes == sizeBytes && cached.modifiedAtMs == modifiedAtMs) {
+            if (cached != null && cached.entry.sizeBytes == sizeBytes && cached.entry.modifiedAtMs == modifiedAtMs) {
                 if (cached.descriptor.isLikelyMusic(relativePath)) found += cached.descriptor
                 continue
             }
@@ -515,35 +532,90 @@ internal class IosMusicLibrary : MusicLibrary {
             // One pool per file. What AVFoundation hands back is autoreleased, and this walk is a single
             // call on a worker with no pool of its own: without one, every file's metadata — its embedded
             // cover with it — stayed in memory until the last file of the library had been read.
-            val descriptor = autoreleasepool {
-                read(
-                    relativePath = relativePath,
-                    absolutePath = absolutePath,
-                    sizeBytes = sizeBytes,
-                    modifiedAtMs = modifiedAtMs,
-                    addedAtMs = addedAtMs,
-                )
-            }
-            cache[relativePath] = CachedTrack(modifiedAtMs, sizeBytes, descriptor)
+            val tags = autoreleasepool { read(relativePath = relativePath, absolutePath = absolutePath) }
+            val scanned = ImportScanEntry(relativePath, sizeBytes, modifiedAtMs, addedAtMs, tags)
+            val descriptor = descriptorOf(documents, scanned)
+            cache[relativePath] = CachedTrack(scanned, descriptor)
+            changed = true
             if (descriptor.isLikelyMusic(relativePath)) found += descriptor
         }
 
         // Drop entries for files the user has since deleted, so the cache cannot
         // grow without bound across a long session of importing and removing.
-        cache.keys.retainAll(live)
+        if (cache.keys.retainAll(live)) changed = true
+        if (changed) storeScan()
         // Title order, case-insensitively, to match the Android library's
         // `TITLE COLLATE NOCASE ASC` so both platforms browse the same way.
         return found.sortedBy { it.title?.lowercase() ?: "" }
     }
 
+    /**
+     * Puts the stored scan into [cache]. An entry whose cover the cache folder no longer holds (the system empties
+     * that folder when the device runs short of space) is left out, so its file is read again and the cover written
+     * again. A stored file that is not whole, or of another build, puts nothing in.
+     */
+    private fun loadStoredScan(documents: String) {
+        val directory = caches() ?: return
+        val manager = NSFileManager.defaultManager
+        val stored = manager.contentsAtPath(IosPaths.child(directory, ImportScanCache.FILE_NAME))?.toByteArray() ?: return
+        val entries = ImportScanCache.decode(build, stored) ?: return
+        // Songs of one album share one cover file: each is looked for once.
+        val coverThere = HashMap<String, Boolean>()
+        for (entry in entries) {
+            val cover = entry.tags.coverFile
+            val coverKept = cover == null || coverThere.getOrPut(cover) {
+                '/' !in cover && manager.fileExistsAtPath(IosPaths.child(directory, cover))
+            }
+            if (coverKept) cache[entry.relativePath] = CachedTrack(entry, descriptorOf(documents, entry))
+        }
+    }
+
+    /** Stores [cache] in one piece (a temporary file moved into place). It is regenerable, so a failed write is only a slower next launch. */
+    private fun storeScan() {
+        val directory = caches() ?: return
+        ImportScanCache.encode(build, cache.values.map { it.entry }).toNSData()
+            .writeToFile(IosPaths.child(directory, ImportScanCache.FILE_NAME), true)
+    }
+
+    /**
+     * The descriptor of one imported file, from what a scan read and where the file is now. The stored scan keeps no
+     * locator: [TrackId] is the relative path it is filed under, and the audio and cover locators are built on the
+     * container's current folders, which iOS moves across installs and updates.
+     */
+    private fun descriptorOf(documents: String, entry: ImportScanEntry): TrackDescriptor {
+        val relativePath = entry.relativePath
+        val tags = entry.tags
+        return TrackDescriptor(
+            id = TrackId(relativePath),
+            title = tags.title,
+            artist = tags.artist,
+            album = tags.album,
+            genre = tags.genre,
+            durationMs = tags.durationMs,
+            audioUri = fileUrl(IosPaths.child(documents, relativePath)).absoluteString,
+            artworkUri = tags.coverFile?.let { name ->
+                caches()?.let { fileUrl(IosPaths.child(it, name)).absoluteString }
+            },
+            addedAtMs = entry.addedAtMs,
+            modifiedAtMs = entry.modifiedAtMs.takeIf { it > 0 },
+            // A file dropped straight into Documents has no folder of its own, so it stays one:
+            // "Imported" here would merge it into the real Documents/Imported folder — a single
+            // source with a single switch covering two unrelated sets of files. Android's path
+            // projection returns null for a file in the mount root for the same reason.
+            folderPath = relativePath.substringBeforeLast('/', "").takeIf(String::isNotBlank),
+            year = tags.year,
+            sizeBytes = entry.sizeBytes.takeIf { it > 0 },
+            fileName = relativePath.substringAfterLast('/'),
+            sourceRevision = "ios-import-v1:${entry.sizeBytes}:${entry.modifiedAtMs}",
+            trackNumber = tags.trackNumber,
+            discNumber = tags.discNumber,
+            albumArtist = tags.albumArtist,
+        )
+    }
+
     @OptIn(ExperimentalForeignApi::class)
-    private fun read(
-        relativePath: String,
-        absolutePath: String,
-        sizeBytes: Long,
-        modifiedAtMs: Long,
-        addedAtMs: Long?,
-    ): TrackDescriptor {
+    private fun read(relativePath: String, absolutePath: String): ImportedFileTags {
+        filesRead++
         val url = fileUrl(absolutePath)
         val asset = AVURLAsset(url, null)
 
@@ -577,8 +649,7 @@ internal class IosMusicLibrary : MusicLibrary {
         }
 
         val seconds = CMTimeGetSeconds(asset.duration)
-        return TrackDescriptor(
-            id = TrackId(relativePath),
+        return ImportedFileTags(
             // An untagged file still deserves a readable row, and this is what
             // MediaStore does on Android too, so the platforms agree.
             title = title.knownOrNull()
@@ -590,25 +661,14 @@ internal class IosMusicLibrary : MusicLibrary {
                 ?.let(::cleanGenre),
             // An indefinite or unreadable CMTime comes back NaN rather than throwing.
             durationMs = seconds.takeIf { !it.isNaN() && it > 0 }?.times(1000)?.toLong(),
-            audioUri = url.absoluteString,
-            artworkUri = artwork?.let(::cacheArtwork),
-            addedAtMs = addedAtMs,
-            modifiedAtMs = modifiedAtMs.takeIf { it > 0 },
-            // A file dropped straight into Documents has no folder of its own, so it stays one:
-            // "Imported" here would merge it into the real Documents/Imported folder — a single
-            // source with a single switch covering two unrelated sets of files. Android's path
-            // projection returns null for a file in the mount root for the same reason.
-            folderPath = relativePath.substringBeforeLast('/', "").takeIf(String::isNotBlank),
             year = (metadata.firstString(YEAR_IDENTIFIERS) ?: metadata.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
-            sizeBytes = sizeBytes.takeIf { it > 0 },
-            fileName = relativePath.substringAfterLast('/'),
-            sourceRevision = "ios-import-v1:$sizeBytes:$modifiedAtMs",
             trackNumber = TrackNumbers.parse(metadata.rawString("TRACKNUMBER", "TRCK"))
                 ?: metadata.iTunesPairNumber("trkn"),
             discNumber = TrackNumbers.parse(metadata.rawString("DISCNUMBER", "TPOS"))
                 ?: metadata.iTunesPairNumber("disk"),
             albumArtist = metadata.rawString("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "ALBUM%20ARTIST", "TPE2", "aART"),
+            coverFile = artwork?.let(::cacheArtwork),
         )
     }
 
@@ -668,7 +728,7 @@ internal class IosMusicLibrary : MusicLibrary {
     }
 
     /**
-     * Writes embedded cover art out to a file Coil can load.
+     * Writes embedded cover art out to a file Coil can load, and answers the file's name.
      *
      * Keyed by the artwork bytes, rather than the track path. Tracks from one
      * album normally embed the same image; sharing one cache URI lets the
@@ -682,18 +742,20 @@ internal class IosMusicLibrary : MusicLibrary {
      */
     private fun cacheArtwork(data: NSData): String? {
         if (data.length > TagCodecs.MAX_COVER_BYTES.toULong()) return null
-        val caches = IosPaths.caches() ?: return null
+        val caches = caches() ?: return null
         var hash = 0xcbf29ce484222325uL
         data.toByteArray().forEach { byte ->
             hash = hash xor byte.toUByte().toULong()
             hash *= 0x100000001b3uL
         }
         val key = "${hash.toString(16)}-${data.length}"
-        val target = IosPaths.child(caches, "artwork-$key.img")
+        val name = "artwork-$key.img"
+        val target = IosPaths.child(caches, name)
         if (!NSFileManager.defaultManager.fileExistsAtPath(target)) {
             if (!data.writeToFile(target, true)) return null
         }
-        return fileUrl(target).absoluteString
+        // The name only: [descriptorOf] builds the locator on the cache folder as it is now.
+        return name
     }
 
     /**
