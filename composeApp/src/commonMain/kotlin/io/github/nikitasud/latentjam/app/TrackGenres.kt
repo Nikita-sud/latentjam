@@ -20,6 +20,13 @@ internal expect suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
 
 /**
  * [artworkUri] without any album cover it would fall back to, for a song whose file names no album
- * (see [GenreEnrichment]); unchanged where a platform's locators have no such fallback.
+ * (see [GenreEnrichment]); unchanged where a platform's locators have no such fallback. With no
+ * album to share a cover's version with, the locator follows the song's own file [revision].
  */
-internal expect fun ownCoverOnly(artworkUri: String): String
+internal expect fun ownCoverOnly(artworkUri: String, revision: String?): String
+
+/**
+ * Whether the platform's scanner reports the name of a song's folder as its album when the file
+ * names none (Android's MediaStore). Where it does not, an album always comes from the file.
+ */
+internal expect val scannerNamesAlbumsAfterFolders: Boolean

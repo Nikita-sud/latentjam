@@ -8,7 +8,9 @@ import java.io.FileNotFoundException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class MediaStoreArtworkTest {
 
@@ -79,6 +81,24 @@ internal class MediaStoreArtworkTest {
             "content://other/external/audio/media/42/albumart?album=7",
             "file:///data/user/0/app/files/track-covers/0a1b2c3d.jpg?album=7",
         ).forEach { assertEquals(it, MediaStoreArtwork.ownCoverOnly(it)) }
+    }
+
+    @Test
+    fun aSongOfNoAlbumIsVersionedByItsOwnFileAlone() {
+        val revision = "android-mediastore-v1:5123:1699:12"
+        val song = MediaStoreArtwork.versioned(MediaStoreArtwork.trackCover(42, 7), "folder-wide")
+        val own = MediaStoreArtwork.ownCoverOnly(song, revision)
+        assertTrue(own.startsWith("content://media/external/audio/media/42/albumart?v="))
+        assertNull(MediaStoreArtwork.albumFallback(own))
+        // A neighbour's change moves the folder's version, not this song's; its own change does.
+        assertEquals(own, MediaStoreArtwork.ownCoverOnly(MediaStoreArtwork.versioned(MediaStoreArtwork.trackCover(42, 7), "other"), revision))
+        assertNotEquals(own, MediaStoreArtwork.ownCoverOnly(song, "android-mediastore-v1:5123:1700:13"))
+        // Applied again it stays as it is, and a song scanned with no album id gets the same locator.
+        assertEquals(own, MediaStoreArtwork.ownCoverOnly(own, revision))
+        assertEquals(own, MediaStoreArtwork.ownCoverOnly(MediaStoreArtwork.trackCover(42, 0), revision))
+        // A saved override or another app's locator is nobody's fallback and keeps its own name.
+        val override = "file:///data/user/0/app/files/track-covers/0a1b2c3d.jpg"
+        assertEquals(override, MediaStoreArtwork.ownCoverOnly(override, revision))
     }
 
     @Test

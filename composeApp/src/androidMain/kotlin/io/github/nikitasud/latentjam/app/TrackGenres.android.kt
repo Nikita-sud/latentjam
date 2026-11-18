@@ -38,7 +38,11 @@ internal actual suspend fun readEmbeddedFacts(track: TrackDescriptor): EmbeddedT
         }
     }
 
-internal actual fun ownCoverOnly(artworkUri: String): String = MediaStoreArtwork.ownCoverOnly(artworkUri)
+internal actual fun ownCoverOnly(artworkUri: String, revision: String?): String =
+    MediaStoreArtwork.ownCoverOnly(artworkUri, revision)
+
+/** MediaStore files a song whose file names no album under its folder's name. */
+internal actual val scannerNamesAlbumsAfterFolders: Boolean = true
 
 /** Adapts a one-pass stream to the parser's pull interface; no rewinding, no buffering. */
 internal class InputStreamByteSource(private val input: InputStream) : GenreTags.ByteSource {

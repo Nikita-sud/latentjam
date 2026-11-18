@@ -27,8 +27,10 @@ import kotlin.math.ceil
 
 /**
  * Artwork shared by the app, widgets and media session. An unusable provider thumbnail falls
- * back to the song's embedded picture, then its album's thumbnail. Saved file overrides stay
- * file overrides, and removed artwork stays null: neither can trigger an embedded lookup.
+ * back to the song's embedded picture, then its album's thumbnail. A song that borrows no album's
+ * cover shows the picture in its own file or none (see [loadArtworkWithFallback]). Saved file
+ * overrides stay file overrides, and removed artwork stays null: neither can trigger an embedded
+ * lookup.
  *
  * Call off the main thread. Reads and bitmap allocation have fixed ceilings; no audio file is
  * copied in full and no extracted picture is written into the cover-edit override store.
@@ -98,7 +100,24 @@ public object AndroidTrackArtwork {
                     decodeEmbeddedArtwork(ArtworkChannelSource(channel), dimension, displaySize)
                 }
             },
+            holdsNoPicture = { audio ->
+                resolver.openFileDescriptor(Uri.parse(audio), "r")?.use { descriptor ->
+                    tagsHoldNoPicture(ArtworkChannelSource(FileInputStream(descriptor.fileDescriptor).channel))
+                } ?: false
+            },
         )
+}
+
+/**
+ * True when [source]'s tags were read whole and hold no picture at all; false when they hold one, or
+ * cannot be read (a container or a tag no codec takes), so nothing is known.
+ */
+internal fun tagsHoldNoPicture(source: RandomAccessSource): Boolean = try {
+    val snapshot = TagCodecs.read(BoundedArtworkSource(source))
+    snapshot != null && snapshot.refusal == null && snapshot.cover == null && snapshot.otherPictures == 0
+} catch (_: RuntimeException) {
+    // A tag another app wrote that a codec trips over is one that cannot be read.
+    false
 }
 
 /** Shared by the descriptor adapter and real Android codec/bitmap regression fixtures. */
@@ -110,12 +129,27 @@ internal fun decodeEmbeddedArtwork(
     decodeArtwork(it, maxDimension, displaySize)
 }
 
-/** A decode failure is absence too. Permission, I/O and cancellation failures remain failures. */
+/**
+ * A decode failure is absence too. Permission, I/O and cancellation failures remain failures.
+ *
+ * A song's locator that names no album to fall back to (a song whose file names no album, see
+ * [MediaStoreArtwork.ownCoverOnly]) is answered from the file itself: its [embedded] picture, or
+ * nothing when [holdsNoPicture] says its tags hold none. MediaProvider answers a file without a
+ * picture with an image lying in the same folder, which for such a song is a neighbour's cover
+ * (issue #39), so the [provider] is asked only where the file's tags cannot be read.
+ */
 internal fun <T : Any> loadArtworkWithFallback(
     uri: String,
     provider: (String) -> T?,
     embedded: (String) -> T?,
+    holdsNoPicture: (String) -> Boolean = { false },
 ): T? {
+    val own = MediaStoreArtwork.audioFallback(uri)
+    if (own != null && MediaStoreArtwork.albumFallback(uri) == null) {
+        missingArtwork { embedded(own) }?.let { return it }
+        if (missingArtwork { holdsNoPicture(own).takeIf { it } } == true) return null
+        return missingArtwork { provider(uri) }
+    }
     missingArtwork { provider(uri) }?.let { return it }
     MediaStoreArtwork.audioFallback(uri)?.let { audio ->
         missingArtwork { embedded(audio) }?.let { return it }
