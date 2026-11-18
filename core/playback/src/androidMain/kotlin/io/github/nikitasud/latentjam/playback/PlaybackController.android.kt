@@ -174,6 +174,9 @@ internal class AndroidPlaybackController(
      * follow a transient I/O failure.
      */
     private val failedRecoveryIds = mutableSetOf<String>()
+
+    /** Where the current recovery chain began; forgotten with [failedRecoveryIds]. */
+    private var recoveryOrigin: RecoveryOrigin? = null
     private val mutablePlaybackFailures =
         MutableSharedFlow<PlaybackFailure>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val playbackFailures: Flow<PlaybackFailure> = mutablePlaybackFailures.asSharedFlow()
@@ -243,6 +246,7 @@ internal class AndroidPlaybackController(
             // that completed chain so a later repeat/session may legitimately retry those tracks.
             if (playbackState == Player.STATE_READY) {
                 failedRecoveryIds.clear()
+                recoveryOrigin = null
                 sinkResumedIds.clear()
             }
             // The one moment no queue transition follows. Without this, a SMART queue that reached
@@ -294,6 +298,14 @@ internal class AndroidPlaybackController(
                 pushState()
                 return
             }
+            if (failedRecoveryIds.isEmpty()) {
+                recoveryOrigin = RecoveryOrigin(
+                    mediaId = failedId,
+                    index = failedIndex,
+                    positionMs = player.currentPosition.coerceAtLeast(0L),
+                    cause = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId }?.cause,
+                )
+            }
             failedRecoveryIds += failedId
             // The listener is told why this row did not play: it is skipped, or playback stops at it, without a word
             // otherwise.
@@ -310,20 +322,35 @@ internal class AndroidPlaybackController(
                 )
             }
             val traversalOrder = playerTraversalOrder(player)
+            val mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId }
+            // A file on storage that is not there (a card taken out) fails like every other row of that storage
+            // would: those rows are left out instead of each being tried and failing in turn.
+            val missing = if (error.errorCode in FILE_ERROR_CODES) {
+                rowsOnMissingStorage(mediaIds, failedId, { trackById(it)?.storageVolume }, storagePresence(context))
+            } else {
+                emptySet()
+            }
             val replacement = nextPlaybackErrorRecoveryIndex(
-                mediaIds = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId },
+                mediaIds = mediaIds,
                 failedIndex = failedIndex,
                 repeatAll = player.repeatMode == Player.REPEAT_MODE_ALL,
                 traversalOrder = traversalOrder,
-                failedIds = failedRecoveryIds,
+                failedIds = if (missing.isEmpty()) failedRecoveryIds else failedRecoveryIds + missing,
             )
 
             if (replacement == null) {
                 AndroidCrossfade.settings.interruptedMix = null
-                // Every reachable row failed exactly once. Park on the final failed row with honest
-                // paused state; a later explicit Play/Next clears the attempt set and may retry after
-                // transient storage access returns.
+                // Every reachable row failed exactly once, or cannot be read at all. Stop with honest paused
+                // state where the chain began, at the point the listener had reached: parked on the last row
+                // tried, the queue and the saved session would have lost their place. A later explicit
+                // Play/Next clears the attempt set and may retry after transient storage access returns.
                 player.pause()
+                val origin = recoveryOrigin
+                recoveryOrigin = null
+                recoveryReturnRow(mediaIds, failedIndex, origin)?.let { row ->
+                    announceStart(player, origin?.cause ?: StartCause.AUTO_ADVANCE, row)
+                    player.seekTo(row, origin?.positionMs ?: 0L)
+                }
                 rebuildQueueSnapshot()
                 pushState()
                 return
@@ -1514,6 +1541,7 @@ internal class AndroidPlaybackController(
 
     private fun beginFreshRecoveryAttempt() {
         failedRecoveryIds.clear()
+        recoveryOrigin = null
     }
 
     private fun trackById(id: String): TrackDescriptor? = smartById[id] ?: poolById[id]
