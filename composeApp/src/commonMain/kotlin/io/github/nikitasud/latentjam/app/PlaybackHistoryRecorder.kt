@@ -68,27 +68,32 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     sittingEndsAtPause: () -> Boolean = { false },
     /** Adds what the player cannot see to a finished listen before it is recorded (PersonalSignals). */
     annotate: (ListenEvent) -> ListenEvent = { it },
+    /** Wall time, read when a snapshot or a flush is emitted. */
+    clock: () -> Long = ::epochMillis,
 ): Job = launch {
     val gate = PlaybackHistoryGate(initiallyEnabled = enabled.value)
     // One merged stream, one collector: snapshots and flushes are serialized through the same
     // coroutine, so the gate needs no synchronization.
     merge(
         playback.state.combine(enabled) { now, isEnabled ->
-            HistoryCommand.Snapshot(now, isEnabled, parentId())
+            // The time is read here, with the position it belongs to. Read when the snapshot was processed, the
+            // snapshots that had waited behind a slow write (the log being loaded, an import holding it) all got
+            // one time: the tracker counts no more listening than wall time allows, and counted none for them.
+            HistoryCommand.Snapshot(now, isEnabled, parentId(), clock())
         },
-        flushRequests.map { HistoryCommand.Flush(epochMillis()) },
+        flushRequests.map { HistoryCommand.Flush(clock()) },
         forgetRequests.map { HistoryCommand.Forget(playback.state.value) },
         playback.state.map { it.isPlaying }.distinctUntilChanged().transformLatest<Boolean, HistoryCommand> { playing ->
             if (playing) return@transformLatest
             // A pause taken back within a moment (a call that is declined, a wrong press) is not an end.
             delay(PAUSE_SETTLE_MS)
-            if (sittingEndsAtPause()) emit(HistoryCommand.Flush(epochMillis()))
+            if (sittingEndsAtPause()) emit(HistoryCommand.Flush(clock()))
         },
     ).collect { command ->
         if (command is HistoryCommand.Snapshot && command.enabled) runCatching { onSnapshot(command.now) }
         val finished = when (command) {
             is HistoryCommand.Snapshot ->
-                gate.onSnapshot(command.now, command.enabled, epochMillis(), command.parentId)
+                gate.onSnapshot(command.now, command.enabled, command.atMs, command.parentId)
             is HistoryCommand.Flush ->
                 // A flush while sound is still playing is premature: the foreground service
                 // keeps the process alive and the eventual transition records the session
@@ -214,7 +219,7 @@ private const val PAUSE_SETTLE_MS = 1_000L
 
 /** The recorder's single-collector input alphabet: a playback snapshot or a flush request. */
 private sealed interface HistoryCommand {
-    data class Snapshot(val now: NowPlaying, val enabled: Boolean, val parentId: String?) : HistoryCommand
+    data class Snapshot(val now: NowPlaying, val enabled: Boolean, val parentId: String?, val atMs: Long) : HistoryCommand
     data class Flush(val nowMs: Long) : HistoryCommand
     data class Forget(val now: NowPlaying) : HistoryCommand
 }

@@ -257,6 +257,57 @@ internal class PlaybackHistoryRecorderTest {
         recorder.cancel()
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `snapshots that waited behind a slow write keep the time they were taken at`() = runTest {
+        val playback = FakePlaybackController()
+        val writing = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val history = object : ListeningHistory {
+            val recorded = mutableListOf<ListenEvent>()
+            override suspend fun record(event: ListenEvent) {
+                // The first write is slow: the log is being loaded, or an import holds it.
+                if (recorded.isEmpty()) writing.await()
+                recorded += event
+            }
+            override suspend fun stats() = emptyMap<TrackId, io.github.nikitasud.latentjam.history.TrackStats>()
+            override suspend fun recentEvents(limit: Int) = recorded.takeLast(limit).reversed()
+            override suspend fun replace(events: List<ListenEvent>) = Unit
+            override suspend fun clear() = Unit
+        }
+        var wallMs = 1_000_000L
+        val recorder = launchPlaybackHistoryRecorder(
+            playback = playback,
+            history = history,
+            enabled = MutableStateFlow(true),
+            clock = { wallMs },
+        )
+        runCurrent()
+        playback.emit(now(a, 0))
+        runCurrent()
+        wallMs += 40_000
+        playback.emit(now(a, 40_000))
+        runCurrent()
+        // B starts; writing A's listen takes forty seconds, and B's snapshots queue up behind it.
+        wallMs += 1_000
+        playback.emit(now(b, 0))
+        runCurrent()
+        repeat(40) {
+            wallMs += 1_000
+            playback.emit(now(b, (it + 1) * 1_000L))
+            runCurrent()
+        }
+        writing.complete(Unit)
+        runCurrent()
+        wallMs += 1_000
+        playback.emit(now(c, 0))
+        runCurrent()
+
+        val listenToB = history.recorded.single { it.trackId == b.id }
+        assertTrue((listenToB.listenedMs ?: 0) >= 40_000, "forty seconds were heard, not ${listenToB.listenedMs} ms")
+        assertEquals(false, listenToB.skipped)
+        recorder.cancel()
+    }
+
     private fun track(id: String) = TrackDescriptor(id = TrackId(id), title = id.uppercase())
 
     private fun now(track: TrackDescriptor, positionMs: Long) = NowPlaying(
