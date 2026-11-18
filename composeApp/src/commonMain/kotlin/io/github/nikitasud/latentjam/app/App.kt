@@ -572,9 +572,11 @@ private fun AppShell(
         var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
         var renameTargetId by rememberSaveable { mutableStateOf<String?>(null) }
         val sheets = remember { ShellSheets() }
-        // Store only identities across recreation; a playlist draft must retain its selected
-        // tracks without putting the whole library's metadata in saved instance state.
-        var pendingPlaylistTrackIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+        // Only identities, and those outside saved instance state: a draft seeded with the whole queue would not
+        // fit into it. A draft whose tracks a restarted process lost is dropped rather than created empty.
+        var pendingPlaylistTrackIds by rememberRetainedSelection(RetainedSelections.pendingPlaylistTrackIds, emptyList()) {
+            showCreatePlaylist = false
+        }
         var selectedTrackIds by remember { mutableStateOf<Set<TrackId>>(emptySet()) }
         var selectionRevision by remember { mutableLongStateOf(0L) }
         fun updateTrackSelection(value: Set<TrackId>) {
@@ -654,7 +656,7 @@ private fun AppShell(
                 afterOpen()
             }
         }
-        var bulkEditIds by rememberSaveable { mutableStateOf<List<String>?>(null) }
+        var bulkEditIds by rememberRetainedSelection(RetainedSelections.bulkEditIds, null)
         var bulkEditScope by rememberSaveable { mutableStateOf(BulkEditScope.SELECTION) }
 
         /** One song gets the full editor, with the per-track fields the N-track editor leaves out. */

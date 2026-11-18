@@ -276,8 +276,40 @@ internal class TrackDeleteCoordinator<C>(
     }
 }
 
-/** String-only saved state works with SavedStateHandle without retaining a Context or IntentSender. */
-internal fun encodeDeleteRequests(requests: List<DeleteRequest>): List<String> = buildList {
+/** The most characters of URIs that the queued deletions put into saved state: about a thousand MediaStore URIs. */
+internal const val MAX_SAVED_DELETE_URI_CHARS = 50_000
+
+/**
+ * Whether [requests] are saved with their URIs. Saved state travels in one system transaction of about a megabyte for
+ * the whole Activity, and a state above it ends the process when the app leaves the screen: a library-wide deletion
+ * (10,000 URIs are about that megabyte) is not written into it.
+ */
+private fun deleteRequestsFitSavedState(requests: List<DeleteRequest>): Boolean {
+    // A request restored without its URIs has none to save; it stays in the short form.
+    if (requests.any { it.uris.isEmpty() }) return false
+    // No URI is empty, so more of them than the bound cannot fit: a long list is not summed at every checkpoint.
+    if (requests.sumOf { it.uris.size } > MAX_SAVED_DELETE_URI_CHARS) return false
+    return requests.sumOf { request -> request.uris.sumOf { it.length } } <= MAX_SAVED_DELETE_URI_CHARS
+}
+
+/**
+ * String-only saved state works with SavedStateHandle without retaining a Context or IntentSender.
+ *
+ * Deletions too large for saved state (see [deleteRequestsFitSavedState]) are saved as their counts alone. The owner
+ * keeps the URIs across a recreated Activity; after a restarted process such a request cannot go on, and is restored
+ * finished, with what was done counted and the rest as cancelled.
+ */
+internal fun encodeDeleteRequests(requests: List<DeleteRequest>): List<String> =
+    if (deleteRequestsFitSavedState(requests)) encodeWholeDeleteRequests(requests) else buildList {
+        add("2")
+        add(requests.size.toString())
+        for (request in requests) {
+            addAll(listOf(request.id.toString(), request.report.deleted.toString(), request.report.denied.toString(),
+                request.report.failed.toString(), (request.report.cancelled + request.remaining).toString()))
+        }
+    }
+
+private fun encodeWholeDeleteRequests(requests: List<DeleteRequest>): List<String> = buildList {
     add("1")
     add(requests.size.toString())
     for (request in requests) {
@@ -293,7 +325,9 @@ internal fun decodeDeleteRequests(saved: List<String>?): List<DeleteRequest> {
     if (saved == null) return emptyList()
     return runCatching {
         val values = saved.iterator()
-        check(values.next() == "1")
+        val format = values.next()
+        if (format == "2") return@runCatching decodeFinishedDeleteRequests(values)
+        check(format == "1")
         List(values.next().toInt()) {
             val id = values.next().toLong()
             val position = values.next().toInt()
@@ -311,3 +345,13 @@ internal fun decodeDeleteRequests(saved: List<String>?): List<DeleteRequest> {
         }.also { check(!values.hasNext()) }
     }.getOrDefault(emptyList())
 }
+
+/** The short form of [encodeDeleteRequests]: each request finished, its report as it stood with the rest cancelled. */
+private fun decodeFinishedDeleteRequests(values: Iterator<String>): List<DeleteRequest> =
+    List(values.next().toInt()) {
+        val id = values.next().toLong()
+        val report = TrackDeleteReport(values.next().toInt(), values.next().toInt(),
+            values.next().toInt(), values.next().toInt())
+        check(listOf(report.deleted, report.denied, report.failed, report.cancelled).all { it >= 0 })
+        DeleteRequest(id, uris = emptyList(), stage = DeleteStage.COMPLETE, report = report)
+    }.also { check(!values.hasNext()) }

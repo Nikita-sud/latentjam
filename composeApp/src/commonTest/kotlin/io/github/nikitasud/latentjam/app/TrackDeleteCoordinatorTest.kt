@@ -450,6 +450,50 @@ class TrackDeleteCoordinatorTest {
         assertEquals(TrackDeleteReport(deleted = 2_001), restored.report())
     }
 
+    @Test fun `the saved state of a very large deletion stays small`() = runTest {
+        val harness = Harness(Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST))
+        harness.coordinator.enqueue(List(20_000) { "content://media/external/audio/media/${1_000_000 + it}" })
+        runCurrent()
+        harness.launchPrompt()
+        // What is saved goes into the Activity's saved state, which the system refuses above about a megabyte.
+        assertTrue(harness.saved.sumOf { it.length } < 4_096, "saved ${harness.saved.sumOf { it.length }} characters")
+    }
+
+    @Test fun `a very large deletion ends as cancelled after the process was restarted`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        original.coordinator.enqueue(List(20_000) { "content://media/external/audio/media/${1_000_000 + it}" })
+        runCurrent()
+        original.launchPrompt()
+        original.coordinator.answer(DeleteAnswer.APPROVED)
+        runCurrent()
+        original.launchPrompt()
+        val restored = original.recreate()
+        runCurrent()
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        // The first 2,000 were deleted; the rest cannot be named any more and are left alone.
+        assertNull(restored.coordinator.prompt.value)
+        assertEquals(2, backend.batches.size)
+        assertEquals(TrackDeleteReport(deleted = 2_000, cancelled = 18_000), restored.report())
+        restored.coordinator.acknowledge(assertNotNull(restored.coordinator.completed.value).id)
+        assertNull(restored.recreate().coordinator.completed.value)
+    }
+
+    @Test fun `a deletion of a few hundred tracks is still saved whole`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        val uris = List(400) { "content://media/external/audio/media/${1_000_000 + it}" }
+        original.coordinator.enqueue(uris)
+        runCurrent()
+        original.launchPrompt()
+        val restored = original.recreate()
+        restored.coordinator.answer(DeleteAnswer.APPROVED)
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(TrackDeleteReport(deleted = 400), restored.report())
+    }
+
     private inner class Harness(
         val backend: Backend,
         restored: List<String>? = null,
