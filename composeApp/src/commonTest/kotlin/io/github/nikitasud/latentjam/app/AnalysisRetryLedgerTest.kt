@@ -128,4 +128,43 @@ class AnalysisRetryLedgerTest {
         now += 61 * 60_000
         assertEquals(listOf(track, other), MapRebuild.awaitedByRebuild(listOf(track, other), AnalysisRetryLedger(ledger.encoded()) { now }::holding))
     }
+
+    private fun timedOutReport(tracks: List<TrackDescriptor>, stalled: Boolean) = io.github.nikitasud.latentjam.smart.IndexReport(
+        indexed = 0,
+        failed = tracks.size,
+        errors = tracks.associate { it.id to EngineError.AudioUnavailable("Analysis timed out after 90 s") },
+        stalled = stalled,
+    )
+
+    @Test
+    fun aStallHoldsEveryTrackThatTimedOutInThePass() = kotlinx.coroutines.test.runTest {
+        val ledger = AnalysisRetryLedger(null) { now }
+        val settling = AnalysisRetrySettling(ledger, stillMissing = { true }, remember = {}, save = {})
+        val others = (0 until 4).map { TrackDescriptor(id = TrackId("o$it"), audioUri = "file:///o$it.mp3", durationMs = 100_000) }
+        settling.passStarted()
+        // A timeout alone is tried again by the next pass.
+        settling.settle(listOf(track), timedOutReport(listOf(track), stalled = false))
+        assertFalse(ledger.holding(track))
+        // The stall: the pass must get past these now, so all of them wait out the hour at once.
+        settling.settle(others, timedOutReport(others.take(3), stalled = true))
+        assertTrue(ledger.holding(track))
+        assertEquals(listOf(true, true, true, false), others.map(ledger::holding))
+        now += 61 * 60_000
+        assertFalse(ledger.holding(track))
+        // Their next timeout is the third: remembered, as for any file.
+        assertTrue(ledger.timedOut(track))
+    }
+
+    @Test
+    fun aTimeoutOfAnEarlierPassIsNotHeldByALaterStall() = kotlinx.coroutines.test.runTest {
+        val ledger = AnalysisRetryLedger(null) { now }
+        val settling = AnalysisRetrySettling(ledger, stillMissing = { true }, remember = {}, save = {})
+        val other = TrackDescriptor(id = TrackId("b"), audioUri = "file:///b.mp3", durationMs = 100_000)
+        settling.passStarted()
+        settling.settle(listOf(track), timedOutReport(listOf(track), stalled = false))
+        settling.passStarted()
+        settling.settle(listOf(other), timedOutReport(listOf(other), stalled = true))
+        assertFalse(ledger.holding(track))
+        assertTrue(ledger.holding(other))
+    }
 }

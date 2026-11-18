@@ -46,7 +46,8 @@ internal interface DecodeWorkers {
 
     /**
      * Abandoned workers that are still alive well after their abandonment: each sits in a platform call and keeps its
-     * thread, its file and possibly a codec for the life of the process. 0 where workers cannot be told apart.
+     * thread, its file and possibly a codec for the life of the process. 0 where workers cannot be told apart. Only
+     * reported (with a stall): nothing stops on this count.
      */
     val stuck: Int get() = 0
 
@@ -57,21 +58,19 @@ internal interface DecodeWorkers {
  * Timed-out tracks in a row at which the analysis lane stops ([AnalysisStalled]). Three, on this basis: the app's
  * ledger already takes three attempts as the limit for one file, and one or two hung files in a row are plausible
  * for a damaged album, while three different files in a row point at the storage or the extractor service, not at
- * the files. Going on would cost every remaining track its 90 s, a ledger attempt and a leaked thread.
+ * the files. Going on would cost every remaining track its 90 s, a ledger attempt and a leaked thread. It is only
+ * a sign, and three hung files do sit together now and then: the app's pass therefore goes past one such row and
+ * ends only when the next row follows it with nothing analysed in between (GatedAudioPass).
+ *
+ * There is no limit on stuck workers. 0.9.6's first cut stopped the lane for the life of the process at eight of
+ * them, on a figure (a platform default of 32 codec instances) that was never checked against a device; three hung
+ * files next to each other reached it and ended analysis for a library 0.9.5 would have finished.
  */
 internal const val TIMEOUTS_IN_A_ROW_STOP: Int = 3
 
 /**
- * Stuck decode workers ([DecodeWorkers.stuck]) at which the analysis lane stops for this process. Eight, on this
- * basis: a stuck worker may hold a started codec, and a codec that declares no limit of its own allows 32 concurrent
- * instances (MediaCodecInfo's default); a quarter of that leaves playback, its crossfade and the loudness scan far
- * from the limit however the stuck ones are spread over codecs.
- */
-internal const val MAX_STUCK_WORKERS: Int = 8
-
-/**
- * The analysis lane stopped itself: its tracks time out one after another, or too many of its workers are stuck.
- * No track's own failure; the engine reports the chunk as [IndexReport.stalled] and the pass ends.
+ * The analysis lane cut a chunk short: its tracks time out one after another. No track's own failure; the engine
+ * reports the chunk as [IndexReport.stalled], and the caller decides whether its pass goes on.
  */
 public class AnalysisStalled(detail: String) : Exception(detail)
 
@@ -158,24 +157,23 @@ internal class DeadlineDecoding(
 
     /**
      * Counts one analysed track's [result], after it was handed over: at the [TIMEOUTS_IN_A_ROW_STOP]th timeout in a
-     * row, or with [MAX_STUCK_WORKERS] workers stuck, the lane stops ([AnalysisStalled]) and the tracks after it are
-     * not tried. Any other outcome ends the row. Called by the lane's own coroutine only.
+     * row the lane cuts the chunk short ([AnalysisStalled]) and the tracks after it are not tried in this call. Any
+     * other outcome ends the row. Called by the lane's own coroutine only.
      */
     fun settled(result: Result<FloatArray>) {
         val timedOut = (result.exceptionOrNull() as? SmartEngineException)?.error?.isAnalysisTimeout() == true
         timeoutsInARow = if (timedOut) timeoutsInARow + 1 else 0
         if (timeoutsInARow >= TIMEOUTS_IN_A_ROW_STOP) {
-            // The pass that is started next counts its own row.
+            // The next call counts its own row.
             timeoutsInARow = 0
-            throw AnalysisStalled("$TIMEOUTS_IN_A_ROW_STOP tracks in a row timed out")
+            throw AnalysisStalled("$TIMEOUTS_IN_A_ROW_STOP tracks in a row timed out (${workers.stuck} workers stuck)")
         }
-        refuseWhenStuck()
     }
 
-    /** Stops the lane ([AnalysisStalled]) while [MAX_STUCK_WORKERS] of its workers are stuck. */
-    fun refuseWhenStuck() {
-        val stuck = workers.stuck
-        if (stuck >= MAX_STUCK_WORKERS) throw AnalysisStalled("$stuck decode workers are stuck")
+    /** Whether a piece of look-ahead has begun on its worker. */
+    private class Begun {
+        @kotlin.concurrent.Volatile
+        var value = false
     }
 
     /** Starts [block] on a worker. */
@@ -238,8 +236,16 @@ internal class DeadlineDecoding(
         waited: (() -> Duration)? = null,
         onResult: suspend (TrackDescriptor, Result<FloatArray>) -> Unit,
     ) {
-        refuseWhenStuck()
         val queue = ArrayDeque<Pair<TrackDescriptor, Deferred<D>>>()
+        // Which of this call's look-ahead has begun on a worker (by its Deferred, which compares by identity).
+        val begun = HashMap<Deferred<D>, Begun>()
+        fun ahead(track: TrackDescriptor): Deferred<D> {
+            val mark = Begun()
+            return start {
+                mark.value = true
+                prefetch(track)
+            }.also { begun[it] = mark }
+        }
         // What the last call started for this one, by descriptor; anything else it started is dropped now.
         val reusable = LinkedHashMap<TrackDescriptor, Deferred<D>>()
         val (handedOver, generation) = takeCarriedWithGeneration()
@@ -261,7 +267,7 @@ internal class DeadlineDecoding(
         fun refill() {
             while (next < tracks.size && queue.size <= ahead) {
                 val track = tracks[next++]
-                queue.addLast(track to (reusable.remove(track) ?: start { prefetch(track) }))
+                queue.addLast(track to (reusable.remove(track) ?: ahead(track)))
             }
             // The pool stays as busy as it was: once this call's tracks are all started, the next call's start.
             while (next >= tracks.size && nextUpcoming < upcoming.size && queue.size + ahead2.size <= ahead) {
@@ -287,11 +293,15 @@ internal class DeadlineDecoding(
                     val pending = queue.toList()
                     queue.clear()
                     for ((later, work) in pending) {
-                        if (work.isCompleted) {
+                        // Finished, or already on a worker: left to end there. Begun again on the fresh workers, a
+                        // decode that sits in a platform call only sat in it once more (hung files next to each
+                        // other left a stuck thread per replaced pool), and one that is merely slow ends by itself.
+                        // Only what still waited for a worker is started again: the old pool will never run it.
+                        if (work.isCompleted || begun[work]?.value == true) {
                             queue.addLast(later to work)
                         } else {
                             work.cancel()
-                            queue.addLast(later to start { prefetch(later) })
+                            queue.addLast(later to ahead(later))
                         }
                     }
                     // So may what was started for later: started again on the fresh workers when it is reached.

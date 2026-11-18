@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.IndexReport
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -38,8 +39,8 @@ internal interface AudioPassEngine {
 }
 
 /**
- * The engine stopped a chunk because analysis stalled ([IndexReport.stalled]): the pass ends as a failed pass does,
- * and the restart rules decide when it is tried again.
+ * Analysis stalled twice with nothing analysed in between (GatedAudioPass.stagePastAStall): the pass ends as a failed
+ * pass does, and the restart rules decide when it is tried again.
  */
 internal class AnalysisPassStalled : RuntimeException("analysis stalled")
 
@@ -89,6 +90,8 @@ internal class GatedAudioPass(
         inFlight: InFlightMarker = InFlightMarker,
     ): AudioPassEnd {
         shown = shownAtStart
+        stalledBefore = false
+        analysedSinceStall = false
         val pauseLabel = notices(AnalysisNotice.PauseAction)
         val cadence = AutomaticIndexCheckpointCadence(tracksPerCheckpoint = checkpointTracks)
         var gated = gatedAtStart
@@ -177,7 +180,7 @@ internal class GatedAudioPass(
                 // tracks it did not reach (crash suspects among them) are still to be analysed.
                 var completed = false
                 val report = try {
-                    engine.stage(chunk, upcoming).also { completed = !it.stalled }
+                    stagePastAStall(chunk, upcoming).also { completed = !it.stalled }
                 } finally {
                     inFlight.end(chunk, completed)
                 }
@@ -206,9 +209,9 @@ internal class GatedAudioPass(
                         progressAt = TimeSource.Monotonic.markNow().takeIf { !pausing },
                     )
                 }
-                // Stalled: its tracks time out one after another, or too many decode workers are stuck. What the chunk
-                // reported is out and checkpointed like any chunk's; going on would cost every remaining track its
-                // 90 s, a ledger attempt and a leaked thread.
+                // Stalled twice with nothing analysed in between (stagePastAStall). What the chunk reported is out and
+                // checkpointed like any chunk's; going on would cost every remaining track its 90 s, a ledger attempt
+                // and a leaked thread.
                 if (report.stalled) throw AnalysisPassStalled()
                 // A short scheduling gap also gives thermal management a chance to settle;
                 // 75 ms per model batch is invisible beside audio inference but materially
@@ -225,6 +228,40 @@ internal class GatedAudioPass(
         }
         cadence.flush { engine.persist() }
         return AudioPassEnd.COMPLETED
+    }
+
+    /** Whether a chunk of this pass stalled, and whether a track was analysed since the last one that did. */
+    private var stalledBefore = false
+    private var analysedSinceStall = false
+
+    /**
+     * Stages [chunk] and goes past a stall. A stalled report ([IndexReport.stalled]) means three tracks in a row timed
+     * out: a sign that the storage or the extractor service stopped answering, but three hung files do sit together
+     * too. 0.9.5 analysed the rest of the library past them in the same pass, and a pass that ended here left it
+     * waiting for a restart. So the tracks that timed out stay behind (the retry ledger holds them) and the rest of
+     * the chunk is staged again. Only a stall that follows another with no track analysed in between ends the pass:
+     * then nothing but timeouts has come back for six tracks in a row, and the report returned says [stalled].
+     */
+    private suspend fun stagePastAStall(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
+        var work = chunk
+        var indexed = 0
+        val errors = LinkedHashMap<TrackId, EngineError>()
+        while (true) {
+            val report = engine.stage(work, upcoming)
+            if (work === chunk && !report.stalled) return report.also { if (it.indexed > 0) analysedSinceStall = true }
+            indexed += report.indexed
+            errors.putAll(report.errors)
+            if (report.indexed > 0) analysedSinceStall = true
+            val merged = report.copy(indexed = indexed, failed = errors.size, errors = errors)
+            if (!report.stalled) return merged
+            val again = stalledBefore && !analysedSinceStall
+            stalledBefore = true
+            analysedSinceStall = false
+            if (again) return merged
+            // Every stalled report names at least the track its row ended on, so this shrinks until it is done.
+            work = work.filterNot { errors[it.id]?.isAnalysisTimeout() == true }
+            if (work.isEmpty()) return merged.copy(stalled = false)
+        }
     }
 
     /** The failure list a gated or stopped pass publishes: what it saw, plus what the engine remembers. */

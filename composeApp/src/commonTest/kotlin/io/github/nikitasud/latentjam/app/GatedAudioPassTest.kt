@@ -41,13 +41,22 @@ class GatedAudioPassTest {
         val staged = ArrayList<List<TrackId>>()
         var persists = 0
         var onStage: (Int) -> Unit = {}
+
+        /** What AppGraph does with each chunk's report (the retry ledger); none by default. */
+        var settle: suspend (List<TrackDescriptor>, IndexReport) -> IndexReport = { _, report -> report }
         /** The staged chunk (1-based) the engine reports as stalled, with [stalledErrors]; 0 is none. */
         var stalledAt = 0
         var stalledErrors: Map<TrackId, EngineError> = emptyMap()
+
+        /** Tracks whose analysis times out; with any, [stage] counts timeouts in a row as the engine's lane does. */
+        var hung: Set<TrackId> = emptySet()
+        val attempts = ArrayList<TrackId>()
+        private var timeoutsInARow = 0
         val remembered = mapOf(tracks.last().id to EngineError.InvalidAudio())
         override suspend fun missingFromIndex(ids: List<TrackId>) = ids.count { it !in indexed && it !in remembered }
         override suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport {
             staged += chunk.map { it.id }
+            if (hung.isNotEmpty()) return settle(chunk, stageWithHungTracks(chunk))
             val todo = chunk.filter { it.id !in indexed && it.id !in remembered }
             indexed += todo.map { it.id }
             onStage(staged.size)
@@ -56,6 +65,27 @@ class GatedAudioPassTest {
             }
             return IndexReport(indexed = todo.size, failed = 0, errors = emptyMap())
         }
+        private fun stageWithHungTracks(chunk: List<TrackDescriptor>): IndexReport {
+            val errors = LinkedHashMap<TrackId, EngineError>()
+            var analysed = 0
+            for (track in chunk) {
+                if (track.id in indexed || track.id in remembered) continue
+                attempts += track.id
+                if (track.id in hung) {
+                    errors[track.id] = EngineError.AudioUnavailable("Analysis timed out after 90 s")
+                    if (++timeoutsInARow == 3) {
+                        timeoutsInARow = 0
+                        return IndexReport(indexed = analysed, failed = errors.size, errors = errors, stalled = true)
+                    }
+                } else {
+                    indexed += track.id
+                    analysed++
+                    timeoutsInARow = 0
+                }
+            }
+            return IndexReport(indexed = analysed, failed = errors.size, errors = errors)
+        }
+
         override suspend fun persist() {
             persists++
         }
@@ -124,27 +154,99 @@ class GatedAudioPassTest {
         assertEquals(listOf(8, 8, 4), engine.staged.map { it.size })
     }
 
+    private suspend fun GatedAudioPass.goWith(
+        failures: MutableMap<TrackId, EngineError> = LinkedHashMap(),
+        inFlight: InFlightMarker = InFlightMarker,
+        order: List<TrackDescriptor> = tracks,
+    ) = run(
+        order = order, allIds = tracks.map { it.id }, total = tracks.size,
+        progress = AnalysisProgress(tracks.size).apply { started(tracks.size) },
+        failures = failures, eta = IndexingEta(wall), gatedAtStart = true, shownAtStart = true,
+        inFlight = inFlight,
+    )
+
     @Test
-    fun aStalledChunkEndsThePassAfterItsResultsArePublished() = runTest {
-        val timedOut: EngineError = EngineError.AudioUnavailable("Analysis timed out after 90 s")
-        engine.stalledAt = 2
-        engine.stalledErrors = mapOf(tracks[8].id to timedOut)
-        val pass = pass()
+    fun threeHungFilesInARowDoNotEndThePass() = runTest {
+        // 0.9.5: each hung file cost its 90 s and the rest was analysed in the same pass.
+        engine.hung = tracks.take(3).mapTo(HashSet()) { it.id }
         val failures = LinkedHashMap<TrackId, EngineError>()
-        val ended = runCatching {
-            pass.run(
-                order = tracks, allIds = tracks.map { it.id }, total = tracks.size,
-                progress = AnalysisProgress(tracks.size).apply { started(tracks.size) },
-                failures = failures, eta = IndexingEta(wall), gatedAtStart = true, shownAtStart = true,
-            )
-        }.exceptionOrNull()
-        assertTrue(ended is AnalysisPassStalled)
-        // The stalled chunk was the last one staged, and what it reported is out.
-        assertEquals(2, engine.staged.size)
-        assertEquals<Map<TrackId, EngineError>>(mapOf(tracks[8].id to timedOut), failures)
+        assertEquals(AudioPassEnd.COMPLETED, pass().goWith(failures))
+        // Everything but the three and the remembered failure; the three were tried once each.
+        assertEquals(tracks.drop(3).dropLast(1).map { it.id }.toSet(), engine.indexed)
+        assertEquals(tracks.take(3).map { it.id }, engine.attempts.filter { it in engine.hung })
+        assertEquals(engine.hung, failures.keys)
         assertEquals<Map<TrackId, EngineError>>(failures, state.value.failures)
+    }
+
+    @Test
+    fun runsOfHungFilesWithAnalysedTracksBetweenDoNotEndThePass() = runTest {
+        engine.hung = (tracks.subList(1, 4) + tracks.subList(9, 12)).mapTo(HashSet()) { it.id }
+        assertEquals(AudioPassEnd.COMPLETED, pass().goWith())
+        assertEquals(tracks.size - 6 - 1, engine.indexed.size)
+    }
+
+    @Test
+    fun aPassWhoseTracksOnlyTimeOutEndsAtItsSecondStallInARow() = runTest {
+        // The storage or the extractor service stopped answering: nothing is analysed between two stalls.
+        engine.hung = tracks.mapTo(HashSet()) { it.id }
+        val failures = LinkedHashMap<TrackId, EngineError>()
+        val ends = ArrayList<Boolean>()
+        val marker = object : InFlightMarker {
+            override fun end(chunk: List<TrackDescriptor>, completed: Boolean) {
+                ends += completed
+            }
+        }
+        val ended = runCatching { pass().goWith(failures, marker) }.exceptionOrNull()
+        assertTrue(ended is AnalysisPassStalled)
+        assertEquals(tracks.take(6).map { it.id }, engine.attempts)
+        // What the two stalls reported is out, and the chunk they cut short keeps its crash suspects.
+        assertEquals(tracks.take(6).map { it.id }.toSet(), failures.keys)
+        assertEquals<Map<TrackId, EngineError>>(failures, state.value.failures)
+        assertEquals(listOf(false), ends)
         assertFalse(device.held)
         assertFalse(state.value.pausable)
+    }
+
+    @Test
+    fun aStallAfterAnalysedTracksIsWalkedPastAndAStallRightAfterItEndsThePass() = runTest {
+        // t0..t4 are analysed, then six in a row time out.
+        engine.hung = tracks.subList(5, 11).mapTo(HashSet()) { it.id }
+        val ended = runCatching { pass().goWith() }.exceptionOrNull()
+        assertTrue(ended is AnalysisPassStalled)
+        assertEquals(tracks.take(11).map { it.id }, engine.attempts)
+    }
+
+    @Test
+    fun aStallHoldsItsTracksSoThatRetryAfterAStoppedPassGetsPastThem() = runTest {
+        // Six hung files first: the pass stops at its second stall. With the ledger as AppGraph settles it, the six
+        // wait out their hour; the recovery Retry that follows a stall keeps them waiting, and the next pass in the
+        // same process analyses everything else.
+        val ledger = AnalysisRetryLedger(null) { wall }
+        val settling = AnalysisRetrySettling(ledger, stillMissing = { it.id !in engine.indexed }, remember = {}, save = {})
+        engine.hung = tracks.take(6).mapTo(HashSet()) { it.id }
+        engine.settle = settling::settle
+        settling.passStarted()
+        assertTrue(runCatching { pass().goWith() }.exceptionOrNull() is AnalysisPassStalled)
+        assertEquals(6, tracks.count(ledger::holding))
+
+        // Retry (the recovery one, "retry everything") pressed on the stopped pass.
+        ledgerKeeps(tracks.map { it.id }, recoveryRetry = true, librarySnapshotAuthoritative = true, afterStall = true)
+            ?.let(ledger::prune)
+        assertEquals(6, tracks.count(ledger::holding))
+        settling.passStarted()
+        engine.attempts.clear()
+        assertEquals(AudioPassEnd.COMPLETED, pass().goWith(order = tracks.filterNot(ledger::holding)))
+        assertEquals(tracks.drop(6).dropLast(1).map { it.id }, engine.attempts)
+        assertEquals(tracks.size - 6 - 1, engine.indexed.size)
+    }
+
+    @Test
+    fun aRecoveryRetryThatFollowsNoStallStillClearsTheLedger() {
+        val ids = tracks.map { it.id }
+        assertEquals(emptyList(), ledgerKeeps(ids, recoveryRetry = true, librarySnapshotAuthoritative = true))
+        assertEquals(ids, ledgerKeeps(ids, recoveryRetry = true, librarySnapshotAuthoritative = true, afterStall = true))
+        // A partial library after a stall leaves the ledger as it is, as without a Retry.
+        assertNull(ledgerKeeps(ids, recoveryRetry = true, librarySnapshotAuthoritative = false, afterStall = true))
     }
 
     @Test
@@ -180,27 +282,6 @@ class GatedAudioPassTest {
             ),
             log,
         )
-    }
-
-    @Test
-    fun aStalledChunkLeavesItsCrashSuspectsToBeAnalysed() = runTest {
-        // Suspects are cleared when their chunk went through the engine; a stalled chunk was cut short before them.
-        val ends = ArrayList<Boolean>()
-        val marker = object : InFlightMarker {
-            override fun end(chunk: List<TrackDescriptor>, completed: Boolean) {
-                ends += completed
-            }
-        }
-        engine.stalledAt = 2
-        runCatching {
-            pass().run(
-                order = tracks, allIds = tracks.map { it.id }, total = tracks.size,
-                progress = AnalysisProgress(tracks.size).apply { started(tracks.size) },
-                failures = LinkedHashMap(), eta = IndexingEta(wall), gatedAtStart = true, shownAtStart = true,
-                inFlight = marker,
-            )
-        }
-        assertEquals(listOf(true, false), ends)
     }
 
     @Test

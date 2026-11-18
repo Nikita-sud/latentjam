@@ -763,6 +763,7 @@ object AppGraph {
                     }
                 },
                 onInterrupted = { failure ->
+                    if (failure is AnalysisPassStalled) stoppedByStall = true
                     val reason = if (failure is AnalysisShowFailed) AnalysisStopReason.SHOW_FAILED else AnalysisStopReason.EXCEPTION
                     store.stopReason = reason
                     if (reason == AnalysisStopReason.EXCEPTION) restartRules.failed()
@@ -808,6 +809,10 @@ object AppGraph {
                 // left; Retry makes the files it was pressed for eligible again (every one for the recovery Retry).
                 val retries = analysisRetries
                 val retry = pendingRetry.value
+                // Read once: this pass answers for the stall, whatever stops it later.
+                val afterStall = stoppedByStall
+                stoppedByStall = false
+                retrySettling.passStarted()
                 if (retry != null) engine.retryFailedTracks(if (retry.all) trackIds else retry.ids.toList())
                 // Once, after the update that taught the analysis Apple Lossless (0.9.5): MP4 files it had remembered
                 // as "no decoder" get another try without the listener pressing Retry. Not for an empty or partial
@@ -825,7 +830,7 @@ object AppGraph {
                     engine.retryFailedTracks(trackIds)
                     settings.markAnalysisRetryDone(RETRY_ONCE_DECODER_LOOKUP)
                 }
-                ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative)?.let(retries::prune)
+                ledgerKeeps(trackIds, recoveryRetry = retry?.all == true, librarySnapshotAuthoritative, afterStall)?.let(retries::prune)
                 retry?.ids?.forEach(retries::forget)
                 // Carried out: what a later Retry added meanwhile stays for the next pass.
                 if (retry != null) {
@@ -1337,31 +1342,23 @@ object AppGraph {
      * D1/D2 after a chunk: a timeout is retried later (the engine no longer remembers it), and the third one is handed
      * to the engine to remember, shown as failed with Retry. Any other outcome ends the track's entry.
      */
-    private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
-        val retries = analysisRetries
-        val exhausted = ArrayList<TrackDescriptor>()
-        for (track in chunk) {
-            val error = report.errors[track.id]
-            when {
-                error != null && error.countsInRetryLedger() -> if (retries.timedOut(track)) exhausted += track
-                // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
-                // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
-                error is EngineError.InvalidAudio -> retries.forget(track.id)
-                // Decided per track, and only for one the ledger holds: analysed means no longer missing.
-                error == null && retries.has(track.id) && engine.missingFromIndexOf(listOf(track)) == 0 ->
-                    retries.forget(track.id)
-            }
-        }
-        if (exhausted.isEmpty()) {
-            analysisStore.retryLedger = retries.encoded()
-            return report
-        }
-        // The engine's failure rows first, then the ledger that let go of them: a kill between keeps the count.
-        engine.rememberAudioFailures(exhausted)
-        analysisStore.retryLedger = retries.encoded()
-        val errors = LinkedHashMap(report.errors)
-        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis failed ${AnalysisRetryLedger.CAP} times")
-        return report.copy(errors = errors)
+    private suspend fun settleRetries(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport =
+        retrySettling.settle(chunk, report)
+
+    /**
+     * The last pass ended because analysis stalled (AnalysisPassStalled); read and cleared by the next pass. In memory:
+     * a new process starts its pass by itself, with the stalled tracks still held in the stored ledger.
+     */
+    @kotlin.concurrent.Volatile
+    private var stoppedByStall = false
+
+    private val retrySettling: AnalysisRetrySettling by lazy {
+        AnalysisRetrySettling(
+            ledger = analysisRetries,
+            stillMissing = { track -> engine.missingFromIndexOf(listOf(track)) > 0 },
+            remember = { exhausted -> engine.rememberAudioFailures(exhausted) },
+            save = { analysisStore.retryLedger = analysisRetries.encoded() },
+        )
     }
 
     /** The current pass stopped for the user's pause and is only finishing; reset by each new pass. */

@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.smart.EngineError
+import io.github.nikitasud.latentjam.smart.IndexReport
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
@@ -72,6 +73,16 @@ internal class AnalysisRetryLedger(encoded: String?, private val nowMs: () -> Lo
         return false
     }
 
+    /**
+     * [track] waits out the backoff from now, as after its second timeout, whatever its count was: a pass that stalled
+     * on it must get past it at once, in this pass and the next. Its next timeout is then the last.
+     */
+    fun hold(track: TrackDescriptor) {
+        val identity = identityOf(track)
+        val before = entries[track.id]?.takeIf { it.identity == identity }?.attempts ?: 0
+        entries[track.id] = Entry(identity, maxOf(before, CAP - 1), nowMs())
+    }
+
     fun has(id: TrackId): Boolean = id in entries
 
     /** [id] was analysed, failed some other way, or left the library. */
@@ -115,8 +126,71 @@ internal fun ledgerKeeps(
     trackIds: List<TrackId>,
     recoveryRetry: Boolean,
     librarySnapshotAuthoritative: Boolean,
+    /**
+     * The pass before this one was stopped by a stall. The Retry offered on a stopped pass is the recovery Retry, and
+     * clearing the ledger there sent the next pass straight back into the tracks it had stalled on, every time.
+     */
+    afterStall: Boolean = false,
 ): List<TrackId>? = when {
-    recoveryRetry -> emptyList()
+    recoveryRetry && !afterStall -> emptyList()
     librarySnapshotAuthoritative -> trackIds
     else -> null
+}
+
+/**
+ * D1/D2 after each chunk of a pass: what the chunk's report means for the retry ledger. A timeout (or a failure on the
+ * file's own data) is an attempt; the third hands the track to the engine to remember, shown as failed with Retry. Any
+ * other answer about the file ends its entry.
+ *
+ * A stalled chunk ([IndexReport.stalled]: three timeouts in a row) holds every track that timed out in this pass
+ * ([AnalysisRetryLedger.hold]): hung files that sit together are then behind the pass, for this one and the next.
+ */
+internal class AnalysisRetrySettling(
+    private val ledger: AnalysisRetryLedger,
+    /** Whether a track still has no audio vector. */
+    private val stillMissing: suspend (TrackDescriptor) -> Boolean,
+    /** Hands tracks the ledger gave up on to the engine, to remember as failed. */
+    private val remember: suspend (List<TrackDescriptor>) -> Unit,
+    /** Stores the ledger. */
+    private val save: () -> Unit,
+) {
+    /** Tracks whose analysis timed out in this pass and that are neither held nor given up yet. */
+    private val timedOut = ArrayList<TrackDescriptor>()
+
+    /** A pass begins. */
+    fun passStarted() {
+        timedOut.clear()
+    }
+
+    suspend fun settle(chunk: List<TrackDescriptor>, report: IndexReport): IndexReport {
+        val exhausted = ArrayList<TrackDescriptor>()
+        for (track in chunk) {
+            val error = report.errors[track.id]
+            when {
+                error != null && error.countsInRetryLedger() -> when {
+                    ledger.timedOut(track) -> exhausted += track
+                    error.isAnalysisTimeout() -> timedOut += track
+                }
+                // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
+                // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
+                error is EngineError.InvalidAudio -> ledger.forget(track.id)
+                // Decided per track, and only for one the ledger holds: analysed means no longer missing.
+                error == null && ledger.has(track.id) && !stillMissing(track) -> ledger.forget(track.id)
+            }
+        }
+        if (report.stalled) {
+            timedOut.forEach(ledger::hold)
+            timedOut.clear()
+        }
+        if (exhausted.isEmpty()) {
+            save()
+            return report
+        }
+        // The engine's failure rows first, then the ledger that let go of them: a kill between keeps the count.
+        remember(exhausted)
+        save()
+        val errors = LinkedHashMap(report.errors)
+        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis failed ${AnalysisRetryLedger.CAP} times")
+        return report.copy(errors = errors)
+    }
 }

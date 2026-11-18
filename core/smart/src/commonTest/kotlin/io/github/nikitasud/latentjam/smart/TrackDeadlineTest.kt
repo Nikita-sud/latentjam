@@ -126,27 +126,63 @@ internal class TrackDeadlineTest {
     }
 
     @Test
-    fun `a lane with too many stuck workers starts no track`() = runTest {
+    fun `hung neighbours each leave one stuck decode however many pools are replaced`() = runTest {
+        // Three hung files next to each other, decoded ahead together: each timeout replaces the pool, and a
+        // neighbour begun again on every fresh pool left a stuck thread per pool (six for three files).
+        var neverReturning = 0
         val workers = object : DecodeWorkers {
             override val dispatcher: CoroutineDispatcher = Dispatchers.Default
             override fun abandon() {}
-            override val stuck: Int get() = MAX_STUCK_WORKERS
+            override val stuck: Int get() = neverReturning
         }
         val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
-        var decoded = 0
+        val hung = setOf("a", "b", "c")
+        val library = listOf("a", "b", "c", "d", "e", "f").map { TrackDescriptor(TrackId(it), audioUri = "test://$it") }
 
         val stalled = runCatching {
-            decoding.each(
-                tracks = tracks,
-                ahead = 1,
-                prefetch = { track -> decoded++; vector(track) },
-                finish = { _, vector -> Result.success(vector) },
-                onResult = { _, _ -> },
-            )
+            withContext(Dispatchers.Default) {
+                decoding.each(
+                    tracks = library,
+                    ahead = 2,
+                    prefetch = { track ->
+                        if (track.id.value in hung) {
+                            neverReturning++
+                            hang()
+                        }
+                        vector(track)
+                    },
+                    finish = { _, decoded -> Result.success(decoded) },
+                    onResult = { _, _ -> },
+                )
+            }
         }.exceptionOrNull()
 
         assertIs<AnalysisStalled>(stalled)
-        assertEquals(0, decoded)
+        assertEquals(3, workers.stuck)
+    }
+
+    @Test
+    fun `stuck workers alone never stop the lane`() = runTest {
+        // 0.9.5 analysed the rest of the library past any number of hung files; a count of stuck workers must not
+        // end analysis for the process.
+        val workers = object : DecodeWorkers {
+            override val dispatcher: CoroutineDispatcher = Dispatchers.Default
+            override fun abandon() {}
+            override val stuck: Int get() = 1_000
+        }
+        val decoding = DeadlineDecoding(workers, budget = 200.milliseconds)
+        val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
+
+        decoding.each(
+            tracks = tracks,
+            ahead = 1,
+            prefetch = { track -> vector(track) },
+            finish = { _, vector -> Result.success(vector) },
+            onResult = { track, result -> results += track.id to result },
+        )
+
+        assertEquals(tracks.map { it.id }, results.map { it.first })
+        assertTrue(results.all { it.second.isSuccess })
     }
 
     @Test
