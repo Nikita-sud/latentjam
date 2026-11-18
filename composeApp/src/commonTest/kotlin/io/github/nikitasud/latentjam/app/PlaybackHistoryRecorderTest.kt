@@ -23,7 +23,9 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
 internal class PlaybackHistoryRecorderTest {
@@ -183,6 +185,75 @@ internal class PlaybackHistoryRecorderTest {
         assertTrue(recorder.isActive)
         assertEquals(listOf(b.id), history.recorded.map(ListenEvent::trackId))
         assertEquals(1, recordedCallbacks, "only durable appends advance the history revision")
+        recorder.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a pause with the app away records the listen with no track change`() = runTest {
+        val playback = FakePlaybackController()
+        val history = FailFirstListeningHistory().apply { attempts = 1 }
+        var away = false
+        val endedByPause = mutableListOf<Boolean>()
+        val recorder = launchPlaybackHistoryRecorder(
+            playback = playback,
+            history = history,
+            enabled = MutableStateFlow(true),
+            sittingEndsAtPause = { away },
+            onListen = { _, byPause -> endedByPause += byPause },
+        )
+        advanceUntilIdle()
+        playback.emit(now(a, 0))
+        advanceUntilIdle()
+        playback.emit(now(a, 60_000))
+        advanceUntilIdle()
+
+        // Paused on screen: leaving the app is what would end the sitting, and that asks by itself.
+        playback.emit(now(a, 60_000).copy(isPlaying = false))
+        advanceUntilIdle()
+        assertTrue(history.recorded.isEmpty())
+        playback.emit(now(a, 60_000))
+        advanceUntilIdle()
+
+        // Paused from a headset with the app away: nothing else would ever write this listen.
+        away = true
+        playback.emit(now(a, 70_000).copy(isPlaying = false))
+        advanceUntilIdle()
+        assertEquals(listOf(a.id), history.recorded.map(ListenEvent::trackId))
+        assertEquals(listOf(true), endedByPause)
+
+        // The track after it is closed by the move to the next one, as always.
+        playback.emit(now(b, 0))
+        advanceUntilIdle()
+        playback.emit(now(b, 50_000))
+        advanceUntilIdle()
+        playback.emit(now(c, 0))
+        advanceUntilIdle()
+        assertEquals(listOf(a.id, b.id), history.recorded.map(ListenEvent::trackId))
+        assertEquals(listOf(true, false), endedByPause)
+        recorder.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a pause taken back at once is no end of a listen`() = runTest {
+        val playback = FakePlaybackController()
+        val history = FailFirstListeningHistory().apply { attempts = 1 }
+        val recorder = launchPlaybackHistoryRecorder(
+            playback = playback,
+            history = history,
+            enabled = MutableStateFlow(true),
+            sittingEndsAtPause = { true },
+        )
+        advanceUntilIdle()
+        playback.emit(now(a, 0))
+        runCurrent()
+        playback.emit(now(a, 60_000).copy(isPlaying = false))
+        runCurrent()
+        advanceTimeBy(500)
+        playback.emit(now(a, 60_000))
+        advanceUntilIdle()
+        assertTrue(history.recorded.isEmpty())
         recorder.cancel()
     }
 

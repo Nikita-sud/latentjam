@@ -19,12 +19,20 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *
  * A row that started but never produced a listen (history recording off, the process died) is dropped without an
  * outcome rather than guessed.
+ *
+ * A listen the recorder closed at a pause may go on later, and the log then has it as two lines. Its first half,
+ * when by itself it would be a skip, is therefore held on the row and judged with the rest: together with the
+ * resumed half as one listen, or alone once other music plays, the track is started anew or planned again. A
+ * pause is not a skip.
  */
 public class SmartOutcomeTracker(private val maxRows: Int = 500) {
     private class Row(val impression: SmartImpression) {
         var served = false
         var seenInQueue = false
         var started = false
+
+        /** The first half of a listen closed at a pause, not judged yet. */
+        var paused: ListenEvent? = null
     }
 
     private val rows = LinkedHashMap<TrackId, Row>()
@@ -44,7 +52,11 @@ public class SmartOutcomeTracker(private val maxRows: Int = 500) {
         }
         if (newQueue != null) queue = newQueue
         for ((id, impression) in planned) {
-            rows.remove(id)?.let { old -> if (!old.started) out += outcome(old, SmartOutcomeKind.UNREACHED, atMs) }
+            rows.remove(id)?.let { old ->
+                val paused = old.paused
+                if (paused != null) out += listened(old, paused, atMs)
+                else if (!old.started) out += outcome(old, SmartOutcomeKind.UNREACHED, atMs)
+            }
             rows[id] = Row(impression)
         }
         while (rows.size > maxRows) rows.remove(rows.keys.first())
@@ -62,6 +74,17 @@ public class SmartOutcomeTracker(private val maxRows: Int = 500) {
      */
     public fun onSnapshot(current: TrackId?, queueIds: Set<TrackId>, userPick: Boolean, atMs: Long): List<SmartOutcome> {
         val out = ArrayList<SmartOutcome>()
+        if (current != null) {
+            // Other music plays: a listen paused before it is over, and is judged by what was heard of it.
+            val iterator = rows.entries.iterator()
+            while (iterator.hasNext()) {
+                val (id, row) = iterator.next()
+                val paused = row.paused ?: continue
+                if (id == current) continue
+                out += listened(row, paused, atMs)
+                iterator.remove()
+            }
+        }
         val playing = current?.let(rows::get)
         if (playing != null) {
             playing.served = true
@@ -92,17 +115,39 @@ public class SmartOutcomeTracker(private val maxRows: Int = 500) {
         return out
     }
 
-    /** A finished listen from the history recorder. */
-    public fun onListen(event: ListenEvent, atMs: Long): List<SmartOutcome> {
+    /**
+     * A listen from the history recorder; [endedByPause] when the recorder closed it at a pause rather than at the
+     * track's end or a move to other music.
+     */
+    public fun onListen(event: ListenEvent, atMs: Long, endedByPause: Boolean = false): List<SmartOutcome> {
         val row = rows[event.trackId]?.takeIf { it.started } ?: return emptyList()
+        val paused = row.paused
+        val whole = when {
+            paused == null -> event
+            ListeningNormalization.resumes(paused, ListeningNormalization.listenEnd(paused), event) ->
+                ListeningNormalization.join(paused, event)
+            else -> {
+                // Another playback of the track: the paused one ended where it was left.
+                rows.remove(event.trackId)
+                return listOf(listened(row, paused, atMs))
+            }
+        }
+        if (endedByPause && whole.skipped) {
+            row.paused = whole
+            return emptyList()
+        }
         rows.remove(event.trackId)
-        val fraction = event.trackDurationMs?.takeIf { it > 0 }?.let { (event.playedMs.toDouble() / it).coerceIn(0.0, 1.0) }
-        val kind = if (event.skipped) SmartOutcomeKind.SKIPPED else SmartOutcomeKind.PLAYED
-        return listOf(outcome(row, kind, atMs, event.effectiveListenedMs, fraction))
+        return listOf(listened(row, whole, atMs))
     }
 
     /** Open rows (tests). */
     public val openRows: Int get() = rows.size
+
+    private fun listened(row: Row, event: ListenEvent, atMs: Long): SmartOutcome {
+        val fraction = event.trackDurationMs?.takeIf { it > 0 }?.let { (event.playedMs.toDouble() / it).coerceIn(0.0, 1.0) }
+        val kind = if (event.skipped) SmartOutcomeKind.SKIPPED else SmartOutcomeKind.PLAYED
+        return outcome(row, kind, atMs, event.effectiveListenedMs, fraction)
+    }
 
     private fun outcome(row: Row, kind: SmartOutcomeKind, atMs: Long, elapsedMs: Long? = null, fraction: Double? = null) =
         row.impression.let { SmartOutcome(atMs, it.queue, it.plan, it.hop, it.track, kind, elapsedMs, fraction) }

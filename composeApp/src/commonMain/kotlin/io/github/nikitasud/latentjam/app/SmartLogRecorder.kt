@@ -190,9 +190,9 @@ class SmartLogRecorder(
         emit(outcomes)
     }
 
-    /** A listen the history recorder just recorded. */
-    suspend fun onListen(event: ListenEvent) {
-        emit(mutex.withLock { tracker.onListen(event, clock()) })
+    /** A listen the history recorder just recorded; [endedByPause] when a pause closed it and it may go on later. */
+    suspend fun onListen(event: ListenEvent, endedByPause: Boolean = false) {
+        emit(mutex.withLock { tracker.onListen(event, clock(), endedByPause) })
     }
 
     override suspend fun engagedKeys(): Set<String> {

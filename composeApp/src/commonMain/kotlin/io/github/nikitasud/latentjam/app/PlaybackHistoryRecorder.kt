@@ -18,12 +18,16 @@ import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -35,6 +39,7 @@ import kotlinx.coroutines.launch
  * The ticker inside the playback controller refreshes positions ~2×/s while
  * playing, which keeps the tracker's furthest-position measurement honest.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 fun CoroutineScope.launchPlaybackHistoryRecorder(
     playback: PlaybackController,
     history: ListeningHistory,
@@ -52,8 +57,15 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
     onRecorded: () -> Unit = {},
     /** Each snapshot while history is on (SMART's impression log follows the queue and the playhead). */
     onSnapshot: suspend (NowPlaying) -> Unit = {},
-    /** Each listen once recorded. */
-    onListen: suspend (ListenEvent) -> Unit = {},
+    /** Each listen once recorded, and whether a pause closed it (it may then go on later as a second listen). */
+    onListen: suspend (event: ListenEvent, endedByPause: Boolean) -> Unit = { _, _ -> },
+    /**
+     * Whether a pause now ends the sitting: the app is not on screen, so nothing would ask for a flush when the
+     * listener walks away. A pause from a headset, the notification, a widget, the sleep timer, or the queue running
+     * out then closes the listen itself; without it the last track of such a sitting was written only if the app
+     * was opened again before the process was reclaimed.
+     */
+    sittingEndsAtPause: () -> Boolean = { false },
     /** Adds what the player cannot see to a finished listen before it is recorded (PersonalSignals). */
     annotate: (ListenEvent) -> ListenEvent = { it },
 ): Job = launch {
@@ -66,6 +78,12 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
         },
         flushRequests.map { HistoryCommand.Flush(epochMillis()) },
         forgetRequests.map { HistoryCommand.Forget(playback.state.value) },
+        playback.state.map { it.isPlaying }.distinctUntilChanged().transformLatest<Boolean, HistoryCommand> { playing ->
+            if (playing) return@transformLatest
+            // A pause taken back within a moment (a call that is declined, a wrong press) is not an end.
+            delay(PAUSE_SETTLE_MS)
+            if (sittingEndsAtPause()) emit(HistoryCommand.Flush(epochMillis()))
+        },
     ).collect { command ->
         if (command is HistoryCommand.Snapshot && command.enabled) runCatching { onSnapshot(command.now) }
         val finished = when (command) {
@@ -86,7 +104,7 @@ fun CoroutineScope.launchPlaybackHistoryRecorder(
             try {
                 history.record(event)
                 onRecorded()
-                runCatching { onListen(event) }
+                runCatching { onListen(event, command is HistoryCommand.Flush) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Throwable) {
@@ -190,6 +208,9 @@ private fun PlaybackStart.toListenStartSignal() = ListenStartSignal(
         null -> null
     },
 )
+
+/** How long playback must stay paused before the pause may close the listen. */
+private const val PAUSE_SETTLE_MS = 1_000L
 
 /** The recorder's single-collector input alphabet: a playback snapshot or a flush request. */
 private sealed interface HistoryCommand {

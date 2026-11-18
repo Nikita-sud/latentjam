@@ -349,7 +349,8 @@ object AppGraph {
                 parentId = { queueSource.value?.parentCollectionId() },
                 onRecorded = { mutableHistoryRevision.value += 1L },
                 onSnapshot = { now -> smartLog?.onNowPlaying(now) },
-                onListen = { event -> smartLog?.onListen(event) },
+                onListen = { event, endedByPause -> smartLog?.onListen(event, endedByPause) },
+                sittingEndsAtPause = { !appInForeground },
                 annotate = PersonalSignals::annotate,
             )
             // Hearts: their times for FULL's favourite features, and the events for SMART's impression log.
@@ -989,9 +990,10 @@ object AppGraph {
     private var heldRetryJob: Job? = null
 
     /**
-     * Whether the app is on screen: a pass is started from here only then (a background start may be refused). Read and
-     * written on the main thread.
+     * Whether the app is on screen: a pass is started from here only then (a background start may be refused). Written
+     * on the main thread; the history recorder reads it from its own.
      */
+    @kotlin.concurrent.Volatile
     private var appInForeground = false
 
     /** The app left the foreground (with [onAppForeground], the pair the held retry reads). */

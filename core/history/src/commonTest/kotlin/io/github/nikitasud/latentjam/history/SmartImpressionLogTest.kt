@@ -130,6 +130,70 @@ class SmartOutcomeTrackerTest {
         assertEquals(0, t.openRows)
     }
 
+    private fun half(start: ListenStart?, startedAt: Long, position: Long, heard: Long) = ListenEvent(
+        a, startedAt, position, 200_000, completed = false, skipped = heard < 30_000, listenedMs = heard,
+        origin = ListenOrigin(start, 1),
+    )
+
+    private fun startedPick(): SmartOutcomeTracker = SmartOutcomeTracker().also { t ->
+        t.onPlan(listOf(row("a", 1)), 0)
+        t.onServed(a)
+        t.onSnapshot(a, setOf(a), false, 1)
+    }
+
+    @Test
+    fun aPickPausedEarlyAndResumedIsJudgedAsOneListen() {
+        val t = startedPick()
+        // Paused 20 s in, the recorder closes the listen there: by itself that half is a skip.
+        assertTrue(t.onListen(half(ListenStart.AUTO_ADVANCE, 1_000, 20_000, 20_000), 2, endedByPause = true).isEmpty())
+        assertEquals(1, t.openRows)
+        t.onSnapshot(a, setOf(a), false, 3)
+        val whole = t.onListen(half(null, 600_000, 120_000, 100_000), 4).single()
+        assertEquals(SmartOutcomeKind.PLAYED, whole.kind)
+        assertEquals(120_000L, whole.elapsedMs)
+        assertEquals(0.6, whole.fraction)
+        assertEquals(0, t.openRows)
+    }
+
+    @Test
+    fun aPickPausedEarlyAndLeftForOtherMusicIsASkip() {
+        val t = startedPick()
+        assertTrue(t.onListen(half(ListenStart.AUTO_ADVANCE, 1_000, 20_000, 20_000), 2, endedByPause = true).isEmpty())
+        val out = t.onSnapshot(b, setOf(a, b), false, 3).single()
+        assertEquals(SmartOutcomeKind.SKIPPED, out.kind)
+        assertEquals(20_000L, out.elapsedMs)
+        assertEquals("ka", out.track)
+        assertEquals(0, t.openRows)
+    }
+
+    @Test
+    fun aPickPausedEarlyAndStartedAgainFromTheTopIsASkipAndNothingMore() {
+        val t = startedPick()
+        assertTrue(t.onListen(half(ListenStart.AUTO_ADVANCE, 1_000, 20_000, 20_000), 2, endedByPause = true).isEmpty())
+        // A new start of the same track is another playback, not the rest of the paused one.
+        val out = t.onListen(half(ListenStart.USER_PICK, 600_000, 150_000, 150_000), 3).single()
+        assertEquals(SmartOutcomeKind.SKIPPED, out.kind)
+        assertEquals(20_000L, out.elapsedMs)
+        assertEquals(0, t.openRows)
+    }
+
+    @Test
+    fun aPickPausedAfterThirtySecondsIsPlayedAtOnce() {
+        val t = startedPick()
+        val out = t.onListen(half(ListenStart.AUTO_ADVANCE, 1_000, 45_000, 45_000), 2, endedByPause = true).single()
+        assertEquals(SmartOutcomeKind.PLAYED, out.kind)
+        assertEquals(0, t.openRows)
+    }
+
+    @Test
+    fun aNewPlanOfAPausedPickStillJudgesItsFirstHalf() {
+        val t = startedPick()
+        assertTrue(t.onListen(half(ListenStart.AUTO_ADVANCE, 1_000, 20_000, 20_000), 2, endedByPause = true).isEmpty())
+        val out = t.onPlan(listOf(row("a", 1, queue = "q2")), 3).single()
+        assertEquals(SmartOutcomeKind.SKIPPED, out.kind)
+        assertEquals("q", out.queue)
+    }
+
     @Test
     fun aListenOfATrackThatNeverStartedFromThePlanIsNotItsOutcome() {
         val t = SmartOutcomeTracker()
