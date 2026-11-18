@@ -450,34 +450,117 @@ class TrackDeleteCoordinatorTest {
         assertEquals(TrackDeleteReport(deleted = 2_001), restored.report())
     }
 
+    private fun libraryWide(count: Int = 20_000) = List(count) { "content://media/external/audio/media/${1_000_000 + it}" }
+
+    private fun Harness.savedChars() = saved.sumOf { it.length }
+
     @Test fun `the saved state of a very large deletion stays small`() = runTest {
         val harness = Harness(Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST))
-        harness.coordinator.enqueue(List(20_000) { "content://media/external/audio/media/${1_000_000 + it}" })
+        harness.coordinator.enqueue(libraryWide())
         runCurrent()
-        harness.launchPrompt()
         // What is saved goes into the Activity's saved state, which the system refuses above about a megabyte.
-        assertTrue(harness.saved.sumOf { it.length } < 4_096, "saved ${harness.saved.sumOf { it.length }} characters")
+        assertTrue(harness.savedChars() < 1_000, "saved ${harness.savedChars()} characters while offered")
+        harness.launchPrompt()
+        // With the system dialog up, the batch it was given is saved too: 2,000 URIs that share their beginning.
+        assertTrue(harness.savedChars() <= MAX_SAVED_DELETE_URI_CHARS + 1_000, "saved ${harness.savedChars()} characters")
     }
 
-    @Test fun `a very large deletion ends as cancelled after the process was restarted`() = runTest {
+    @Test fun `a very large deletion killed at the system dialog counts the batch the system then confirms`() = runTest {
         val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
         val original = Harness(backend)
-        original.coordinator.enqueue(List(20_000) { "content://media/external/audio/media/${1_000_000 + it}" })
+        original.coordinator.enqueue(libraryWide())
+        runCurrent()
+        original.launchPrompt()
+        val restored = original.recreate()
+        runCurrent()
+        // The dialog outlived the process; its result is delivered to the new one before it resumes.
+        restored.coordinator.answer(DeleteAnswer.APPROVED)
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        // The batch the system deleted is counted (which is what makes the app read the library again); the rest
+        // cannot be named any more and is left alone.
+        assertEquals(TrackDeleteReport(deleted = 2_000, cancelled = 18_000), restored.report())
+        assertNull(restored.coordinator.prompt.value)
+        assertEquals(1, backend.batches.size)
+        assertTrue(backend.deletes.isEmpty())
+        assertTrue(restored.savedChars() < 1_000, "saved ${restored.savedChars()} characters when finished")
+        restored.coordinator.acknowledge(assertNotNull(restored.coordinator.completed.value).id)
+        assertNull(restored.recreate().coordinator.completed.value)
+    }
+
+    @Test fun `a batch confirmed after the process was restarted twice is still counted`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        original.coordinator.enqueue(libraryWide())
         runCurrent()
         original.launchPrompt()
         original.coordinator.answer(DeleteAnswer.APPROVED)
         runCurrent()
         original.launchPrompt()
-        val restored = original.recreate()
+        val restored = original.recreate().recreate()
         runCurrent()
+        restored.coordinator.answer(DeleteAnswer.APPROVED)
         restored.coordinator.onHostResumed()
         runCurrent()
-        // The first 2,000 were deleted; the rest cannot be named any more and are left alone.
-        assertNull(restored.coordinator.prompt.value)
+        assertEquals(TrackDeleteReport(deleted = 4_000, cancelled = 16_000), restored.report())
         assertEquals(2, backend.batches.size)
-        assertEquals(TrackDeleteReport(deleted = 2_000, cancelled = 18_000), restored.report())
-        restored.coordinator.acknowledge(assertNotNull(restored.coordinator.completed.value).id)
-        assertNull(restored.recreate().coordinator.completed.value)
+    }
+
+    @Test fun `a very large deletion whose dialog was declined after a restart deletes nothing more`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        original.coordinator.enqueue(libraryWide())
+        runCurrent()
+        original.launchPrompt()
+        val restored = original.recreate()
+        restored.coordinator.answer(DeleteAnswer.CANCELLED)
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(TrackDeleteReport(cancelled = 20_000), restored.report())
+        assertTrue(backend.queries.isEmpty())
+    }
+
+    @Test fun `a restored batch whose dialog left no answer is checked against what still exists`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        val uris = libraryWide()
+        original.coordinator.enqueue(uris)
+        runCurrent()
+        original.launchPrompt()
+        // The system deleted the first 1,500 of the batch before its dialog went away without a result.
+        val gone = uris.take(1_500).toSet()
+        backend.checkPresence = { if (it in gone) DeletePresence.MISSING else DeletePresence.PRESENT }
+        val restored = original.recreate()
+        restored.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(uris.take(2_000), backend.queries)
+        // The 500 still there are asked for again, and only they: the rest of the request is not named any more.
+        assertEquals(listOf(uris.take(2_000), uris.subList(1_500, 2_000)), backend.batches)
+        restored.launchPrompt()
+        restored.coordinator.answer(DeleteAnswer.CANCELLED)
+        assertEquals(TrackDeleteReport(deleted = 1_500, cancelled = 18_500), restored.report())
+    }
+
+    @Test fun `a batch too long to save is still counted when the system confirms it after a restart`() = runTest {
+        val backend = Backend(TrackDeleteStrategy.SYSTEM_DELETE_REQUEST)
+        val original = Harness(backend)
+        // No shared beginning and sixty characters each: 2,000 of them are far over the saved-state bound.
+        original.coordinator.enqueue(List(3_000) { "$it".padEnd(60, 'x') })
+        runCurrent()
+        original.launchPrompt()
+        assertTrue(original.savedChars() < 1_000, "saved ${original.savedChars()} characters")
+        val confirmed = original.recreate()
+        confirmed.coordinator.answer(DeleteAnswer.APPROVED)
+        confirmed.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(TrackDeleteReport(deleted = 2_000, cancelled = 1_000), confirmed.report())
+        // Without an answer nothing says what became of it: nothing is claimed deleted, nothing is asked again.
+        val unanswered = original.recreate()
+        unanswered.coordinator.onHostResumed()
+        runCurrent()
+        assertEquals(TrackDeleteReport(cancelled = 3_000), unanswered.report())
+        assertEquals(1, backend.batches.size)
+        assertTrue(backend.queries.isEmpty())
     }
 
     @Test fun `a deletion of a few hundred tracks is still saved whole`() = runTest {
