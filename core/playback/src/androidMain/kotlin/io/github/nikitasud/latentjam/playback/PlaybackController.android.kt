@@ -418,12 +418,15 @@ internal class AndroidPlaybackController(
             queueGeneration++
             if (mode == ShuffleMode.SMART && player != null) {
                 // An eligibility change is stronger than a queue planned before it. Preserve what
-                // already played and the current seed, then remove newly ineligible future rows.
-                for (index in player.mediaItemCount - 1 downTo keepThrough + 1) {
-                    if (player.getMediaItemAt(index).mediaId !in prepared.second) {
-                        player.removeMediaItem(index)
-                    }
-                }
+                // already played and the current seed, then remove the future rows SMART itself put
+                // there that are newly ineligible. A row the listener queued by hand stays.
+                val dropped = smartRowsToDrop(
+                    ids = List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId },
+                    keepThrough = keepThrough,
+                    eligible = { it in prepared.second },
+                    smartOwned = { TrackId(it).let { id -> id in smartPlanPositions || id in smartContinuationIds } },
+                )
+                for (index in dropped) player.removeMediaItem(index)
                 rebuildQueueSnapshot()
                 pushState()
                 appendSmartNextIfNeeded()
