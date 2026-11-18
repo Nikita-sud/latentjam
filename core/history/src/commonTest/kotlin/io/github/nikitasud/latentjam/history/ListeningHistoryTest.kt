@@ -203,6 +203,10 @@ internal class ListeningHistoryTest {
         // Merged from a backup: older, though logged later.
         history.record(event("2", startedAt = floor + 100, completed = true))
         assertEquals(floor + 100, history.firstListenAtMs())
+        // Scrobbled in 2016 and imported: the importer's fingerprint, not an unset clock.
+        val scrobbled = ListenEvent(TrackId("3"), 1_451_606_400_000L, 200_000L, 200_000L, completed = true, skipped = false)
+        history.record(scrobbled)
+        assertEquals(1_451_606_400_000L, history.firstListenAtMs())
     }
 
     @Test

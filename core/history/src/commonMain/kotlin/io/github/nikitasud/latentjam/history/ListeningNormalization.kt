@@ -18,8 +18,9 @@ import io.github.nikitasud.latentjam.smart.TrackId
  *   previous end) are at most [SESSION_GAP_MS] and that no [breaksBefore] interrupts. Ids rise with time.
  * @property breaksBefore True where the event starts well before the previous one ended: a clock jump,
  *   or two devices' logs merged from a backup. No session or step crosses it.
- * @property logStartMs Start of the first valid event at or after [ListeningNormalization.PLAUSIBLE_START_MS]
- *   (of the first event when none is), or null for an empty log.
+ * @property logStartMs Start of the first valid event at or after [ListeningNormalization.PLAUSIBLE_START_MS], or of
+ *   an imported one at or after [ListeningNormalization.PLAUSIBLE_IMPORT_START_MS] (of the first event when none is),
+ *   or null for an empty log.
  */
 public class NormalizedHistory internal constructor(
     public val events: List<ListenEvent>,
@@ -45,6 +46,17 @@ public object ListeningNormalization {
      */
     public const val PLAUSIBLE_START_MS: Long = 1_577_836_800_000L
 
+    /**
+     * 2002-01-01 UTC. A listen imported from ListenBrainz or Last.fm ([isImported]) is older than LatentJam and still
+     * real: years of scrobbles reach back long before [PLAUSIBLE_START_MS], and with that floor alone the yearly chart
+     * left those years out and a log of imported years read as days old. No scrobble is older than this.
+     */
+    public const val PLAUSIBLE_IMPORT_START_MS: Long = 1_009_843_200_000L
+
+    /** Whether [event]'s start may mark where the log began: see [PLAUSIBLE_START_MS] and [PLAUSIBLE_IMPORT_START_MS]. */
+    internal fun marksLogStart(event: ListenEvent): Boolean =
+        event.startedAtMs >= PLAUSIBLE_START_MS || (event.startedAtMs >= PLAUSIBLE_IMPORT_START_MS && event.isImported)
+
     /** Longest pause inside one session, measured from the previous listen's end. */
     public const val SESSION_GAP_MS: Long = 30L * 60 * 1000
 
@@ -60,11 +72,11 @@ public object ListeningNormalization {
     private const val SKIP_THRESHOLD_MS = 30_000L
     private const val CANCELLATION_CHECK_MASK = 1023
 
-    /** The first start at or after [PLAUSIBLE_START_MS] in the start-ordered [events], else the first. */
+    /** The first start that [marksLogStart] in the start-ordered [events], else the first. */
     private fun logStartOf(events: List<ListenEvent>): Long {
-        val first = events.first().startedAtMs
-        if (first >= PLAUSIBLE_START_MS) return first
-        return events.firstOrNull { it.startedAtMs >= PLAUSIBLE_START_MS }?.startedAtMs ?: first
+        val first = events.first()
+        if (marksLogStart(first)) return first.startedAtMs
+        return events.firstOrNull(::marksLogStart)?.startedAtMs ?: first.startedAtMs
     }
 
     public fun normalize(

@@ -69,6 +69,39 @@ internal class ListeningNormalizationTest {
         assertEquals(floor + 10 * day, result.logStartMs)
     }
 
+    /** A listen as the ListenBrainz and Last.fm import writes it: no origin, no listen time, a whole second. */
+    private fun imported(track: String, startedAtMs: Long) =
+        ListenEvent(TrackId(track), startedAtMs, 200_000, 200_000, completed = true, skipped = false)
+
+    @Test
+    fun anImportedListenFromBefore2020MarksTheLogStart() {
+        val floor = ListeningNormalization.PLAUSIBLE_START_MS
+        // 2016-01-01: scrobbled then, imported now.
+        val scrobbled = imported("a", 1_451_606_400_000L)
+        val unset = event("b", 3 * day)
+        val here = event("c", floor + 2_000 * day)
+        val result = ListeningNormalization.normalize(listOf(unset, scrobbled, here), floor + 2_001 * day)
+        assertEquals(1_451_606_400_000L, result.logStartMs)
+        // The unset clock still marks nothing, imported or not: nothing could be scrobbled in 1970.
+        val early = ListeningNormalization.normalize(listOf(imported("d", 5 * day), unset, here), floor + 2_001 * day)
+        assertEquals(floor + 2_000 * day, early.logStartMs)
+    }
+
+    @Test
+    fun theYearlyChartStartsWithTheImportedYears() {
+        val utc = { ms: Long -> LocalTimePoint(ms.floorDiv(day), (ms.mod(day) / hour).toInt()) }
+        val floor = ListeningNormalization.PLAUSIBLE_START_MS
+        val nowMs = floor + 2_001 * day
+        val history = ListeningNormalization.normalize(
+            listOf(imported("a", 1_451_606_400_000L), event("c", floor + 2_000 * day)),
+            nowMs,
+        )
+        val period = ListeningInsights.period(history, { null }, sinceMs = null, nowMs = nowMs, timePointOf = utc)
+        assertEquals(ActivityScale.YEAR, period.activityScale)
+        assertEquals(2016, period.activity.first().key)
+        assertEquals(1, period.activity.first().plays)
+    }
+
     @Test
     fun aLogEntirelyFromAnUnsetClockStillHasAStart() {
         val result = ListeningNormalization.normalize(listOf(event("a", 7 * day), event("b", 9 * day)), now)
