@@ -27,6 +27,9 @@ import kotlin.random.Random
  *   [PlaybackWidgetStateStore.read] drops the live flag of a snapshot an earlier process left behind;
  *   the boot count cannot see that case, because a killed process leaves neither the monotonic clock
  *   nor the boot generation changed.
+ * @property suppressed The player holds the sound back while it still means to play: a phone call or another
+ *   short loss of audio focus. The transport intent, and so the widget's button, stays "playing" (the music
+ *   comes back by itself), but the position does not advance, so nothing is projected from the anchor.
  */
 public data class PlaybackWidgetSnapshot(
     public val revision: Long = 0,
@@ -45,6 +48,7 @@ public data class PlaybackWidgetSnapshot(
     public val capturedElapsedRealtimeMs: Long = 0,
     public val capturedBootCount: Int = UNKNOWN_BOOT_COUNT,
     public val capturedProcessToken: Long = UNKNOWN_PROCESS_TOKEN,
+    public val suppressed: Boolean = false,
 ) {
     /** True only while the persisted play anchor is valid for this device boot. */
     public fun isLivePlaying(
@@ -52,21 +56,29 @@ public data class PlaybackWidgetSnapshot(
         currentBootCount: Int,
     ): Boolean {
         if (!hasValidPlayingAnchor(currentElapsedRealtimeMs, currentBootCount)) return false
+        if (suppressed) return durationMs <= 0 || positionMs.coerceAtLeast(0) < durationMs
         return durationMs <= 0 || unboundedProjectedPositionMs(currentElapsedRealtimeMs) < durationMs
     }
+
+    /** True while the position advances: [isLivePlaying] and not [suppressed]. Only then may a clock run. */
+    public fun isProgressRunning(
+        currentElapsedRealtimeMs: Long,
+        currentBootCount: Int,
+    ): Boolean = !suppressed && isLivePlaying(currentElapsedRealtimeMs, currentBootCount)
 
     /**
      * Projects the playhead from the last player event without a service/widget update ticker.
      *
-     * A reboot (or otherwise invalid monotonic clock) freezes the last stored position. Known
-     * durations cap the result, so a stale-but-same-boot snapshot cannot run past the track end.
+     * A reboot (or otherwise invalid monotonic clock) freezes the last stored position, and so does
+     * a [suppressed] player. Known durations cap the result, so a stale-but-same-boot snapshot
+     * cannot run past the track end.
      */
     public fun projectedPositionMs(
         currentElapsedRealtimeMs: Long,
         currentBootCount: Int,
     ): Long {
         val storedPosition = positionMs.coerceAtLeast(0)
-        val projected = if (hasValidPlayingAnchor(currentElapsedRealtimeMs, currentBootCount)) {
+        val projected = if (!suppressed && hasValidPlayingAnchor(currentElapsedRealtimeMs, currentBootCount)) {
             unboundedProjectedPositionMs(currentElapsedRealtimeMs)
         } else {
             storedPosition
@@ -179,6 +191,7 @@ public object PlaybackWidgetStateStore {
                 KEY_CAPTURED_PROCESS_TOKEN,
                 PlaybackWidgetSnapshot.UNKNOWN_PROCESS_TOKEN,
             ),
+            suppressed = preferences.safeBoolean(KEY_SUPPRESSED, false),
         )
         return if (persisted.capturedProcessToken == processToken) {
             persisted
@@ -226,6 +239,7 @@ public object PlaybackWidgetStateStore {
             )
             .putInt(KEY_CAPTURED_BOOT_COUNT, persisted.capturedBootCount)
             .putLong(KEY_CAPTURED_PROCESS_TOKEN, persisted.capturedProcessToken)
+            .putBoolean(KEY_SUPPRESSED, persisted.suppressed)
             .apply()
         appContext.sendBroadcast(
             Intent(stateChangedAction(appContext)).setPackage(appContext.packageName),
@@ -243,6 +257,7 @@ public object PlaybackWidgetStateStore {
             appContext,
             current.copy(
                 isPlaying = false,
+                suppressed = false,
                 positionMs = current.projectedPositionMs(elapsedRealtimeMs, bootCount),
                 capturedElapsedRealtimeMs = elapsedRealtimeMs,
                 capturedBootCount = bootCount,
@@ -281,6 +296,7 @@ public object PlaybackWidgetStateStore {
     private const val KEY_CAPTURED_ELAPSED_MS = "captured_elapsed_realtime_ms"
     private const val KEY_CAPTURED_BOOT_COUNT = "captured_boot_count"
     private const val KEY_CAPTURED_PROCESS_TOKEN = "captured_process_token"
+    private const val KEY_SUPPRESSED = "suppressed"
 
     /**
      * Identity of this process, drawn once per process start. Never persisted: a new process must

@@ -1035,6 +1035,9 @@ public class PlaybackService : MediaLibraryService() {
                     ?: nextItem?.mediaId?.takeIf(String::isNotBlank),
                 capturedElapsedRealtimeMs = elapsedRealtimeMs,
                 capturedBootCount = PlaybackWidgetStateStore.currentBootCount(this),
+                // A phone call holds the sound back with the transport still meaning to play: the
+                // button stays, the widget's clock must not count on.
+                suppressed = player.playbackSuppressionReason != Player.PLAYBACK_SUPPRESSION_REASON_NONE,
             ),
         )
     }
@@ -1223,6 +1226,7 @@ public class PlaybackService : MediaLibraryService() {
             contains(Player.EVENT_PLAYBACK_STATE_CHANGED) ||
             contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
             contains(Player.EVENT_IS_PLAYING_CHANGED) ||
+            contains(Player.EVENT_PLAYBACK_SUPPRESSION_REASON_CHANGED) ||
             contains(Player.EVENT_POSITION_DISCONTINUITY) ||
             contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
             contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)

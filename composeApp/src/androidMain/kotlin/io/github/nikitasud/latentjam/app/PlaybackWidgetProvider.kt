@@ -501,16 +501,18 @@ private fun buildViews(
                 "${context.getString(R.string.widget_next_up)} · $title"
             } ?: context.getString(R.string.widget_next_up),
         )
+        // During a phone call the transport still means to play, so the button stays, but nothing advances.
+        val clockRunning = snapshot.isProgressRunning(now, bootCount)
         views.setChronometer(
             R.id.widget_elapsed,
             now - position,
             null,
-            livePlaying,
+            clockRunning,
         )
         // A stopped Chronometer still recomputes text from its old base when the host reapplies
         // RemoteViews. A plain TextView preserves both paused text and its spoken value.
-        views.setViewVisibility(R.id.widget_elapsed, if (livePlaying) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.widget_elapsed_paused, if (livePlaying) View.GONE else View.VISIBLE)
+        views.setViewVisibility(R.id.widget_elapsed, if (clockRunning) View.VISIBLE else View.GONE)
+        views.setViewVisibility(R.id.widget_elapsed_paused, if (clockRunning) View.GONE else View.VISIBLE)
         views.setTextViewText(
             R.id.widget_elapsed_paused,
             android.text.format.DateUtils.formatElapsedTime(position.coerceAtLeast(0) / 1_000),
