@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -48,7 +49,8 @@ import kotlin.math.roundToInt
 @Composable
 internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSettings) {
     val state by equalizer.state.collectAsState()
-    val processing by remember(equalizer) { equalizer.processing }.collectAsState(EqualizerProcessingState())
+    // The meter behind this flow is polled ten times a second while it is collected: not with the app off screen.
+    val processing by remember(equalizer) { equalizer.processing }.collectAsStateWithLifecycle(EqualizerProcessingState())
     val response = remember(state, processing.sampleRateHz) {
         state.frequencyResponse(processing.sampleRateHz ?: 48000)
     }
