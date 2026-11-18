@@ -76,4 +76,40 @@ internal class QueueAdoptionTest {
         assertNull(visibleMoveInPlayer(mediaIndices, from = 0, to = -1))
         assertEquals(0 to 2, visibleMoveInPlayer(mediaIndices, from = 0, to = 2))
     }
+
+    /** Applies [ranges] to [ids] the way the controller sends them to the player, one command per run. */
+    private fun removed(ids: List<String>, ranges: List<IntRange>): List<String> {
+        val queue = ids.toMutableList()
+        for (range in ranges) queue.subList(range.first, range.last + 1).clear()
+        return queue
+    }
+
+    @Test
+    fun aFolderDeletedFromALongQueueIsOneCommandNotOnePerRow() {
+        // Rows 2000..2499 of a 10,000-row queue are the deleted folder.
+        val ids = List(10_000) { "row-$it" }
+        val gone = (2_000 until 2_500).mapTo(HashSet()) { "row-$it" }
+
+        val ranges = queueRemovalRanges(ids) { it !in gone }
+
+        assertEquals(listOf(2_000..2_499), ranges)
+        assertEquals(ids.filter { it !in gone }, removed(ids, ranges))
+    }
+
+    @Test
+    fun scatteredRowsGoInRunsFromTheLastDownSoEachRunIsStillInPlace() {
+        val ids = listOf("x", "a", "x", "x", "b", "c", "x")
+
+        val ranges = queueRemovalRanges(ids) { it != "x" }
+
+        assertEquals(listOf(6..6, 2..3, 0..0), ranges)
+        assertEquals(listOf("a", "b", "c"), removed(ids, ranges))
+    }
+
+    @Test
+    fun aQueueKeptInFullHasNothingToRemoveAndOneLostInFullIsOneRun() {
+        assertEquals(emptyList(), queueRemovalRanges(listOf("a", "b")) { true })
+        assertEquals(emptyList(), queueRemovalRanges(emptyList()) { false })
+        assertEquals(listOf(0..2), queueRemovalRanges(listOf("a", "b", "c")) { false })
+    }
 }

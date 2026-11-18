@@ -31,3 +31,27 @@ internal fun visibleMoveInPlayer(mediaIndices: List<Int>, from: Int, to: Int): P
     val toMedia = mediaIndices.getOrNull(to) ?: return null
     return fromMedia to toMedia
 }
+
+/**
+ * The rows of [ids] to take out of a queue so that only the kept ones ([keep]) remain, as runs of neighbouring rows
+ * from the last run down: each run is one command to the player, and taking a later run out first leaves the
+ * earlier ones where they were.
+ *
+ * One command per row made every removal rebuild the player's whole timeline and everything that listens to it. A
+ * queue of ten thousand rows that lost several hundred files at once (a folder deleted outside the app) held the main
+ * thread for seconds.
+ */
+internal fun queueRemovalRanges(ids: List<String>, keep: (String) -> Boolean): List<IntRange> {
+    val ranges = ArrayList<IntRange>()
+    var end = -1
+    for (index in ids.lastIndex downTo 0) {
+        if (!keep(ids[index])) {
+            if (end < 0) end = index
+        } else if (end >= 0) {
+            ranges += (index + 1)..end
+            end = -1
+        }
+    }
+    if (end >= 0) ranges += 0..end
+    return ranges
+}

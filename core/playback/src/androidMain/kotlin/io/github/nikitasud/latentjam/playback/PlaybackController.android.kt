@@ -162,6 +162,9 @@ internal class AndroidPlaybackController(
     private val continuationSnapshot = PlaybackContinuationSnapshot()
     private val planPositionSnapshot = PlaybackPlanPositionSnapshot()
     private val pendingAdvance = PendingPlaybackAdvance()
+
+    /** Main-thread only: an edit of several player commands is under way; see [retainQueue]. */
+    private var bulkQueueEdit = false
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
 
@@ -832,16 +835,18 @@ internal class AndroidPlaybackController(
     override suspend fun retainQueue(trackIds: Set<TrackId>): Unit = withContext(Dispatchers.Main) {
         val player = controller ?: return@withContext
         val keep = trackIds.mapTo(HashSet()) { it.value }
-        // Backwards, so surviving indices stay valid while earlier ones are removed. Media3
-        // treats removing the current item as that item ending: playback advances on its own.
-        var removed = false
-        for (index in player.mediaItemCount - 1 downTo 0) {
-            if (player.getMediaItemAt(index).mediaId !in keep) {
-                player.removeMediaItem(index)
-                removed = true
-            }
+        // Backwards, so surviving indices stay valid while earlier ones are removed, and in runs of
+        // neighbouring rows: one command each. Media3 treats removing the current item as that item
+        // ending: playback advances on its own.
+        val ranges = queueRemovalRanges(List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId }) { it in keep }
+        if (ranges.isEmpty()) return@withContext
+        // Every command reports the changed queue at once; the snapshot is rebuilt and published once, below.
+        bulkQueueEdit = true
+        try {
+            for (range in ranges) player.removeMediaItems(range.first, range.last + 1)
+        } finally {
+            bulkQueueEdit = false
         }
-        if (!removed) return@withContext
         queueGeneration++
         pool = pool.filter { it.id.value in keep }
         poolById = poolById.values.filter { it.id.value in keep }.associateByIdValue()
@@ -1487,6 +1492,7 @@ internal class AndroidPlaybackController(
 
     /** Main-thread only. */
     private fun rebuildQueueSnapshot() {
+        if (bulkQueueEdit) return
         val player = controller ?: return
         // A row no map names (one added to the queue from outside the app) is named from the player's own item and
         // joins the source, as a row added in the app does: a playing item always has a track to publish.
@@ -1620,6 +1626,8 @@ internal class AndroidPlaybackController(
     }
 
     private fun pushState() {
+        // Between the commands of one edit the cached queue is not the player's: nothing is published from it.
+        if (bulkQueueEdit) return
         val player = controller
         val anticipated = anticipatedResumption?.takeIf { player?.mediaItemCount == 0 }
         val anticipatedTrack = anticipated?.tracks?.getOrNull(anticipated.startIndex)
