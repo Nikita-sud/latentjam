@@ -1597,14 +1597,26 @@ internal class LocalBackupService(
         }
         .sortedBy(ListenEvent::startedAtMs)
 
+    /**
+     * A restored playlist joins the stored one that has its id. One without such a twin joins the first stored
+     * playlist of its name that no other restored playlist has taken, and is added as a new one otherwise. A stored
+     * playlist takes at most one restored one, so two playlists of one name stay two, here and on a new device.
+     */
     private fun mergePlaylists(existing: List<Playlist>, imported: List<Playlist>): List<Playlist> {
         val result = existing.toMutableList()
+        val storedIndexById = HashMap<String, Int>(existing.size * 2)
+        existing.forEachIndexed { index, playlist -> storedIndexById[playlist.id] = index }
+        // Every id is matched before any name: a name must not take a playlist another one owns by id.
+        val taken = imported.mapNotNullTo(HashSet()) { storedIndexById[it.id] }
         imported.forEachIndexed { index, playlist ->
-            val sameNameIndex = result.indexOfFirst { it.name.equals(playlist.name, ignoreCase = true) }
-            if (sameNameIndex >= 0) {
-                val current = result[sameNameIndex]
+            val stored = storedIndexById[playlist.id] ?: result.indices.firstOrNull {
+                it !in taken && result[it].name.equals(playlist.name, ignoreCase = true)
+            } ?: -1
+            if (stored >= 0) {
+                taken += stored
+                val current = result[stored]
                 val membership = mergePlaylistOccurrences(current.trackIds, playlist.trackIds)
-                result[sameNameIndex] = current.copy(
+                result[stored] = current.copy(
                     trackIds = membership,
                     addedTrackIds = reconcilePlaylistAddedOrder(
                         mergePlaylistOccurrences(current.addedTrackIds, playlist.addedTrackIds), membership,
@@ -1618,6 +1630,7 @@ internal class LocalBackupService(
                         .first { it !in usedIds }
                 }
                 result += playlist.copy(id = uniqueId)
+                taken += result.lastIndex
             }
         }
         return result

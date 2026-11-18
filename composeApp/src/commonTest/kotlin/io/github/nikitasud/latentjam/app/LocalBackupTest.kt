@@ -923,6 +923,62 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun mergingItsOwnBackupLeavesTwoPlaylistsOfOneNameAsTheyWere() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val c = track("c", "C", "Artist", "Album", 140_000)
+        val fixture = fixture(listOf(a, b, c))
+        val first = fixture.playlists.create("Workout", listOf(a.id))
+        // Created second, so it leads the list: the one a match by name alone takes for both.
+        val second = fixture.playlists.create("workout", listOf(b.id, c.id))
+
+        val encoded = fixture.service.exportEncoded()
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        val merged = fixture.playlists.all().associateBy { it.id }
+        assertEquals(2, merged.size)
+        assertContentEquals(listOf("a"), merged.getValue(first.id).trackIds)
+        assertContentEquals(listOf("b", "c"), merged.getValue(second.id).trackIds)
+    }
+
+    @Test
+    fun mergingIntoAnEmptyDeviceKeepsTwoPlaylistsOfOneNameApart() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val source = fixture(listOf(a, b))
+        source.playlists.create("Workout", listOf(a.id))
+        source.playlists.create("Workout", listOf(b.id))
+        val encoded = source.service.exportEncoded()
+
+        val target = fixture(listOf(a, b))
+        target.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        target.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        assertEquals(
+            listOf(listOf("a"), listOf("b")),
+            target.playlists.all().map { it.trackIds }.sortedBy { it.first() },
+        )
+    }
+
+    @Test
+    fun aPlaylistRenamedSinceTheBackupIsMergedByItsIdNotAddedAgain() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val fixture = fixture(listOf(a, b))
+        val playlist = fixture.playlists.create("Old name", listOf(a.id))
+        val encoded = fixture.service.exportEncoded()
+        fixture.playlists.rename(playlist.id, "New name")
+        fixture.playlists.addTracks(playlist.id, listOf(b.id))
+
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        val merged = fixture.playlists.all().single()
+        assertEquals("New name", merged.name)
+        assertContentEquals(listOf("a", "b"), merged.trackIds)
+    }
+
+    @Test
     fun mergingABackupBackInKeepsOneCopyOfEachListenWithItsOrigin() = runTest {
         val song = track("song", "Song", "Artist", "Album", 120_000)
         val fixture = fixture(listOf(song))
