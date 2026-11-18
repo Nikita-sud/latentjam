@@ -27,6 +27,9 @@ public class HistorySessionTracker(
     private var currentTrackId: TrackId? = null
     private var startedAtMs: Long = 0
     private var maxPositionMs: Long = 0
+
+    /** Where the playhead stood when the session opened; see [finishCurrent]. */
+    private var openingPositionMs: Long = 0
     private var lastPositionMs: Long = 0
     private var lastSnapshotAtMs: Long = 0
     private var lastSnapshotWasPlaying: Boolean = false
@@ -160,6 +163,13 @@ public class HistorySessionTracker(
         val duration = durationMs
         val completed = duration != null && duration > 0 &&
             maxPositionMs >= (duration * completionThreshold).toLong()
+        // A player that stopped by itself at the end of a track (the sleep timer's "end of track", a queue that ran
+        // out) stays on that track, and its listen is recorded at the pause. The next Play shows the finished track
+        // as playing for a moment before it moves on: a session that opened past the completion mark and heard
+        // nothing is that moment, not a second, completed play of the track.
+        if (completed && openingPositionMs >= (duration!! * completionThreshold).toLong() && listenedMs < MIN_HEARD_AT_END_MS) {
+            return null
+        }
         val skipped = !completed && listenedMs < skipThresholdMs
         return ListenEvent(
             trackId = trackId,
@@ -202,6 +212,7 @@ public class HistorySessionTracker(
         currentTrackId = trackId
         startedAtMs = nowMs
         maxPositionMs = positionMs.coerceAtLeast(0)
+        openingPositionMs = maxPositionMs
         lastPositionMs = maxPositionMs
         lastSnapshotAtMs = nowMs
         lastSnapshotWasPlaying = true
@@ -282,6 +293,13 @@ public class HistorySessionTracker(
         const val RESTART_MIN_REWIND_MS: Long = 30_000
         const val RESTART_MIN_PROGRESS: Double = 0.75
         const val MAX_TRANSITION_TAIL_MS: Long = 1_000
+
+        /**
+         * A session opened at the end of a track is a listen only when more than this was heard. Twice the
+         * transition tail: the tail (at most [MAX_TRANSITION_TAIL_MS]) is credited for the unseen interval before a
+         * track change, so by itself it must not make such a session count.
+         */
+        const val MIN_HEARD_AT_END_MS: Long = 2 * MAX_TRANSITION_TAIL_MS
         const val MAX_POSITION_DRIFT_MS: Long = 1_000
     }
 }

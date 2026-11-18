@@ -528,4 +528,38 @@ internal class HistorySessionTrackerTest {
         assertEquals(ListenOrigin(), event.origin)
         assertEquals(event, ListenEvent.parse(event.serialize()), "the recorded line must reload")
     }
+
+    @Test
+    fun aPlayThatOnlyLeavesATrackAlreadyAtItsEndIsNoListen() {
+        val tracker = HistorySessionTracker()
+        // The sleep timer's "end of track": the player stops by itself on the finished track and stays on it.
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 200_000, 200_000, "OFF", nowMs = 201_000)
+        tracker.onSnapshot(a, 200_000, 200_000, "OFF", nowMs = 201_500, isPlaying = false)
+        val heard = assertNotNull(tracker.flush(202_500))
+        assertTrue(heard.completed)
+
+        // Play, hours later: for a moment the player still shows the finished track as playing, then moves on.
+        val later = 201_500 + 8L * 60 * 60 * 1000
+        assertNull(tracker.onSnapshot(a, 200_000, 200_000, "OFF", nowMs = later))
+        assertNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = later + 300), "nothing of a was heard again")
+        // b is a listen of its own.
+        tracker.onSnapshot(b, 40_000, 100_000, "OFF", nowMs = later + 40_300)
+        assertEquals(b, tracker.flush(later + 40_300)?.trackId)
+    }
+
+    @Test
+    fun aTrackResumedNearItsEndAndHeardOutIsStillAListen() {
+        val tracker = HistorySessionTracker()
+        tracker.onSnapshot(a, 0, 200_000, "OFF", nowMs = 1_000)
+        tracker.onSnapshot(a, 180_000, 200_000, "OFF", nowMs = 181_000)
+        tracker.onSnapshot(a, 180_000, 200_000, "OFF", nowMs = 181_500, isPlaying = false)
+        assertNotNull(tracker.flush(182_500))
+        // Resumed ten seconds before the end and heard to the end: the second half is recorded (and joined by readers).
+        tracker.onSnapshot(a, 190_000, 200_000, "OFF", nowMs = 500_000)
+        tracker.onSnapshot(a, 199_000, 200_000, "OFF", nowMs = 509_000)
+        val rest = assertNotNull(tracker.onSnapshot(b, 0, 100_000, "OFF", nowMs = 510_000))
+        assertEquals(a, rest.trackId)
+        assertTrue((rest.listenedMs ?: 0) >= 9_000)
+    }
 }
