@@ -632,6 +632,33 @@ internal class ListeningHistoryTest {
     }
 
     @Test
+    fun aClearCancelledWhileTheLogIsDeletedLeavesNoListensInMemory() = runTest {
+        val deleting = CompletableDeferred<Unit>()
+        val store = object : HistoryStore {
+            val lines = mutableListOf(event("1", startedAt = 100).serialize())
+            override suspend fun append(line: String) { lines += line }
+            override suspend fun readAll(): List<String> = lines.toList()
+            override suspend fun clear() {
+                lines.clear()
+                deleting.await()
+            }
+        }
+        val history = DefaultListeningHistory(store)
+        // Load the log first, so the clear is already inside its store call after runCurrent().
+        assertEquals(1, history.allEvents().size)
+
+        val clearing = launch { history.clear() }
+        runCurrent()
+        clearing.cancel() // The listener leaves the Privacy screen while the log is being deleted.
+        deleting.complete(Unit)
+        clearing.join()
+
+        assertEquals(emptyList(), store.lines)
+        assertEquals(emptyList(), history.allEvents(), "a deleted log is not served from memory")
+        assertEquals(emptyMap(), history.stats())
+    }
+
+    @Test
     fun anImportIsToldByTheImportersFingerprintAlone() {
         val imported = ListenEvent(TrackId("a"), 1_700_000_000_000L, 200_000L, 200_000L, completed = true, skipped = false)
         assertTrue(imported.isImported)

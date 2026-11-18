@@ -228,9 +228,14 @@ public class DefaultListeningHistory(
 
     override suspend fun clear(): Unit = mutex.withLock {
         ensureLoaded()
-        store.clear()
-        events.clear()
-        aggregates = ListenCounts()
+        // Deleting and forgetting are one step. The store deletes on another dispatcher, and a cancellation
+        // delivered on the way back (the listener left the screen) would otherwise leave the deleted log in
+        // memory: statistics and SMART would go on reading the history that was just cleared.
+        withContext(NonCancellable) {
+            store.clear()
+            events.clear()
+            aggregates = ListenCounts()
+        }
     }
 
     /**
