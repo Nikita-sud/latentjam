@@ -9,8 +9,12 @@ internal class IntegratedLoudnessTest {
         val mono = tone(1)
         val stereo = tone(2)
         val inverted = tone(2, invertRight = true)
-        assertEquals(-23f, mono.lufs, 0.15f)
+        // A one-channel file plays from both speakers at the file's level: as loud as the same tone in two channels.
+        // (Until 0.9.6 it was counted once and read -23, so normalization left it 3 dB louder than its stereo twin.)
+        assertEquals(-20f, mono.lufs, 0.15f)
         assertEquals(-20f, stereo.lufs, 0.15f)
+        assertEquals(stereo.lufs, mono.lufs, 0.1f)
+        assertEquals(stereo.truePeakDbtp, mono.truePeakDbtp, 0.01f)
         assertEquals(stereo.lufs, inverted.lufs, 0.001f)
         assertEquals(-20f, stereo.truePeakDbtp, 0.15f)
     }

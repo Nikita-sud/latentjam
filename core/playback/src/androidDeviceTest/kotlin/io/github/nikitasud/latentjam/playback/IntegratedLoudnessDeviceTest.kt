@@ -29,6 +29,26 @@ class IntegratedLoudnessDeviceTest {
         } finally { file.delete() }
     }
 
+    @Test fun aOneChannelFileMeasuresAsLoudAsTheSameToneInTwoChannels(): Unit = runBlocking {
+        // It plays from both speakers at the file's level. Counted once (until 0.9.6) it read 3 LU lower, and
+        // normalization left it 3 dB louder than its two-channel twin.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val mono = File(context.cacheDir, "loudness-mono.wav")
+        val twin = File(context.cacheDir, "loudness-mono-twin.wav")
+        try {
+            writeTone(mono, seconds = 12, channels = 1)
+            writeTone(twin, seconds = 12, channels = 2, invertRight = false)
+            val meter = AndroidIntegratedLoudnessMeter(context)
+            val one = withTimeout(30_000) { meter.measure(Uri.fromFile(mono).toString(), 12000) }
+            val two = withTimeout(30_000) { meter.measure(Uri.fromFile(twin).toString(), 12000) }
+            assertNotNull(one); assertNotNull(two)
+            Log.i("LJLoudnessTest", "mono LUFS=${one!!.lufs}, twin LUFS=${two!!.lufs}")
+            assertEquals(-20f, two.lufs, 0.3f)
+            assertEquals(two.lufs, one.lufs, 0.15f)
+            assertEquals(two.truePeakDbtp, one.truePeakDbtp, 0.05f)
+        } finally { mono.delete(); twin.delete() }
+    }
+
     @Test fun cancellationAndRejectedSourcesReleaseDecoderForTheNextScan(): Unit = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.cacheDir, "loudness-cancel.wav")
@@ -64,23 +84,26 @@ class IntegratedLoudnessDeviceTest {
         }
     }
 
-    private fun writeTone(file: File, seconds: Int) {
+    /** A 16-bit WAV of [channels] channels; with two, the right one is the left one, turned over when [invertRight]. */
+    private fun writeTone(file: File, seconds: Int, channels: Int = 2, invertRight: Boolean = true) {
         val rate = 48000
         val frames = rate * seconds
+        val frameBytes = channels * 2
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
-        header.put("RIFF".toByteArray()).putInt(36 + frames * 4).put("WAVEfmt ".toByteArray()).putInt(16)
-            .putShort(1).putShort(2).putInt(rate).putInt(rate * 4).putShort(4).putShort(16)
-            .put("data".toByteArray()).putInt(frames * 4)
+        header.put("RIFF".toByteArray()).putInt(36 + frames * frameBytes).put("WAVEfmt ".toByteArray()).putInt(16)
+            .putShort(1).putShort(channels.toShort()).putInt(rate).putInt(rate * frameBytes).putShort(frameBytes.toShort()).putShort(16)
+            .put("data".toByteArray()).putInt(frames * frameBytes)
         file.outputStream().buffered().use { out ->
             out.write(header.array())
-            val block = ByteBuffer.allocate(4800 * 4).order(ByteOrder.LITTLE_ENDIAN)
+            val block = ByteBuffer.allocate(4800 * frameBytes).order(ByteOrder.LITTLE_ENDIAN)
             var start = 0
             while (start < frames) {
                 block.clear()
                 repeat(minOf(4800, frames - start)) { i ->
                     val amplitude = if (start + i < rate * (seconds - 4)) 0.01 else 0.1
                     val value = (32767 * amplitude * sin(2 * PI * 1000 * (start + i) / rate)).toInt().toShort()
-                    block.putShort(value).putShort((-value).toShort())
+                    block.putShort(value)
+                    if (channels == 2) block.putShort(if (invertRight) (-value).toShort() else value)
                 }
                 out.write(block.array(), 0, block.position()); start += 4800
             }

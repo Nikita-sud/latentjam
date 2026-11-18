@@ -73,8 +73,41 @@ static void scan() {
         lj_loudness_destroy(m);
     }
 }
+// A one-channel file plays from both speakers, each at the file's level: it is as loud as the same samples in two
+// equal channels, and must measure so (BS.1770 sums the channels' powers, so one channel counted once reads
+// 10*log10(2) = 3.01 LU lower). Its peak is one channel's either way.
+static double measured(int channels, double *peak_out) {
+    auto *meter = lj_loudness_create(48000, channels); REQUIRE(meter);
+    std::vector<float> chunk(4096 * channels);
+    for (int offset = 0; offset < 48000 * 5; offset += 4096) {
+        const int count = std::min(4096, 48000 * 5 - offset);
+        for (int i = 0; i < count; ++i) {
+            // Two levels, so the relative gate has something to drop: the same blocks must go in both layouts.
+            const double amplitude = (offset + i) < 48000 * 2 ? 0.01 : 0.2;
+            const float sample = float(amplitude * std::sin(2 * 3.141592653589793 * 1000 * (i + offset) / 48000));
+            for (int c = 0; c < channels; ++c) chunk[i * channels + c] = sample;
+        }
+        REQUIRE(lj_loudness_add(meter, chunk.data(), count));
+    }
+    double lufs = 0;
+    REQUIRE(lj_loudness_finish(meter, &lufs, peak_out));
+    lj_loudness_destroy(meter);
+    return lufs;
+}
+static void mono_is_as_loud_as_it_plays() {
+    double mono_peak = 0, stereo_peak = 0;
+    const double mono = measured(1, &mono_peak), stereo = measured(2, &stereo_peak);
+    // The histogram's bins are 0.1 LU wide.
+    REQUIRE(std::abs(mono - stereo) < 0.11);
+    REQUIRE(std::abs(mono_peak - stereo_peak) < 0.01);
+    // A 1 kHz sine at 0.2 in both channels: 10*log10(2 * 0.2^2 / 2) = -13.98 LUFS (at 1 kHz the K-weighting
+    // gain and the -0.691 offset cancel), the quiet two seconds gated out. The blocks that straddle the change of
+    // level pass the gate and pull it down a little, hence the wider bound.
+    REQUIRE(std::abs(stereo + 13.98) < 0.3);
+}
 int main() {
     boundaries();
+    mono_is_as_loud_as_it_plays();
     REQUIRE(!lj_loudness_create(0, 2));
     REQUIRE(!lj_loudness_create(192001, 2));
     REQUIRE(!lj_loudness_create(48000, 6));

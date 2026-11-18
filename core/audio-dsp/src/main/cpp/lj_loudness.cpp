@@ -25,6 +25,14 @@ extern "C" lj_loudness *lj_loudness_create(int rate, int channels) {
     auto *state = ebur128_init(channels, rate,
         EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK | EBUR128_MODE_HISTOGRAM);
     if (!state) return nullptr;
+    // A one-channel file plays from both speakers, each at the file's level (Android's mono output and the iOS
+    // graph alike), so it is as loud as the same samples in two channels. Counted once, as libebur128 does by
+    // default, it read 3.01 LU lower than that, and normalization then turned it down 3 dB less than the same
+    // music in stereo. The true peak is one channel's either way.
+    if (channels == 1 && ebur128_set_channel(state, 0, EBUR128_DUAL_MONO) != EBUR128_SUCCESS) {
+        ebur128_destroy(&state);
+        return nullptr;
+    }
     auto *meter = new (std::nothrow) lj_loudness{state};
     if (!meter) ebur128_destroy(&state);
     return meter;
