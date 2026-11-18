@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
@@ -34,9 +35,14 @@ internal class AndroidTrackIdentitiesTest {
         val disk = Disk()
         var reads = 0
         var reader: (TrackDescriptor) -> TrackIdentityTags? = { tags }
+        /** The list of rows not yet checked under the provider's database, as its file holds it: here none are left. */
+        var unchecked: String? = UNCHECKED_NONE
+        var uncheckedFails = false
         fun fresh() = AndroidTrackIdentities(
             { disk.payload?.let(::StringReader) },
             { contents -> disk.save(StringWriter().also(contents).toString()) },
+            readUnchecked = { unchecked },
+            writeUnchecked = { if (uncheckedFails) throw IOException("full"); unchecked = it },
         ) { reads++; reader(it) }
         var registry = fresh()
         var rowIds = RowIds.UNVERSIONED
@@ -180,6 +186,57 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals(7, f.reads)
     }
 
+    /** A read of a file whose reader asks for [asked] bytes of tag and then has no memory left. */
+    private fun outOfMemoryAfter(asked: Int): TrackIdentityTags? =
+        identityTagsOf(file) { source ->
+            source.read(0, 10)
+            source.read(0, asked)
+            // Past the end of the file: refused, and nothing is allocated for it.
+            source.read(file.length - 5, 4 * 1024 * 1024)
+            throw OutOfMemoryError("no room")
+        }
+
+    /** A 16 MiB file; no test here looks at its bytes. */
+    private val file = object : RandomAccessSource {
+        override val length = 16L * 1024 * 1024
+        override fun read(offset: Long, count: Int): ByteArray? = if (count <= length - offset) ByteArray(0) else null
+    }
+
+    @Test fun aReadThatRanOutOfMemoryOnAnOrdinaryTagIsTriedAgainAtTheNextLaunch() {
+        // The heap was full of something else (the analysis, on a small heap) while a file with ordinary tags was
+        // read: recorded as "read, no tags", it could never again be relocated by its MusicBrainz id.
+        val f = Fixture(tags)
+        val tracks = (1..5).map { track(it.toString()) }.toTypedArray()
+        f.scan(*tracks)
+        f.reader = { if (it.id.value == "3") outOfMemoryAfter(asked = 40 * 1024) else tags }
+        f.remember()
+        assertEquals(5, f.reads)
+        f.restart(); f.scan(*tracks)
+        f.reader = { tags }
+        f.remember()
+        assertEquals(6, f.reads, "the file that could not be read for want of memory is read now")
+        f.restart(); f.scan(*tracks); f.remember()
+        assertEquals(6, f.reads)
+        // A tag that is itself large fails the same way each time, and is still recorded once.
+        val g = Fixture(tags)
+        g.scan(*tracks)
+        g.reader = { if (it.id.value == "3") outOfMemoryAfter(asked = 3 * 1024 * 1024) else tags }
+        g.remember()
+        g.restart(); g.scan(*tracks); g.remember()
+        assertEquals(5, g.reads)
+    }
+
+    @Test fun onlyAFailureByMemoryOnASmallReadIsLeftForLater() {
+        assertEquals(null, outOfMemoryAfter(asked = 0))
+        assertEquals(null, outOfMemoryAfter(asked = 1024 * 1024 - 11))
+        assertFailsWith<OutOfMemoryError> { outOfMemoryAfter(asked = 1024 * 1024) }
+        // Any other Error is the file's own (a tag nested without end), at whatever size.
+        assertFailsWith<StackOverflowError> {
+            identityTagsOf(file) { throw StackOverflowError() }
+        }
+        assertEquals(tags, identityTagsOf(file) { tags })
+    }
+
     @Test fun aPotentialDuplicateTooLargeToReadVetoesAMatchLikeAnyUnreadFile() {
         val f = Fixture(tags)
         f.scan(track("10")); f.remember()
@@ -262,6 +319,89 @@ internal class AndroidTrackIdentitiesTest {
         }
     }
 
+    @Test fun aRowThatAppearsAfterTheFirstScanOfANewDatabaseIsCheckedToo() {
+        // The app opened while the rebuilt provider was still indexing, or with the card out: that scan held row 10
+        // only, and the version was recorded with it. Row 11 arrives later, under a database that is now "the same".
+        val first = row("10", "first.mp3", seconds = 200, size = 4_800_000)
+        val second = row("11", "second.mp3", seconds = 240, size = 5_700_000)
+        fun afterAPartialFirstScan() = Fixture(tags).also { f ->
+            f.scan(first, second); f.remember()
+            f.rowIds = RowIds.NEW_DATABASE
+            assertEquals(TrackId("10"), f.scan(first.copy(sourceRevision = androidMediaSourceRevision(4_800_000, 1_700_000_000, 1))).single().id)
+            assertEquals("$UNCHECKED_NONE\n11", f.unchecked)
+            f.restart()
+            f.rowIds = RowIds.SAME_DATABASE
+        }
+        // Another file under the old number: it must not inherit what is kept under 11.
+        val other = row("11", "another song.flac", seconds = 300, size = 31_000_000, generation = 2)
+        val f = afterAPartialFirstScan()
+        val resolved = f.scan(first, other)
+        assertEquals(TrackId("10"), resolved[0].id)
+        assertTrue(resolved[1].id != TrackId("11"), "a row not checked since the rebuild was believed")
+        assertEquals("11", f.registry.sourceId(resolved[1].id))
+        assertEquals(UNCHECKED_NONE, f.unchecked, "judged once, and then a row of this database like any other")
+        // The same file under its old number keeps its id, and from then on an edit in place may change anything.
+        val g = afterAPartialFirstScan()
+        val rescanned = second.copy(sourceRevision = androidMediaSourceRevision(5_700_000, 1_700_000_000, 2))
+        assertEquals(TrackId("11"), g.scan(first, rescanned)[1].id)
+        assertEquals(UNCHECKED_NONE, g.unchecked)
+        g.restart()
+        assertEquals(TrackId("11"), g.scan(first, row("11", "second.flac", seconds = 300, size = 31_000_000, generation = 3))[1].id)
+    }
+
+    @Test fun aRowWaitingToBeCheckedIsCheckedWhateverTheScanKnowsOfTheProvider() {
+        // The provider could not be asked for its version at this scan: the list still names row 11.
+        val f = Fixture(tags)
+        f.scan(row("10", "first.mp3", seconds = 200, size = 4_800_000), row("11", "second.mp3", seconds = 240, size = 5_700_000))
+        f.unchecked = "$UNCHECKED_NONE\n11"
+        f.restart()
+        f.rowIds = RowIds.UNVERSIONED
+        // Same format and near the same size, another length: the test of an unversioned provider alone lets it pass.
+        val resolved = f.scan(row("11", "another.mp3", seconds = 300, size = 6_000_000, generation = 2)).single()
+        assertTrue(resolved.id != TrackId("11"))
+    }
+
+    @Test fun aRecordedVersionWithNoListOfUncheckedRowsChecksEveryRow() {
+        // The list is written before the version, so a version without it means the list was lost (or the build
+        // that recorded the version kept none): nothing says which rows were checked.
+        for (lost in listOf(null, "", "not the list")) {
+            val f = Fixture(tags)
+            f.scan(row("10", "first.mp3", seconds = 200, size = 4_800_000), row("11", "second.mp3", seconds = 240, size = 5_700_000))
+            f.unchecked = lost
+            f.restart()
+            f.rowIds = RowIds.SAME_DATABASE
+            val resolved = f.scan(row("11", "another song.flac", seconds = 300, size = 31_000_000, generation = 2)).single()
+            assertTrue(resolved.id != TrackId("11"), "$lost")
+            // Written again from this scan: row 10 was not in it.
+            assertEquals("$UNCHECKED_NONE\n10", f.unchecked)
+        }
+    }
+
+    @Test fun aListOfUncheckedRowsThatCannotBeSavedFailsTheScanAndIsBuiltAgain() {
+        val f = Fixture(tags)
+        val first = row("10", "first.mp3", seconds = 200, size = 4_800_000)
+        f.scan(first, row("11", "second.mp3", seconds = 240, size = 5_700_000))
+        f.rowIds = RowIds.NEW_DATABASE
+        f.uncheckedFails = true
+        // The caller records the version only after a scan that did not fail: this one must.
+        assertFailsWith<IOException> { f.scan(first) }
+        assertEquals(UNCHECKED_NONE, f.unchecked)
+        assertEquals(listOf(first), f.registry.durable(listOf(first), f.rowIds))
+        f.uncheckedFails = false
+        f.scan(first)
+        assertEquals("$UNCHECKED_NONE\n11", f.unchecked)
+    }
+
+    @Test fun theProviderVersionIsRecordedOnlyByAScanThatCouldSeeEveryVolume() {
+        assertTrue(recordsProviderVersion(RowIds.NEW_DATABASE, durable = true) { false })
+        // A card out or being checked: its rows are not in the scan, and the next scan checks again.
+        assertFalse(recordsProviderVersion(RowIds.NEW_DATABASE, durable = true) { true })
+        // And no other scan has a version to record, or asks the system about its volumes for it.
+        assertFalse(recordsProviderVersion(RowIds.NEW_DATABASE, durable = false) { error("not asked") })
+        assertFalse(recordsProviderVersion(RowIds.SAME_DATABASE, durable = true) { error("not asked") })
+        assertFalse(recordsProviderVersion(RowIds.UNVERSIONED, durable = true) { error("not asked") })
+    }
+
     @Test fun aNewDatabaseKeepsTheIdOfTheSameFileAndOfNoOtherOfItsFormat() {
         val f = Fixture(tags)
         val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
@@ -277,6 +417,34 @@ internal class AndroidTrackIdentitiesTest {
             row("11", "song.mp3", seconds = 200, size = 4_800_000, generation = 3),
         )
         assertTrue(swapped.none { it.id == TrackId("10") || it.id == TrackId("11") })
+    }
+
+    @Test fun aFileOfTheSameSizeIsTheSameFileUnderANewProviderVersion() {
+        // A provider update: the version changes with its schema, the rows keep their numbers, and it reads every
+        // file again. This one's length came out three seconds longer, with a new modified time and generation.
+        val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
+        val f = Fixture(tags)
+        f.scan(original); f.remember()
+        f.rowIds = RowIds.NEW_DATABASE
+        val reread = row("10", "song.mp3", seconds = 203, size = 4_800_000, modified = 1_700_009_000, generation = 40)
+        assertEquals(reread, f.scan(reread).single())
+        // Another size and another length is another file, as before.
+        val g = Fixture(tags)
+        g.scan(original); g.remember()
+        g.rowIds = RowIds.NEW_DATABASE
+        val other = row("10", "other.mp3", seconds = 203, size = 4_870_000, modified = 1_700_009_000, generation = 40)
+        assertTrue(g.scan(other).single().id != TrackId("10"))
+        // And the size says nothing across formats, or where the provider gave none.
+        val h = Fixture(tags)
+        h.scan(original); h.remember()
+        h.rowIds = RowIds.NEW_DATABASE
+        assertTrue(h.scan(row("10", "song.flac", seconds = 203, size = 4_800_000, generation = 40)).single().id != TrackId("10"))
+        val unsized = track("10", "android-mediastore-v1:-:1700000000:7").copy(fileName = "song.mp3", durationMs = 200_000)
+        val i = Fixture(tags)
+        i.scan(unsized); i.remember()
+        i.rowIds = RowIds.NEW_DATABASE
+        val unsizedLater = track("10", "android-mediastore-v1:-:1700009000:40").copy(fileName = "song.mp3", durationMs = 203_000)
+        assertTrue(i.scan(unsizedLater).single().id != TrackId("10"))
     }
 
     @Test fun anEditInPlaceKeepsTheAppId() {
@@ -389,6 +557,11 @@ internal class AndroidTrackIdentitiesTest {
         f.reader = { TrackIdentityTags() }
         f.remember()
         assertEquals(TrackId("20"), f.scan(track("20")).single().id)
+    }
+
+    private companion object {
+        /** The file of rows not yet checked, with none left: its header line alone. */
+        const val UNCHECKED_NONE = "latentjam-unchecked-rows-v1"
     }
 
     /** The registry's text before it was streamed, verbatim: the file on disk must not change. */

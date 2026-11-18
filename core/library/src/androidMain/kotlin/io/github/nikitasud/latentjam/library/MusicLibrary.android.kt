@@ -17,6 +17,7 @@ import io.github.nikitasud.latentjam.library.tags.CoverPicture
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TextRepair
+import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.library.tags.readTrackIdentityTags
 import io.github.nikitasud.latentjam.smart.MediaStoreArtwork
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -58,15 +59,20 @@ internal class MediaStoreMusicLibrary(
     private val scanLock = Any()
     override val preservesRelocatedTrackIds: Boolean get() = true
     private val identityFile = java.io.File(context.filesDir, "track-identities-v1.txt")
+
+    /** Registered rows not yet checked under the provider's present database; the registry writes it. */
+    private val uncheckedRowsFile = java.io.File(context.filesDir, "track-identities-unchecked.txt")
     private val identities = AndroidTrackIdentities(
         read = { if (identityFile.exists()) identityFile.bufferedReader() else null },
         write = { contents -> identityFile.atomicReplace(contents) },
+        readUnchecked = { if (uncheckedRowsFile.exists()) uncheckedRowsFile.readText() else null },
+        writeUnchecked = { contents -> uncheckedRowsFile.atomicReplaceText(contents) },
         readTags = { track ->
             val uri = track.audioUri?.let(Uri::parse)
             uri?.let { context.contentResolver.openFileDescriptor(it, "r") }?.let { descriptor ->
                 // The stream owns the descriptor: one close releases both, nothing left to a finalizer.
                 ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
-                    readTrackIdentityTags(ChannelSource(input.channel))
+                    identityTagsOf(ChannelSource(input.channel))
                 }
             }
         },
@@ -339,9 +345,11 @@ internal class MediaStoreMusicLibrary(
                     durable = false
                     identities.durable(tracks, rowIds)
                 }
-                // Only now that the registry holds this scan's rows: recorded before, a scan that then failed would
-                // leave the next one believing ids it never checked. A version that cannot be kept is checked again.
-                if (durable && rowIds == RowIds.NEW_DATABASE && version != null) {
+                // Only now that the registry holds this scan's rows and has listed the ones it did not hold: recorded
+                // before, a scan that then failed would leave the next one believing ids it never checked. Not while a
+                // volume with songs on it is away either: those rows are checked by a scan that can see them. A
+                // version that cannot be kept is checked again.
+                if (version != null && recordsProviderVersion(rowIds, durable, ::storageMayBeMissing)) {
                     runCatching { providerVersionFile.atomicReplaceText(version) }
                 }
                 // Only a complete scan may tell the cover overrides which songs are gone: one that is not durable dates
@@ -774,6 +782,52 @@ internal fun mediaStoreLibraryScan(
 } catch (_: SecurityException) {
     LibraryScan(tracks = emptyList(), complete = false, answered = false)
 }
+
+/**
+ * The identity tags [read] finds in [source]; null, as for a file that could not be opened, when memory ran out on
+ * a tag of ordinary size.
+ *
+ * The registry records a file whose read ends in an Error as read, with no tags: a tag too large for the heap fails
+ * the same way at every launch. But the heap can also be full of something else (the analysis, on a 48 MB heap)
+ * while a file with ordinary tags is read, and recorded like that the song could not be relocated by its
+ * MusicBrainz id again until its file changed. What tells the two apart is how much of the file the reader had asked
+ * for when memory ran out: it reads a tag whole, pictures included, and never more than its own bound of 8 MiB.
+ * Under [ORDINARY_TAG_BYTES] the tag was not what filled the heap, and the file is left to be read again; reading
+ * it again costs no more than that much.
+ */
+internal fun identityTagsOf(
+    source: RandomAccessSource,
+    read: (RandomAccessSource) -> TrackIdentityTags? = ::readTrackIdentityTags,
+): TrackIdentityTags? {
+    var asked = 0L
+    val counted = object : RandomAccessSource {
+        override val length: Long get() = source.length
+        override fun read(offset: Long, count: Int): ByteArray? {
+            // What the source refuses outright (a range past the end of the file) it never allocates.
+            if (count > 0 && offset >= 0 && count <= length - offset) asked += count
+            return source.read(offset, count)
+        }
+    }
+    return try {
+        read(counted)
+    } catch (failure: OutOfMemoryError) {
+        if (asked >= ORDINARY_TAG_BYTES) throw failure
+        null
+    }
+}
+
+/**
+ * A tag's text and one cover as LatentJam itself embeds them fit in this twice over: its covers are at most 1,000
+ * pixels on the long edge, and a picture kept as it was is at most 500 KiB (TAG_COVER_PNG_KEEP_BYTES in the app).
+ */
+private const val ORDINARY_TAG_BYTES = 1024L * 1024
+
+/**
+ * Whether a scan may record MediaStore's version as the one the registry was saved under; see [RowIds]. Only a scan
+ * under a new database has one to record, and [storageMayBeMissing] is asked for no other.
+ */
+internal fun recordsProviderVersion(rowIds: RowIds, durable: Boolean, storageMayBeMissing: () -> Boolean): Boolean =
+    durable && rowIds == RowIds.NEW_DATABASE && !storageMayBeMissing()
 
 /** A storage volume the system lists: its name as tracks carry it (null when it has none) and its state. */
 internal class VolumeState(val id: String?, val state: String?) {
