@@ -116,9 +116,15 @@ internal object PersonalSignals {
     @Volatile
     private var planned: Map<TrackId, Boolean> = emptyMap()
 
+    /** How many picks were marked so far: a start that plans first reads it to learn of a pick made meanwhile. */
+    @Volatile
+    var pickCount: Long = 0L
+        private set
+
     /** The listener is about to start playback from [surface]. */
     fun pick(surface: PickSurface, atMs: Long = epochMillis()) {
         mark = Mark(surface, atMs)
+        pickCount++
     }
 
     /** A SMART plan's rows, and which of them the personal term changed. */

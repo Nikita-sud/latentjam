@@ -9,9 +9,11 @@ import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.playback.PlaybackController
 import io.github.nikitasud.latentjam.playback.RepeatMode
 import io.github.nikitasud.latentjam.playback.ShuffleMode
+import io.github.nikitasud.latentjam.playback.StartCause
 import io.github.nikitasud.latentjam.smart.SimilarityEngine
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import io.github.nikitasud.latentjam.smart.associateById
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -106,6 +108,116 @@ internal suspend fun playLibraryFrom(playback: PlaybackController, track: TrackD
     val index = songs.indexOfFirst { it.id == track.id }
     if (index >= 0) playback.play(songs, index) else playback.play(listOf(track), 0)
 }
+
+/**
+ * A start that plans its queue before it plays: the For You hero card, "SMART from here" on a Map region and on a
+ * mix. Plans from [seed] and starts [seed] with the plan after it.
+ *
+ * [beforePlay] runs right before the start (the queue's source, the pick surface). [songs] resolves the planned ids,
+ * asked once the plan is ready. With [smart] false (SMART switched off; asked again once the plan is ready, since
+ * planning takes seconds) nothing is planned and [withoutSmart] plays instead. [resumeAtMs] is where an unfinished
+ * track goes on.
+ *
+ * @return whether playback was started.
+ */
+internal suspend fun playPlannedFrom(
+    playback: PlaybackController,
+    seed: TrackDescriptor,
+    songs: () -> Map<TrackId, TrackDescriptor>,
+    isCurrent: () -> Boolean = { true },
+    resumeAtMs: Long? = null,
+    smart: () -> Boolean = { true },
+    withoutSmart: suspend () -> Unit = {},
+    beforePlay: () -> Unit = {},
+    plan: suspend () -> List<TrackId>,
+): Boolean {
+    val watch = LaterStartWatch(playback)
+    val queue = if (!smart()) emptyList() else plan()
+    // Planning takes seconds. What the listener started meanwhile is the newer wish: a planned start
+    // that arrived after it replaced the song they had just picked.
+    if (!isCurrent() || watch.startedSince()) return false
+    beforePlay()
+    if (!smart()) {
+        withoutSmart()
+    } else {
+        val byId = songs()
+        playback.play(listOf(seed) + queue.mapNotNull(byId::get), 0, smartPlanPositions(queue))
+    }
+    resumeAtMs?.let { playback.seekTo(it) }
+    return true
+}
+
+/**
+ * Tells whether the listener started other music since this was made.
+ *
+ * Every screen marks its pick right before it starts playback ([PersonalSignals.pick]), which is known at once. A
+ * start no screen marks (a voice command, the notification) is known only when the player reports it; on Android
+ * that report can also be of a start asked for earlier, so there it counts only if this app asked the player for
+ * something since ([PlaybackController.userPlaybackRevision], which stays 0 where the player reports at once). A
+ * track that followed by itself is no such start.
+ */
+internal class LaterStartWatch(private val playback: PlaybackController) {
+    private val picks = PersonalSignals.pickCount
+    private val revision = playback.userPlaybackRevision
+    private val start = playback.state.value.playbackStart?.sequence
+
+    fun startedSince(): Boolean {
+        if (PersonalSignals.pickCount != picks) return true
+        val revisionNow = playback.userPlaybackRevision
+        if (revisionNow != 0L && revisionNow == revision) return false
+        val now = playback.state.value.playbackStart ?: return false
+        return now.sequence != start && now.cause == StartCause.USER_PICK
+    }
+}
+
+/**
+ * [playPlannedFrom] with SMART's own planner over [library] (SMART's eligible tracks, asked for only when it plans),
+ * the queue's [source] and the pick's [surface].
+ */
+internal suspend fun playSmartFrom(
+    playback: PlaybackController,
+    engine: SimilarityEngine,
+    history: ListeningHistory,
+    seed: TrackDescriptor,
+    library: suspend () -> List<TrackDescriptor>,
+    queueLength: Int,
+    companionGroups: List<Set<TrackId>>,
+    source: QueueSource,
+    surface: PickSurface,
+    songs: () -> Map<TrackId, TrackDescriptor>,
+    isCurrent: () -> Boolean = { true },
+    resumeAtMs: Long? = null,
+    smart: () -> Boolean = { true },
+    withoutSmart: suspend () -> Unit = {},
+): Boolean = playPlannedFrom(
+    playback, seed, songs, isCurrent, resumeAtMs, smart, withoutSmart,
+    beforePlay = {
+        AppGraph.queueSource.value = source
+        PersonalSignals.pick(surface)
+    },
+) { engine.smartQueue(seed, library(), queueLength, smartHistoryFor(history, seed), companionGroups) }
+
+/**
+ * The For You hero card: the personal signal picked the seed, SMART decides what follows it. With SMART switched off
+ * the card plays its track and the library on from it ([songs] in the Tracks tab's order).
+ */
+internal suspend fun playHeroFromForYou(
+    playback: PlaybackController,
+    engine: SimilarityEngine,
+    history: ListeningHistory,
+    hero: ForYouHero,
+    library: suspend () -> List<TrackDescriptor>,
+    queueLength: Int,
+    companionGroups: List<Set<TrackId>>,
+    songs: List<TrackDescriptor>,
+    isCurrent: () -> Boolean,
+    smart: () -> Boolean,
+): Boolean = playSmartFrom(
+    playback, engine, history, hero.track, library, queueLength, companionGroups,
+    source = QueueSource(QueueSourceKind.FOR_YOU), surface = PickSurface.FOR_YOU,
+    songs = { songs.associateById() }, isCurrent = isCurrent, resumeAtMs = hero.resumeAtMs, smart = smart,
+    withoutSmart = { playLibraryFrom(playback, hero.track, songs) },
+)
 
 /**
  * One For You start at a time. A tap cancels the previous tap's start, whose continuation may still
