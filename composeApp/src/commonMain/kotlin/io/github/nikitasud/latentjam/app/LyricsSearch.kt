@@ -73,7 +73,9 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
             decode(storage.read()).also { entries = it }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
+            // An Error too: the file is the whole cache in one string, and [save] already knows a heap
+            // that cannot hold it. Read as an Exception only, that ended the app each time Search opened.
             mutableMapOf<String, Entry>().also { entries = it }
         }
         val ids = songs.mapTo(HashSet()) { it.id.value }

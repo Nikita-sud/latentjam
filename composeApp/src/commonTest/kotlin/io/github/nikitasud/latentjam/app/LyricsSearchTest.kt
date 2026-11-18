@@ -214,6 +214,20 @@ class LyricsSearchTest {
         assertNull(storage.payload)
     }
 
+    @Test fun aCacheThatDoesNotFitInMemoryWhenReadBackIsRebuiltNotFatal() = runTest {
+        // Thrown where reading the whole cache file into one string would run out of memory.
+        val storage = MemoryStorage().apply { payload = "lyrics-v2\n"; readFailure = HeapExhausted() }
+        var result = emptyMap<TrackId, LyricSearchDocument>()
+        val cache = LyricsSearchCache()
+        cache.load(listOf(track("one")), storage, { lyrics("silver moon") }, sourcesRevision = "") { result = it }
+        assertNotNull(result[TrackId("one")]?.snippet("silver moon"))
+        // Not asked for again in this process, and what was read is kept.
+        var reads = 0
+        cache.load(listOf(track("one")), storage, { reads++; lyrics("silver moon") }, sourcesRevision = "") { result = it }
+        assertEquals(0, reads)
+        assertEquals(1, storage.readAttempts)
+    }
+
     @Test fun corruptedCacheIsRebuilt() = runTest {
         val storage = MemoryStorage().apply { payload = "lyrics-v1\ninvalid\t!!!\tbroken\n" }
         var result = emptyMap<TrackId, LyricSearchDocument>()
@@ -229,7 +243,13 @@ class LyricsSearchTest {
         var failWrite = false
         var writeFailure: Throwable? = null
         var writeAttempts = 0
-        override suspend fun read() = payload
+        var readFailure: Throwable? = null
+        var readAttempts = 0
+        override suspend fun read(): String? {
+            readAttempts++
+            readFailure?.let { throw it }
+            return payload
+        }
         override suspend fun write(payload: String) {
             writeAttempts++
             writeFailure?.let { throw it }
