@@ -7,6 +7,13 @@ extern "C" {
 #endif
 AVAudioUnit * _Nullable lj_eq_ios_create(void);
 void lj_eq_ios_set_settings(AVAudioUnit *unit, int enabled, const int32_t *levels, int bass);
+/* A gain on the unit's output, after the equalizer and its limiter; 1 (the default) touches no sample. The app's graph
+ * sets the square root of two for a mono file: the main mixer, which comes next, plays a mono input 3 dB down (its
+ * pan law), and this gives the file the level it has as two equal channels. After the limiter on purpose: the
+ * equalizer sees a mono file at the level of one channel of a two-channel file, the limiter's ceiling holds at the
+ * graph's output, and between this unit and the mixer the samples are floats, which nothing clips. An insane value
+ * (not finite, not positive, above 4) is taken as 1. */
+void lj_eq_ios_set_output_gain(AVAudioUnit *unit, float gain);
 void lj_eq_ios_reset(AVAudioUnit *unit);
 /* Reset for a stream resumed mid-track: its first 5 ms rise from silence (see lj_eq_fade_in). */
 void lj_eq_ios_restart(AVAudioUnit *unit);

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 
@@ -14,6 +15,8 @@ struct LJRenderState {
     void *storage[32] = {};
     /** A restart's fade outlives AVAudioEngine.stop(), which drops the core it was armed on. */
     std::atomic<bool> fadePending{false};
+    /** Applied to the output after the core; 1 leaves the samples untouched (see lj_eq_ios_set_output_gain). */
+    std::atomic<float> outputGain{1.f};
 };
 
 @interface LJEqualizerAudioUnit : AUAudioUnit {
@@ -26,6 +29,7 @@ struct LJRenderState {
     int _enabled, _bass;
 }
 - (void)setEnabled:(int)enabled levels:(const int32_t *)levels bass:(int)bass;
+- (void)setOutputGain:(float)gain;
 - (void)resetDSP;
 - (void)restartDSP;
 - (int)sampleRate;
@@ -124,6 +128,11 @@ struct LJRenderState {
             channels[c] = static_cast<float *>(target.mData);
         }
         lj_eq_process_planar(state->core, channels, int(count));
+        // Exactly 1 for every layout but mono: then no sample is touched, and the output is what it was bit for bit.
+        const float outputGain = state->outputGain.load(std::memory_order_relaxed);
+        if (outputGain != 1.f) {
+            for (uint32_t c = 0; c < state->channels; ++c) for (AUAudioFrameCount i = 0; i < count; ++i) channels[c][i] *= outputGain;
+        }
         *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
         return noErr;
     };
@@ -133,6 +142,7 @@ struct LJRenderState {
     _enabled = enabled; _bass = bass; std::memcpy(_levels.data(), levels, sizeof(int32_t) * 10);
     if (_render.core) lj_eq_set_settings(_render.core, _enabled, _levels.data(), _bass);
 }
+- (void)setOutputGain:(float)gain { _render.outputGain.store(gain, std::memory_order_relaxed); }
 - (void)resetDSP { std::lock_guard<std::mutex> guard(_control); _render.fadePending.store(false); if (_render.core) lj_eq_reset(_render.core); }
 // The engine is stopped here, and stop() may have released the render resources: the fade then
 // waits for the next allocation instead of vanishing with the old core.
@@ -153,6 +163,11 @@ AVAudioUnit *lj_eq_ios_create(void) {
 }
 void lj_eq_ios_set_settings(AVAudioUnit *unit, int enabled, const int32_t *levels, int bass) {
     [(LJEqualizerAudioUnit *)unit.AUAudioUnit setEnabled:enabled levels:levels bass:bass];
+}
+void lj_eq_ios_set_output_gain(AVAudioUnit *unit, float gain) {
+    // Anything but a sane positive gain is no gain: a wrong value here would be heard on every sample.
+    const bool sane = std::isfinite(gain) && gain > 0.f && gain <= 4.f;
+    [(LJEqualizerAudioUnit *)unit.AUAudioUnit setOutputGain:sane ? gain : 1.f];
 }
 void lj_eq_ios_reset(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudioUnit resetDSP]; }
 void lj_eq_ios_restart(AVAudioUnit *unit) { [(LJEqualizerAudioUnit *)unit.AUAudioUnit restartDSP]; }
