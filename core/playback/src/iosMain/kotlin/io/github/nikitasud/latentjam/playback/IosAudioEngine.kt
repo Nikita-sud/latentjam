@@ -420,7 +420,9 @@ internal class IosAudioEngine : EqualizerController {
     /** Starts the cued overlap under the current track. */
     fun startOverlap(fromMs: Long = 0L): Boolean {
         val file = standbyFile ?: return false
-        if (!player.playing) return false
+        // A node started on a stopped engine raises, which ends the app: the system stops the engine by itself (an
+        // interruption, a change of route) and the current node may go on saying it plays.
+        if (!player.playing || !engine.running) return false
         // Begun late ([lateOverlapStartMs]) — a seek into the overlap's window, the slider raised
         // inside it — the incoming track joins where the overlap has got to, on the same clock as
         // the outgoing curve, instead of replaying its opening from a quiet start. The point it
