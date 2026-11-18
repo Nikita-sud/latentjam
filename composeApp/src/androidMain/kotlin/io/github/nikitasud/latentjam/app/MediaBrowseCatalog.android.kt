@@ -16,6 +16,7 @@ import io.github.nikitasud.latentjam.playback.MediaBrowseRegistry
 import io.github.nikitasud.latentjam.playback.MediaPlaybackResume
 import io.github.nikitasud.latentjam.playback.ShuffleMode
 import io.github.nikitasud.latentjam.playback.allowed
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -31,7 +32,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
     val appContext = context.applicationContext
     MediaBrowseRegistry.catalog = {
         try {
-            val tracks = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
+            val tracks = libraryWithoutScreens()
             val byId = tracks.associateByIdValue()
             val orders = AppGraph.settings.playlistSortOrders.value
             val playlists = AppGraph.playlists.all()
@@ -110,10 +111,21 @@ internal suspend fun supplySmartLibraryQuietly() {
     }
 }
 
+/**
+ * The playable library for what is browsed or resumed with no screen open (Android Auto, a headset button, the
+ * widget, the tile): the scan with its remembered tag facts, as the screens publish it. The scan alone still names a
+ * folder as the album of a song whose file names none and lends it that folder's cover, so the notification, the
+ * lock screen and the car showed a neighbour's cover where the app's own lists showed none (issues #12, #39).
+ */
+internal suspend fun libraryWithoutScreens(
+    scan: suspend () -> List<TrackDescriptor> = { AppGraph.library.tracks() },
+    enrich: suspend (List<TrackDescriptor>) -> List<TrackDescriptor> = { GenreEnrichment(AppGraph.settings).apply(it) },
+): List<TrackDescriptor> = enrich(scan()).filter { !it.audioUri.isNullOrBlank() }
+
 /** Reuses the exact queue/source fallback rules used by the Compose launch restore. */
 private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
     val saved = AppGraph.settings.resumePlayback.value ?: return null
-    val library = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
+    val library = libraryWithoutScreens()
     if (library.isEmpty()) return null
     // A session saved in SMART is resumed in plain order while SMART is switched off (headset, car, tile, widget).
     val mode = (ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode } ?: ShuffleMode.OFF)
