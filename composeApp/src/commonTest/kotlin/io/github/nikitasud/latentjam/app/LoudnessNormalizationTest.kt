@@ -106,8 +106,8 @@ internal class LoudnessNormalizationTest {
         val rows = decodeTrackLoudness(written)
         assertEquals(setOf("old", "song"), rows.keys)
         assertTrue(rows.values.all { it.measurement.fade == null && !it.fadeMeasured && it.soundMeasured }, "$rows")
-        // The cache holds exactly the rows an 0.9.3 build writes.
-        assertTrue(written.lines().all { it.startsWith("r128-v2|") }, written)
+        // The cache holds rows with sound edges and no ending.
+        assertTrue(written.lines().all { it.startsWith("r128-v4|") }, written)
         assertEquals(SoundSpan(0, 150_000), rows.getValue("old").measurement.sound)
     }
 
@@ -162,11 +162,63 @@ internal class LoudnessNormalizationTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun withoutSmoothTransitionsARowFromBeforeSoundEdgesIsNotDecodedAgain() = runTest {
+    fun aRowFromBeforeMonoWasCountedAsItPlaysIsMeasuredAgainKeepingItsVolumeMeanwhile() = runTest {
+        // Until 0.9.6 a one-channel file read 3 LU low. A stored row does not say how many channels its file has,
+        // so every row from before is measured once more; a two-channel file comes out the same.
+        val settings = ThrowingSettings()
+        val track = audioTrack("song", "revision-1")
+        val identity = track.loudnessAudioIdentity()
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf(
+                "song" to StoredTrackLoudness(
+                    IntegratedLoudness(-11f, -2f, SoundSpan(0, 118_000)), identity, fadeMeasured = false, monoAsPlayed = false,
+                ),
+            ),
+        )
+        // The row 0.9.5 wrote.
+        assertTrue(settings.storedLoudness.orEmpty().startsWith("r128-v2|"), settings.storedLoudness)
+        val playback = FakePlayback()
+        val pending = CompletableDeferred<IntegratedLoudness?>()
+        var scans = 0
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                scans++
+                return pending.await()
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = track)
+        runCurrent()
+        // Measuring again: the stored loudness still plays.
+        assertEquals(1, scans)
+        assertEquals(mapOf("song" to IntegratedLoudness(-11f, -2f).normalizationVolume()), playback.volumeUpdates.last())
+
+        // The same file, its one channel now counted as it plays: 3 LU up, 3 dB further down.
+        val again = IntegratedLoudness(-8f, -2f, SoundSpan(0, 118_000))
+        pending.complete(again)
+        runCurrent()
+        assertEquals(mapOf("song" to again.normalizationVolume()), playback.volumeUpdates.last())
+        val written = decodeTrackLoudness(settings.attemptedLoudness.orEmpty()).getValue("song")
+        assertEquals(StoredTrackLoudness(again, identity, fadeMeasured = false), written)
+        assertTrue(written.monoAsPlayed)
+        assertTrue(settings.attemptedLoudness.orEmpty().startsWith("r128-v4|"), settings.attemptedLoudness)
+
+        // Once: the row it wrote is not measured again.
+        playback.nowPlaying.value = NowPlaying()
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = track)
+        runCurrent()
+        assertEquals(1, scans)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun aCurrentRowIsNotDecodedAgain() = runTest {
         val settings = ThrowingSettings()
         val track = audioTrack("song", "revision-1")
         settings.storedLoudness = encodeTrackLoudness(
-            mapOf("song" to StoredTrackLoudness(IntegratedLoudness(-8f, -2f), track.loudnessAudioIdentity(), soundMeasured = false)),
+            mapOf("song" to StoredTrackLoudness(IntegratedLoudness(-8f, -2f, SoundSpan(0, 118_000)), track.loudnessAudioIdentity())),
         )
         val playback = FakePlayback()
         var measured = 0
@@ -181,6 +233,69 @@ internal class LoudnessNormalizationTest {
         playback.nowPlaying.value = NowPlaying(track = track)
         runCurrent()
         assertEquals(0, measured)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun withNormalizationOffARowFromBeforeMonoWasCountedIsNotDecodedAgain() = runTest {
+        // Smooth transitions alone use the row's sound edges, which are right as they are.
+        val settings = ThrowingSettings()
+        settings.normalizeVolume.value = false
+        settings.crossfadeSeconds.value = 6
+        val track = audioTrack("song", "revision-1")
+        settings.storedLoudness = encodeTrackLoudness(
+            mapOf(
+                "song" to StoredTrackLoudness(
+                    IntegratedLoudness(-11f, -2f, SoundSpan(0, 118_000)), track.loudnessAudioIdentity(),
+                    fadeMeasured = false, monoAsPlayed = false,
+                ),
+            ),
+        )
+        val playback = FakePlayback()
+        var measured = 0
+        val meter = object : TrackLoudnessMeter {
+            override suspend fun measure(track: TrackDescriptor): IntegratedLoudness? {
+                measured++
+                return null
+            }
+        }
+        LoudnessNormalizer(settings, playback, meter).start(backgroundScope)
+        runCurrent()
+        playback.nowPlaying.value = NowPlaying(track = track)
+        runCurrent()
+        assertEquals(0, measured)
+
+        // Switched on while the track plays: now its loudness is used, and it is measured.
+        settings.normalizeVolume.value = true
+        runCurrent()
+        assertEquals(1, measured)
+    }
+
+    @Test
+    fun rowsFromBeforeMonoWasCountedAsItPlaysAreMarkedAndKeepTheirOldForm() {
+        val identity = "6f2d7631"
+        val older = decodeTrackLoudness(
+            listOf(
+                "r128-v1|6131|$identity|-900|-150",
+                "r128-v2|6132|$identity|-900|-150|0|180000",
+                "r128-v3|6133|$identity|-900|-150|0|180000|179000|9000|-1",
+                "r128-v4|6134|$identity|-900|-150|0|180000",
+                "r128-v5|6135|$identity|-900|-150|0|180000|179000|9000|-1",
+            ).joinToString("\n"),
+        )
+        assertEquals(listOf("a1", "a2", "a3", "a4", "a5"), older.keys.toList())
+        assertEquals(listOf(false, false, false, true, true), older.values.map { it.monoAsPlayed })
+        assertEquals(listOf(false, true, true, true, true), older.values.map { it.soundMeasured })
+        assertEquals(listOf(false, false, true, false, true), older.values.map { it.fadeMeasured })
+        // Written back as they were read: a row not measured again yet stays one an older build reads.
+        assertEquals(older, decodeTrackLoudness(encodeTrackLoudness(older)))
+        assertEquals(
+            listOf("r128-v1", "r128-v2", "r128-v3", "r128-v4", "r128-v5"),
+            encodeTrackLoudness(older).lines().map { it.substringBefore('|') },
+        )
+        // A layout that does not belong to its version is no row.
+        assertTrue(decodeTrackLoudness("r128-v4|6134|$identity|-900|-150").isEmpty())
+        assertTrue(decodeTrackLoudness("r128-v5|6135|$identity|-900|-150|0|180000").isEmpty())
     }
 
     @Test

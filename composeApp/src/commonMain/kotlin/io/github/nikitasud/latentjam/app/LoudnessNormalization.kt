@@ -49,12 +49,18 @@ internal expect val boundaryFadeControlsAvailable: Boolean
  * Versioned derived cache. Legacy sampled RMS rows are discarded, never reinterpreted as LUFS.
  * [soundMeasured] is false for a row measured before sound edges were: its loudness stands, and
  * the track is measured once more for its edges while smooth transitions are on.
+ *
+ * [monoAsPlayed] is false for a row measured before 0.9.6, when a one-channel file was counted once and read
+ * 3.01 LU lower than it plays (from both speakers). A row does not say how many channels its file has, so each
+ * such row is measured once more while normalization is on; its loudness stands until then, and a two-channel
+ * file comes out as it was.
  */
 internal data class StoredTrackLoudness(
     val measurement: IntegratedLoudness,
     val audioIdentity: String,
     val soundMeasured: Boolean = true,
     val fadeMeasured: Boolean = soundMeasured,
+    val monoAsPlayed: Boolean = soundMeasured,
 )
 private const val LOUDNESS_CACHE_VERSION = "r128-v1"
 
@@ -69,6 +75,16 @@ private const val LOUDNESS_SOUND_CACHE_VERSION = "r128-v2"
 private const val LOUDNESS_FADE_CACHE_VERSION = "r128-v3"
 
 /**
+ * [LOUDNESS_SOUND_CACHE_VERSION]'s row, measured with a one-channel file counted as it plays
+ * ([StoredTrackLoudness.monoAsPlayed]). Every row measured from 0.9.6 on has sound edges, so there is no such
+ * version of the row without them. An older build does not read these rows and measures the track itself.
+ */
+private const val LOUDNESS_MONO_CACHE_VERSION = "r128-v4"
+
+/** [LOUDNESS_FADE_CACHE_VERSION]'s row, measured as [LOUDNESS_MONO_CACHE_VERSION]'s is. */
+private const val LOUDNESS_MONO_FADE_CACHE_VERSION = "r128-v5"
+
+/**
  * Fade entries (experimental): the next track rises under an outgoing track's own fade-out. Off
  * until a listening round decides between the two readings of where a fade starts; that round
  * also picks the rule. Off, the scans measure no endings and the cache stays at [LOUDNESS_SOUND_CACHE_VERSION].
@@ -78,9 +94,10 @@ internal const val FADE_ENTRIES_ON: Boolean = false
 internal fun encodeTrackLoudness(loudnessById: Map<String, StoredTrackLoudness>): String =
     loudnessById.entries.filter { it.value.measurement.isValid() }.joinToString("\n") { (id, stored) ->
         val withFade = stored.soundMeasured && stored.fadeMeasured
+        val asPlayed = stored.soundMeasured && stored.monoAsPlayed
         val version = when {
-            withFade -> LOUDNESS_FADE_CACHE_VERSION
-            stored.soundMeasured -> LOUDNESS_SOUND_CACHE_VERSION
+            withFade -> if (asPlayed) LOUDNESS_MONO_FADE_CACHE_VERSION else LOUDNESS_FADE_CACHE_VERSION
+            stored.soundMeasured -> if (asPlayed) LOUDNESS_MONO_CACHE_VERSION else LOUDNESS_SOUND_CACHE_VERSION
             else -> LOUDNESS_CACHE_VERSION
         }
         val sound = stored.measurement.sound?.takeIf { it.isValid() }
@@ -101,11 +118,12 @@ internal fun decodeTrackLoudness(payload: String, relocate: Boolean = true): Map
         val parts = line.split('|')
         val withSound = when {
             parts.size == 5 && parts[0] == LOUDNESS_CACHE_VERSION -> false
-            parts.size == 7 && parts[0] == LOUDNESS_SOUND_CACHE_VERSION -> true
-            parts.size == 10 && parts[0] == LOUDNESS_FADE_CACHE_VERSION -> true
+            parts.size == 7 && (parts[0] == LOUDNESS_SOUND_CACHE_VERSION || parts[0] == LOUDNESS_MONO_CACHE_VERSION) -> true
+            parts.size == 10 && (parts[0] == LOUDNESS_FADE_CACHE_VERSION || parts[0] == LOUDNESS_MONO_FADE_CACHE_VERSION) -> true
             else -> continue
         }
         val withFade = parts.size == 10
+        val asPlayed = parts[0] == LOUDNESS_MONO_CACHE_VERSION || parts[0] == LOUDNESS_MONO_FADE_CACHE_VERSION
         val id = parts[1].decodeLoudnessHex() ?: continue
         val identity = parts[2].decodeLoudnessHex()?.let { if (relocate) relocatedLoudnessIdentity(it) else it } ?: continue
         val lufs = parts[3].toIntOrNull()?.div(100f) ?: continue
@@ -127,7 +145,9 @@ internal fun decodeTrackLoudness(payload: String, relocate: Boolean = true): Map
         }
         val measurement = IntegratedLoudness(lufs, peak, sound, fade)
         if (!measurement.isValid()) continue
-        result[id] = StoredTrackLoudness(measurement, identity, soundMeasured = withSound, fadeMeasured = withFade)
+        result[id] = StoredTrackLoudness(
+            measurement, identity, soundMeasured = withSound, fadeMeasured = withFade, monoAsPlayed = asPlayed,
+        )
     }
     return result
 }
@@ -239,6 +259,7 @@ internal class LoudnessNormalizer(
             )
                 .collectLatest { (track, enabled, transitions) ->
                     wantsSound = transitions
+                    wantsLoudness = enabled
                     keepMeasuring(track.takeIf { enabled || transitions })
                     if (!(enabled || transitions) || track == null) {
                         onStatus(NormalizationStatus(if (enabled) NormalizationPhase.WAITING else NormalizationPhase.OFF))
@@ -265,6 +286,12 @@ internal class LoudnessNormalizer(
     /** Smooth transitions are on: a row measured before sound edges is measured once more. */
     private var wantsSound = false
 
+    /**
+     * Normalization is on: a row measured before a one-channel file was counted as it plays is measured once more
+     * ([StoredTrackLoudness.monoAsPlayed]). Off, only the row's sound edges are used, and those stand.
+     */
+    private var wantsLoudness = false
+
     private sealed interface Measured {
         data class Ready(val measurement: IntegratedLoudness) : Measured
         data object Unavailable : Measured
@@ -278,7 +305,9 @@ internal class LoudnessNormalizer(
         val existing = measured.value[id]
         val current = existing?.takeIf { it.audioIdentity == audioIdentity }
         val wantsFade = wantsSound && fadeEntries
-        if (current != null && (current.soundMeasured || !wantsSound) && (current.fadeMeasured || !wantsFade)) {
+        if (current != null && (current.monoAsPlayed || !wantsLoudness) &&
+            (current.soundMeasured || !wantsSound) && (current.fadeMeasured || !wantsFade)
+        ) {
             return Measured.Ready(current.measurement)
         }
         if (existing != null && current == null) {
@@ -286,7 +315,8 @@ internal class LoudnessNormalizer(
             // file's attenuation remains audible during the new file's measurement.
             publish(measured.value - id)
         }
-        // A row only missing its sound edges keeps its loudness, also while it is measured again.
+        // A row only missing its sound edges, or measured by the earlier meter, keeps its loudness, also while it
+        // is measured again.
         val kept = current?.let { Measured.Ready(it.measurement) } ?: Measured.Unavailable
         if (attemptIdentity in failedThisSession) return kept
         if (reportsProgress) onStatus(NormalizationStatus(NormalizationPhase.MEASURING))
@@ -309,8 +339,8 @@ internal class LoudnessNormalizer(
     }
 
     /**
-     * With fade entries off nothing of a track's ending is kept: not in memory, not in the cache, which then holds
-     * the rows an 0.9.3 build writes.
+     * With fade entries off nothing of a track's ending is kept: not in memory, not in the cache, whose rows then
+     * have sound edges and no more.
      */
     private fun withoutEndingsUnlessWanted(stored: StoredTrackLoudness): StoredTrackLoudness =
         if (fadeEntries || (stored.measurement.fade == null && !stored.fadeMeasured)) stored
