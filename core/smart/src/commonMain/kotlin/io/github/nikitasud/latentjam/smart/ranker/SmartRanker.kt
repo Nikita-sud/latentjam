@@ -1107,7 +1107,7 @@ public class SmartRanker(
             version = ArtistSets.keyHash(versionKey(track, engineArtist, versionKeyV2)),
             durationMs = track.durationMs?.takeIf { it in 1..MAX_DURATION_MS },
             year = if (l2Tracks) (track.originalYear ?: track.year)?.takeIf { it > 0 } else null,
-            albumKey = if (l2Tracks) AlbumKeys.albumKey(track.album, track.albumArtist, track.artist) else "",
+            albumKey = if (l2Tracks) AlbumKeys.albumKey(track.rankingAlbum, track.albumArtist, track.artist) else "",
             familyFromTrack = trackFamily != null,
             noPack = foreign,
         ).also { if (l2Tracks) it.compilation = AlbumKeys.isVarious(track.albumArtist) }
@@ -1498,8 +1498,8 @@ public class SmartRanker(
                 }
             },
             extras = QueueExtras(
-                albumKeys = if (active.queueAlbumCap == null) null else pool.map { AlbumCore.of(it.track.album) },
-                seedAlbum = if (active.queueAlbumCap == null) "" else AlbumCore.of(seedKnown.track.album),
+                albumKeys = if (active.queueAlbumCap == null) null else pool.map { AlbumCore.of(it.track.rankingAlbum) },
+                seedAlbum = if (active.queueAlbumCap == null) "" else AlbumCore.of(seedKnown.track.rankingAlbum),
                 companion = if (groupsOf.isEmpty()) null else run {
                     val kt = active.keepTogether
                     fun shares(id: TrackId): DoubleArray? {
@@ -2007,9 +2007,9 @@ public class SmartRanker(
             take(pool.filter { it.entity in rank }.sortedWith(compareByDescending<Known> { rank[it.entity] ?: 0.0 }.thenBy { salted[it.track.id] })
                 .map { it.track.id }, quota("colisten"), "R2")
         }
-        val album = seed.track.album?.takeIf(String::isNotBlank)
+        val album = seed.track.rankingAlbum?.takeIf(String::isNotBlank)
         // PLAN_L2 §3.1b: the album key (title + album artist) when the seed has one, else the raw album string.
-        val sameAlbum: (Known) -> Boolean = if (seed.albumKey.isNotEmpty()) { k -> k.albumKey == seed.albumKey } else { k -> album != null && k.track.album == album }
+        val sameAlbum: (Known) -> Boolean = if (seed.albumKey.isNotEmpty()) { k -> k.albumKey == seed.albumKey } else { k -> album != null && k.track.rankingAlbum == album }
         take(pool.filter { (seed.setArtist != 0L && it.setArtist == seed.setArtist) || sameAlbum(it) }
             .sortedBy { salted[it.track.id] }.map { it.track.id }, quota("artist"), "R4", capped = false)
         if (seed.family != null) take(pool.filter { it.family == seed.family }.sortedBy { salted[it.track.id] }.map { it.track.id }, quota("family"), "R5")
@@ -2120,7 +2120,7 @@ public class SmartRanker(
         val ordered = pool.sortedBy { salted[it.track.id] }
         val sameArtist = ordered.filter {
             (seed.setArtist != 0L && it.setArtist == seed.setArtist) ||
-                (seed.track.album?.isNotBlank() == true && it.track.album == seed.track.album)
+                (seed.track.rankingAlbum?.isNotBlank() == true && it.track.rankingAlbum == seed.track.rankingAlbum)
         }.take(100)
         for (k in sameArtist) sources[k.track.id] = "rule-R4"
         val sample = ordered.take(500)

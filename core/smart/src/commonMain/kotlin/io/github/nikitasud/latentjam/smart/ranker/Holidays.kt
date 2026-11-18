@@ -14,7 +14,7 @@ internal object Holidays {
     )
 
     fun isHoliday(t: TrackDescriptor): Boolean {
-        val s = listOf(t.title, t.album, t.genre).joinToString(" ") { it.orEmpty() }.lowercase()
+        val s = listOf(t.title, t.rankingAlbum, t.genre).joinToString(" ") { it.orEmpty() }.lowercase()
         return WORDS.any { it in s } || "holiday" in t.genre.orEmpty().lowercase()
     }
 

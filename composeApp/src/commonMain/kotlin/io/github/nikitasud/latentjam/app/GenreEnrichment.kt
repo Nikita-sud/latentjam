@@ -39,7 +39,8 @@ import kotlinx.coroutines.yield
  * without one under its folder's name, and that pseudo-album's cover belongs to another song in the
  * folder (issue #12), so such a song keeps only a cover of its own ([ownCoverOnly]). A folder's name
  * is no album either (issue #39): where the scanner's album is the folder's name and the file was
- * read whole and names no album, the song has none, for every reader of the library. A song whose
+ * read whole and names no album, the song has none, for everything the listener sees. SMART's
+ * ranking keeps reading what the scanner said ([TrackDescriptor.rankingAlbum]). A song whose
  * file cannot tell (a tag read in part or refused, a container no reader judges), or has not been
  * read at its revision yet, keeps what the scanner said, exactly as before.
  *
@@ -151,11 +152,14 @@ internal class GenreEnrichment(
         val year = track.year ?: year
         // The scanner's album is the folder's name and the file, read whole, names none: it has no album. A file
         // that cannot tell keeps the scanner's: it may well have read a real album that is the folder's name.
+        // What the scanner said stays on the descriptor ([TrackDescriptor.scannerAlbum]) for what SMART ranks
+        // with, and is the album again as soon as a line says the file names one.
+        val scanned = track.rankingAlbum
         val folderNamed = album == AlbumFact.NONE && folderAlbums &&
-            albumIsFolderName(track.album, track.folderPath, track.storageVolume)
-        val trackAlbum = if (folderNamed) null else track.album
-        val albumArtworkUri = if (folderNamed) null else track.albumArtworkUri
-        val artworkUri = if (album == AlbumFact.NONE || folderNamed) {
+            albumIsFolderName(scanned, track.folderPath, track.storageVolume)
+        val trackAlbum = if (folderNamed) null else scanned
+        val scannerAlbum = if (folderNamed) scanned else null
+        val artworkUri = if (album == AlbumFact.NONE) {
             track.artworkUri?.let { ownCover(it, track.sourceRevision) }
         } else {
             track.artworkUri
@@ -165,13 +169,13 @@ internal class GenreEnrichment(
         return if (genre == track.genre && artists == track.artists &&
             originalYear == track.originalYear && language == track.language &&
             albumArtist == track.albumArtist && year == track.year && artworkUri == track.artworkUri &&
-            durationMs == track.durationMs && trackAlbum == track.album && albumArtworkUri == track.albumArtworkUri
+            durationMs == track.durationMs && trackAlbum == track.album && scannerAlbum == track.scannerAlbum
         ) {
             track
         } else {
             track.copy(
                 album = trackAlbum,
-                albumArtworkUri = albumArtworkUri,
+                scannerAlbum = scannerAlbum,
                 genre = genre,
                 artists = artists,
                 originalYear = originalYear,

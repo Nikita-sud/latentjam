@@ -137,7 +137,7 @@ internal object MetadataFallbackQueue {
     private fun TrackDescriptor.toMeta(): TrackMeta = TrackMeta(
         title = title,
         artist = artist,
-        album = album,
+        album = rankingAlbum,
         genre = genre,
         year = year,
         durationMs = durationMs,

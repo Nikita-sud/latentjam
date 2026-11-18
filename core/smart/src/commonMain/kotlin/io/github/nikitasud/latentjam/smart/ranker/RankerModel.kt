@@ -213,7 +213,7 @@ public class RankerModel(
             if (genre.any { it in g }) return true
             if (tokens.isNotEmpty() && g.split(';').any { it.trim() in tokens }) return true
             if (text.isEmpty()) return false
-            val s = listOf(t.title, t.artist, t.album).joinToString(" | ") { it.orEmpty() }.lowercase()
+            val s = listOf(t.title, t.artist, t.rankingAlbum).joinToString(" | ") { it.orEmpty() }.lowercase()
             return text.any { it in s }
         }
     }

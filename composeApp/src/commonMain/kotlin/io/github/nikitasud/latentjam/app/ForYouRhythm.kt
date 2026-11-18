@@ -434,7 +434,7 @@ internal object ForYouRhythm {
             .sortedWith(
                 compareBy<TrackDescriptor> { it.id in cooled }
                     .thenByDescending { it.id in phaseWorlds }
-                    .thenBy { it.album ?: "" }
+                    .thenBy { it.rankingAlbum ?: "" }
                     .thenBy { it.id.value },
             )
             .toList()

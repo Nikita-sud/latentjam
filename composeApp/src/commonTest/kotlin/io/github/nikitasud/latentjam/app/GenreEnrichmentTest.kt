@@ -240,7 +240,7 @@ internal class GenreEnrichmentTest {
         // Not read yet: what the scanner said stands until the file has answered.
         assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
         assertTrue(enrichment.backfill(listOf(inFolder)))
-        val albumless = inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null)
+        val albumless = inFolder.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
         assertEquals(listOf(albumless), enrichment.apply(listOf(inFolder)))
         // Applied to its own result it changes nothing, and the file is not read again.
         assertEquals(listOf(albumless), enrichment.apply(listOf(albumless)))
@@ -332,7 +332,7 @@ internal class GenreEnrichmentTest {
 
     @Test
     fun onlyAFileReadWholeThatNamesNoAlbumLosesAFolderName() = runTest {
-        val albumless = inFolder.copy(album = null, artworkUri = "song-cover", albumArtworkUri = null)
+        val albumless = inFolder.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
         val id3v1 = ByteArray(128).also { "TAG".encodeToByteArray().copyInto(it) }
         val readWhole = mapOf(
             "an untagged MP3" to mpegAudio,
@@ -353,6 +353,36 @@ internal class GenreEnrichmentTest {
         }
         assertFalse(enrichment.backfill(listOf(inFolder)))
         assertEquals(listOf(inFolder), enrichment.apply(listOf(inFolder)))
+    }
+
+    @Test
+    fun whatSmartRanksWithIsStillWhatTheScannerSaid() = runTest {
+        // Owner's limit: SMART's inputs stay as in 0.9.5. The listener sees no album; SMART reads the scanner's.
+        val tagged = inFolder.copy(id = TrackId("tagged"), album = "Thriller", folderPath = "Michael Jackson/Thriller")
+        val unread = inFolder.copy(id = TrackId("unread"))
+        val enrichment = GenreEnrichment(MemorySettings(), ownCover = stripped, folderAlbums = true) { track ->
+            when (track.id.value) {
+                "tagged" -> EmbeddedTagFacts(album = "Thriller")
+                "unread" -> null
+                else -> EmbeddedTagFacts()
+            }
+        }
+        enrichment.backfill(listOf(inFolder, tagged, unread))
+        val (albumless, named, unjudged) = enrichment.apply(listOf(inFolder, tagged, unread))
+
+        assertNull(albumless.album)
+        assertEquals("TAMIL", albumless.scannerAlbum)
+        assertEquals(inFolder.album, albumless.rankingAlbum)
+        // Nothing else SMART reads moved: with the album and the cover put back it is the scan's descriptor.
+        assertEquals(inFolder, albumless.copy(album = inFolder.album, scannerAlbum = null, artworkUri = inFolder.artworkUri))
+        // A track nobody corrected carries nothing extra: its ranking album is its album.
+        for ((scan, applied) in listOf(tagged to named, unread to unjudged)) {
+            assertTrue(applied === scan)
+            assertNull(applied.scannerAlbum)
+            assertEquals(applied.album, applied.rankingAlbum)
+        }
+        assertEquals("Blue", TrackDescriptor(TrackId("plain"), album = "Blue").rankingAlbum)
+        assertNull(TrackDescriptor(TrackId("plain")).rankingAlbum)
     }
 
     @Test

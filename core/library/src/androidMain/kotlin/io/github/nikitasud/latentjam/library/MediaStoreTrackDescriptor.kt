@@ -52,6 +52,8 @@ internal class MediaStoreTrackDescriptor private constructor(
     override val storageVolume: String?,
     /** Strings a copy set to something the numbers do not form (rare: cover overrides). */
     private val explicit: Explicit?,
+    /** Null as the scan builds a row; a copy sets it where the library took a folder-named album away. */
+    override val scannerAlbum: String? = null,
 ) : TrackDescriptor() {
 
     private class Explicit(val audioUri: Any?, val artworkUri: Any?, val sourceRevision: Any?)
@@ -123,6 +125,7 @@ internal class MediaStoreTrackDescriptor private constructor(
         albumArtworkUri: String?,
         storageVolume: String?,
         modifiedAtMs: Long?,
+        scannerAlbum: String?,
     ): TrackDescriptor {
         // The modification time is derived from the revision's number: a copy may keep it, not change it.
         val representable = durationMs != LONG_NULL && addedAtMs != LONG_NULL && sizeBytes != LONG_NULL &&
@@ -132,7 +135,7 @@ internal class MediaStoreTrackDescriptor private constructor(
             return TrackDescriptor(
                 id, title, artist, album, genre, durationMs, audioUri, artworkUri, addedAtMs, folderPath, year,
                 energy, sourceRevision, artists, originalYear, sizeBytes, fileName, language, trackNumber,
-                discNumber, albumArtist, albumArtworkUri, storageVolume, modifiedAtMs,
+                discNumber, albumArtist, albumArtworkUri, storageVolume, modifiedAtMs, scannerAlbum,
             )
         }
         // A derived string the copy leaves as it reads stays derived; a changed one is kept as given.
@@ -155,13 +158,14 @@ internal class MediaStoreTrackDescriptor private constructor(
             addedAtMs.orSentinel(), folderPath, year.orSentinel(), energy, revisionSize, revisionModified,
             revisionGeneration, artists, originalYear.orSentinel(), sizeBytes.orSentinel(), fileName, language,
             trackNumber.orSentinel(), discNumber.orSentinel(), albumArtist, albumArtworkUri, storageVolume, newExplicit,
+            scannerAlbum,
         )
     }
 
     private fun build(artVersion: String?, albumArtworkUri: String?, explicit: Explicit?) = MediaStoreTrackDescriptor(
         id, title, artist, album, genre, duration, sourceId, albumId, artVersion, added, folderPath, yearValue,
         energy, revisionSize, revisionModified, revisionGeneration, artists, originalYearValue, size, fileName,
-        language, trackNo, discNo, albumArtist, albumArtworkUri, storageVolume, explicit,
+        language, trackNo, discNo, albumArtist, albumArtworkUri, storageVolume, explicit, scannerAlbum,
     )
 
     companion object {
