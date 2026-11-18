@@ -67,6 +67,8 @@ internal suspend fun playFromForYou(
 ) {
     if (tracks.isEmpty()) return
     val index = startIndex.coerceIn(0, tracks.lastIndex)
+    // Marked in every mode: a tap in SMART mode is as much a For You pick as one in OFF or ON.
+    PersonalSignals.pick(PickSurface.FOR_YOU)
     if (playback.state.value.shuffleMode == ShuffleMode.SMART) {
         playback.playInOrder(tracks, index)
         return
@@ -74,7 +76,6 @@ internal suspend fun playFromForYou(
     // The rows start at once; the continuation is planned behind them. Waiting for the planner
     // before play() left a tap silent for seconds and could let a late For You start override
     // something the listener picked elsewhere in the meantime.
-    PersonalSignals.pick(PickSurface.FOR_YOU)
     playback.play(tracks, index)
     if (!continuation()) return
     val seed = tracks.last()

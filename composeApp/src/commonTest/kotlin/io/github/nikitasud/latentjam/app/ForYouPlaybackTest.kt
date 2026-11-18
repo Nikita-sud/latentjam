@@ -124,6 +124,17 @@ internal class ForYouPlaybackTest {
         assertEquals(row, playback.state.value.queue)
     }
 
+    @Test
+    fun aRowTappedInSmartModeIsMarkedAsAForYouPickToo() = runTest {
+        PersonalSignals.reset()
+        val playback = FakePlayback(shuffleMode = ShuffleMode.SMART)
+        val before = PersonalSignals.pickCount
+        playFromForYou(playback, row, 1, library, plan = plan)
+        assertEquals(before + 1, PersonalSignals.pickCount)
+        assertEquals(row, playback.state.value.queue)
+        assertEquals(0, playback.appends)
+    }
+
     // A start that plans first (the hero card, SMART from a Map region or a mix).
 
     private val seed = track("seed")
@@ -244,8 +255,9 @@ internal class ForYouPlaybackTest {
     private class FakePlayback(
         repeatMode: RepeatMode = RepeatMode.OFF,
         private val reportsStartsLate: Boolean = false,
+        shuffleMode: ShuffleMode = ShuffleMode.OFF,
     ) : PlaybackController {
-        private val mutableState = MutableStateFlow(NowPlaying(repeatMode = repeatMode))
+        private val mutableState = MutableStateFlow(NowPlaying(repeatMode = repeatMode, shuffleMode = shuffleMode))
         override val state: StateFlow<NowPlaying> = mutableState
         var appends = 0
 
