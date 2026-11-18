@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -22,6 +24,26 @@ internal actual fun analysisDevice(): AnalysisDevice = AndroidAnalysisDevice
 internal actual fun analysisControlStore(): AnalysisControlStore = PreferencesAnalysisControlStore
 
 internal actual fun analysisElapsedMs(): Long = SystemClock.elapsedRealtime()
+
+internal actual fun analysisProcessId(): Int = android.os.Process.myPid()
+
+/**
+ * From Android 11 the system keeps how each process ended. A crash in the app's code or in native code is one; "low
+ * memory" and "signalled" can be the file's doing or the system's, so they count as unknown; before Android 11, or
+ * with no record of [pid] left, nothing is known.
+ */
+internal actual fun analysisExitOf(pid: Int): LastExit {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || pid <= 0) return LastExit.UNKNOWN
+    val record = runCatching {
+        AndroidAppContext.value.getSystemService(ActivityManager::class.java)
+            ?.getHistoricalProcessExitReasons(null, pid, 1)?.firstOrNull()
+    }.getOrNull() ?: return LastExit.UNKNOWN
+    return when (record.reason) {
+        ApplicationExitInfo.REASON_CRASH, ApplicationExitInfo.REASON_CRASH_NATIVE -> LastExit.CRASH
+        ApplicationExitInfo.REASON_LOW_MEMORY, ApplicationExitInfo.REASON_SIGNALED -> LastExit.UNKNOWN
+        else -> LastExit.OTHER
+    }
+}
 
 /**
  * Screen, power, battery and thermal signals for the state table, and the analysis wake lock.
@@ -198,6 +220,23 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
         set(value) {
             preferences.edit().putString(KEY_RETRY_LEDGER, value).apply()
         }
+    override var inFlight: String?
+        get() = preferences.getString(KEY_IN_FLIGHT, null)
+        set(value) {
+            // Set before a chunk that may end the process: on disk before the chunk starts. Cleared after it: no hurry.
+            val edit = preferences.edit().putString(KEY_IN_FLIGHT, value)
+            if (value != null) edit.commit() else edit.apply()
+        }
+    override var inFlightSeen: String?
+        get() = preferences.getString(KEY_IN_FLIGHT_SEEN, null)
+        set(value) {
+            preferences.edit().putString(KEY_IN_FLIGHT_SEEN, value).apply()
+        }
+    override var crashSuspects: String?
+        get() = preferences.getString(KEY_CRASH_SUSPECTS, null)
+        set(value) {
+            preferences.edit().putString(KEY_CRASH_SUSPECTS, value).apply()
+        }
 
     private const val KEY_PAUSED = "userPaused"
     private const val KEY_STOP_REASON = "stopReason"
@@ -207,4 +246,7 @@ private object PreferencesAnalysisControlStore : AnalysisControlStore {
     private const val KEY_HELD_SINCE = "wakeLockHeldSince"
     private const val KEY_RENEWED_AT = "wakeLockRenewedAt"
     private const val KEY_RETRY_LEDGER = "retryLedger"
+    private const val KEY_IN_FLIGHT = "inFlight"
+    private const val KEY_IN_FLIGHT_SEEN = "inFlightSeen"
+    private const val KEY_CRASH_SUSPECTS = "crashSuspects"
 }

@@ -15,6 +15,11 @@ private val analysisClockStart = kotlin.time.TimeSource.Monotonic.markNow()
 
 internal actual fun analysisElapsedMs(): Long = analysisClockStart.elapsedNow().inWholeMilliseconds
 
+// iOS keeps no in-flight marker (its store leaves AnalysisControlStore.inFlight unset), so neither is asked for.
+internal actual fun analysisProcessId(): Int = 0
+
+internal actual fun analysisExitOf(pid: Int): LastExit = LastExit.OTHER
+
 private object UserDefaultsAnalysisControlStore : AnalysisControlStore {
     private val defaults get() = NSUserDefaults.standardUserDefaults
 

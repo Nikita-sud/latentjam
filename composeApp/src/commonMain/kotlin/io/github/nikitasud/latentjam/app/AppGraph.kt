@@ -820,6 +820,18 @@ object AppGraph {
                         }
                     }
                 }
+                // A chunk that was in flight when an earlier process crashed: its tracks get a ledger attempt and are
+                // analysed one by one from here on (AnalysisInFlight), so a file that ends the process is not met
+                // again at every launch. Before the held tracks are read: a second attempt holds a track now.
+                val crashed = analysisInFlight.charged(tracks, librarySnapshotAuthoritative)
+                if (crashed.isNotEmpty()) {
+                    val exhausted = crashed.filter(retries::timedOut)
+                    if (exhausted.isNotEmpty()) {
+                        engine.rememberAudioFailures(exhausted)
+                        analysisInFlight.forget(exhausted.map { it.id })
+                    }
+                    println("SMART: ${crashed.size} tracks were in analysis when an earlier run ended (${exhausted.size} given up)")
+                }
                 // Only what is still missing: a held track a press analysed meanwhile is plain done.
                 val held = tracks.filter(retries::holding)
                 val holding = if (held.isEmpty() || engine.missingFromIndexOf(held) == held.size) {
@@ -906,6 +918,8 @@ object AppGraph {
                     eta = eta,
                     gatedAtStart = gated,
                     shownAtStart = reportProgress,
+                    alone = analysisInFlight.alone,
+                    inFlight = analysisInFlight,
                 )
                 if (end == AudioPassEnd.PAUSED) {
                     pauseStopPublished = true
@@ -1289,6 +1303,7 @@ object AppGraph {
     }
 
     private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
+    private val analysisInFlight: AnalysisInFlight by lazy { AnalysisInFlight(analysisStore) }
 
     /**
      * Which tracks wait out their retry backoff now, read from the stored ledger (a copy: the pass's own ledger is not

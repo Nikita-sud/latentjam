@@ -83,6 +83,10 @@ internal class GatedAudioPass(
         eta: IndexingEta,
         gatedAtStart: Boolean,
         shownAtStart: Boolean,
+        /** Tracks analysed first, each in a chunk of its own ([analysisChunks]). */
+        alone: Set<TrackId> = emptySet(),
+        /** Told of every chunk, so one that ends the process can be found ([AnalysisInFlight]). */
+        inFlight: InFlightMarker = InFlightMarker,
     ): AudioPassEnd {
         shown = shownAtStart
         val pauseLabel = notices(AnalysisNotice.PauseAction)
@@ -109,7 +113,7 @@ internal class GatedAudioPass(
             }
         } else null
         try {
-            val chunks = order.chunked(AUTOMATIC_INDEX_CHUNK_SIZE)
+            val chunks = analysisChunks(order, alone)
             for ((position, chunk) in chunks.withIndex()) {
                 // Nothing left to analyse: the table no longer applies (the count, not an O(N) query per chunk).
                 if (gated && progress.analysed >= total) {
@@ -168,7 +172,13 @@ internal class GatedAudioPass(
                 } else {
                     chunks.getOrNull(position + 1).orEmpty()
                 }
-                val report = engine.stage(chunk, upcoming)
+                if (missingBefore > 0) inFlight.begin(chunk)
+                var staged = false
+                val report = try {
+                    engine.stage(chunk, upcoming).also { staged = true }
+                } finally {
+                    inFlight.end(chunk, completed = staged)
+                }
                 failures.putAll(report.errors)
                 visited += chunk.size
                 progress.visited(missingBefore)
@@ -224,6 +234,17 @@ internal class GatedAudioPass(
         return failures.toMap()
     }
 }
+
+/**
+ * The pass's chunks: the [alone] tracks first, each in a chunk of its own (a chunk that ended the process is taken
+ * apart, so the next end names one track), then the rest [AUTOMATIC_INDEX_CHUNK_SIZE] at a time, as every pass.
+ */
+internal fun analysisChunks(order: List<TrackDescriptor>, alone: Set<TrackId>): List<List<TrackDescriptor>> =
+    if (alone.isEmpty()) {
+        order.chunked(AUTOMATIC_INDEX_CHUNK_SIZE)
+    } else {
+        order.filter { it.id in alone }.map(::listOf) + order.filterNot { it.id in alone }.chunked(AUTOMATIC_INDEX_CHUNK_SIZE)
+    }
 
 /**
  * Whether the pass hands each chunk its successor, so decoding carries on through the gap between chunks (plan P4).
