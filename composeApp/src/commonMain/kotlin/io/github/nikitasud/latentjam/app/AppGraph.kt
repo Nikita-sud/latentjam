@@ -460,7 +460,7 @@ object AppGraph {
                         )
                     }
                 }
-                    .resumePlaybackWrites()
+                    .resumePlaybackWrites(resumeQueueHold)
                     .collect(settings::setResumePlayback)
             }
         }

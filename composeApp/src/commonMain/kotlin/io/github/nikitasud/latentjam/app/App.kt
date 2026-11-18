@@ -1322,7 +1322,7 @@ private fun AppShell(
         // process: a restore that raced a user tap must not fire again later and yank the queue
         // out from under whatever the user chose instead.
         PlaybackRestoreEffect(
-            playback, library, tracks, playlistsState, externalAudioOpener,
+            playback, library, libraryIndexingRequest, playlistsState, externalAudioOpener,
             onOpenPlayer = { showNowPlaying = true },
             onUnavailable = {
                 scope.launch { snackbar.showSnackbar(getString(Res.string.snack_audio_open_unavailable)) }

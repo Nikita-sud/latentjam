@@ -110,10 +110,16 @@ internal suspend fun supplySmartLibraryQuietly() {
     }
 }
 
-/** Reuses the exact queue/source fallback rules used by the Compose launch restore. */
+/**
+ * Reuses the exact queue/source fallback rules used by the Compose launch restore, and its care for a scan that
+ * could not see every song: the stored queue is then kept ([resumeQueueHold]). A hold is only ever made here, never
+ * ended: this also runs for resumptions that are read and not installed, and the saved session's writer ends a
+ * hold by itself once the player has another queue.
+ */
 private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
     val saved = AppGraph.settings.resumePlayback.value ?: return null
-    val library = AppGraph.library.tracks().filter { !it.audioUri.isNullOrBlank() }
+    val scan = AppGraph.library.scan()
+    val library = scan.tracks.filter { !it.audioUri.isNullOrBlank() }
     if (library.isEmpty()) return null
     // A session saved in SMART is resumed in plain order while SMART is switched off (headset, car, tile, widget).
     val mode = (ShuffleMode.entries.firstOrNull { it.name == saved.shuffleMode } ?: ShuffleMode.OFF)
@@ -137,6 +143,8 @@ private suspend fun buildMediaPlaybackResume(): MediaPlaybackResume? {
     }.takeIf { it >= 0 } ?: savedQueue.indexOfFirst { it.id.value == saved.trackId }
 
     if (savedQueueIndex >= 0) {
+        heldResumeQueue(saved, resolvedSavedQueue.map { it.first }, byId::containsKey, scan.complete)
+            ?.let { resumeQueueHold.value = it }
         return MediaPlaybackResume(
             tracks = savedQueue,
             startIndex = savedQueueIndex,
