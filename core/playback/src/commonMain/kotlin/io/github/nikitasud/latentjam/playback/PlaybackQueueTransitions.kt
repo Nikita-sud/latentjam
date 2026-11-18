@@ -512,6 +512,24 @@ internal fun shuffleOrderMovingRow(
 internal fun shouldRestartConsumedSegment(pausedFrame: Long, fileLength: Long): Boolean =
     fileLength >= 0L && pausedFrame >= fileLength
 
+/**
+ * The iOS file player's playhead in frames. [playedFrames] is what its node reports since the segment began, or null
+ * when it reports nothing: the node is paused or not rendering yet, or the system stopped the graph under a playing
+ * track (an interruption, a route change), which takes the render clock away before this app hears of it.
+ * [lastRenderedFrame] is the last frame the node did report since it was cued or paused here, null when none: where a
+ * stopped graph really is, while [pausedFrame] is only where it was last cued or paused.
+ */
+internal fun playheadFrame(
+    playedFrames: Long?,
+    segmentStartFrame: Long,
+    pausedFrame: Long,
+    lastRenderedFrame: Long?,
+    fileLength: Long,
+): Long {
+    val frame = if (playedFrames != null) segmentStartFrame + playedFrames else lastRenderedFrame ?: pausedFrame
+    return frame.coerceIn(0L, fileLength.coerceAtLeast(0L))
+}
+
 /** True only for an end/notification callback issued by the still-current playback item. */
 internal fun isCurrentPlaybackItemGeneration(expected: Long, current: Long): Boolean =
     expected == current

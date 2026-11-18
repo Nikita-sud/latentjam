@@ -105,6 +105,18 @@ internal class IosAudioEngine : EqualizerController {
     private var standbyToken: Long = NO_TOKEN
     private var segmentStartFrame: Long = 0L
     private var pausedFrame: Long = 0L
+        set(value) {
+            field = value
+            // Cued or paused here: the node has rendered nothing since.
+            lastRenderedFrame = null
+        }
+
+    /**
+     * The last frame the current deck's render clock reported since it was cued or paused here. An interruption or a
+     * route change stops the graph before this class hears of it, and a stopped graph has no render time: the
+     * playhead is then here, not at [pausedFrame] (the last pause or seek, or the start of the track).
+     */
+    private var lastRenderedFrame: Long? = null
     private var completionGeneration: Long = 0L
     private var completion: (() -> Unit)? = null
     private var outputSupportsEqualizer: Boolean = true
@@ -533,10 +545,14 @@ internal class IosAudioEngine : EqualizerController {
 
     private fun currentFrame(): Long {
         val file = currentFile ?: return 0L
-        if (!player.playing) return pausedFrame.coerceIn(0L, file.length)
-        val rendered = player.lastRenderTime ?: return pausedFrame
-        val played = player.playerTimeForNodeTime(rendered) ?: return pausedFrame
-        return (segmentStartFrame + played.sampleTime).coerceIn(0L, file.length)
+        val played = if (player.playing) {
+            player.lastRenderTime?.let { player.playerTimeForNodeTime(it) }?.sampleTime
+        } else {
+            null
+        }
+        val frame = playheadFrame(played, segmentStartFrame, pausedFrame, lastRenderedFrame, file.length)
+        if (played != null) lastRenderedFrame = frame
+        return frame
     }
 
     private fun scheduleSegment(file: AVAudioFile, startFrame: Long) {

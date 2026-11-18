@@ -595,6 +595,39 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `a graph the system stopped stays at the last frame it rendered`() {
+        // Played from its start, three minutes in at 44,1 kHz; then a call takes the render clock away.
+        val rendered = playheadFrame(
+            playedFrames = 7_938_000L, segmentStartFrame = 0L, pausedFrame = 0L, lastRenderedFrame = null, fileLength = 10_000_000L,
+        )
+        assertEquals(7_938_000L, rendered)
+        assertEquals(
+            7_938_000L,
+            playheadFrame(
+                playedFrames = null, segmentStartFrame = 0L, pausedFrame = 0L, lastRenderedFrame = rendered, fileLength = 10_000_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `a paused or freshly cued player is where it was put`() {
+        // Nothing rendered since the seek: the seek's target, not an older frame.
+        assertEquals(
+            500L,
+            playheadFrame(playedFrames = null, segmentStartFrame = 500L, pausedFrame = 500L, lastRenderedFrame = null, fileLength = 1_000L),
+        )
+        assertEquals(
+            620L,
+            playheadFrame(playedFrames = 120L, segmentStartFrame = 500L, pausedFrame = 500L, lastRenderedFrame = null, fileLength = 1_000L),
+        )
+        // The node's clock runs on past a finished segment; the playhead stays inside the file.
+        assertEquals(
+            1_000L,
+            playheadFrame(playedFrames = 900L, segmentStartFrame = 500L, pausedFrame = 500L, lastRenderedFrame = 990L, fileLength = 1_000L),
+        )
+    }
+
+    @Test
     fun `only the current playback item generation may publish completion`() {
         assertTrue(isCurrentPlaybackItemGeneration(expected = 9L, current = 9L))
         assertFalse(isCurrentPlaybackItemGeneration(expected = 8L, current = 9L))
