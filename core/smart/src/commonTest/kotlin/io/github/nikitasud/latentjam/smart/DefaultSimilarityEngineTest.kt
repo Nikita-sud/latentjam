@@ -336,6 +336,17 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun preparingAudioAnalysisLoadsTheModelOnceAndOnlyOnAReadyEngine() = runTest {
+        val harness = Harness()
+        harness.engine.prepareAudioAnalysis()
+        assertEquals(0, harness.backend.loadModelCalls, "nothing is loaded before the engine is ready")
+        assertTrue(harness.engine.initialize().isSuccess)
+        harness.engine.prepareAudioAnalysis()
+        harness.engine.prepareAudioAnalysis()
+        assertEquals(1, harness.backend.loadModelCalls)
+    }
+
+    @Test
     fun brokenAudioModelFailsPerOperationNotStartup() = runTest {
         val harness = Harness()
         harness.registerTriangle()

@@ -850,9 +850,10 @@ object AppGraph {
                         }
                     }
                 }
-                // A chunk that was in flight when an earlier process crashed: its tracks get a ledger attempt and are
-                // analysed one by one from here on (AnalysisInFlight), so a file that ends the process is not met
-                // again at every launch. Before the held tracks are read: a second attempt holds a track now.
+                // A chunk that was in flight when an earlier process crashed, or that ran this process out of memory in
+                // an earlier pass: its tracks get a ledger attempt and are analysed one by one from here on
+                // (AnalysisInFlight), so a file that ends the process or the pass is not met again every time. Before
+                // the held tracks are read: a second attempt holds a track now.
                 val crashed = analysisInFlight.charged(tracks, librarySnapshotAuthoritative)
                 if (crashed.isNotEmpty()) {
                     val exhausted = crashed.filter(retries::timedOut)
@@ -1307,6 +1308,7 @@ object AppGraph {
                 return settleRetries(chunk, report)
             }
             override suspend fun persist() = engine.persistPendingAnalysis()
+            override suspend fun prepare() = engine.prepareAudioAnalysis()
             override fun envelopeRefused() = engine.audioEnvelopeRefused()
             override suspend fun rememberedFailures(tracks: List<TrackDescriptor>) = engine.rememberedAudioFailures(tracks)
             override val trackChanges: kotlinx.coroutines.flow.Flow<Any?> get() = engine.analysing

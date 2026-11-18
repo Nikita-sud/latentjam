@@ -26,6 +26,12 @@ internal interface AudioPassEngine {
     /** Stages [chunk]; [upcoming] is the next chunk, whose decoding may start meanwhile. */
     suspend fun stage(chunk: List<TrackDescriptor>, upcoming: List<TrackDescriptor>): IndexReport
     suspend fun persist()
+
+    /**
+     * Loads what a chunk with work needs before its first track (the audio model). Called once, before the first such
+     * chunk is marked as in flight: a process that ends while the model loads is then no chunk's doing.
+     */
+    suspend fun prepare() = Unit
     fun envelopeRefused(): Boolean
 
     /** The remembered failures phase 1 would report for [tracks], read-only. */
@@ -100,6 +106,7 @@ internal class GatedAudioPass(
         var shownPhase: AnalysisPhase? = null
         var pausing = false
         var ranGated = false
+        var prepared = false
         state.update { it.copy(pausable = gated) }
         if (gated) control.listen()
         val watchers = if (gated) scope.launch {
@@ -175,12 +182,32 @@ internal class GatedAudioPass(
                 } else {
                     chunks.getOrNull(position + 1).orEmpty()
                 }
-                if (missingBefore > 0) inFlight.begin(chunk)
+                if (missingBefore > 0) {
+                    if (!prepared) {
+                        // Before the marker: a process that ends while the model loads is no track's doing.
+                        prepared = true
+                        engine.prepare()
+                    }
+                    inFlight.begin(chunk)
+                }
                 // Completed only when the engine went through the whole chunk: a stalled one was cut short, and the
                 // tracks it did not reach (crash suspects among them) are still to be analysed.
                 var completed = false
                 val report = try {
                     stagePastAStall(chunk, upcoming).also { completed = !it.stalled }
+                } catch (exhausted: Error) {
+                    // Out of memory in this chunk. The pass stops for it (runAutomaticIndexingSafely) and the process
+                    // lives, so the marker below is cleared and no launch ever finds it: without a word here the next
+                    // pass met the same chunk and stopped the same way, for good. Told as a crashed chunk, its tracks
+                    // get a ledger attempt and are taken one by one, and the ledger ends the one that does it.
+                    if (exhausted.isOutOfMemory()) {
+                        try {
+                            inFlight.crashed(chunk)
+                        } catch (_: Throwable) {
+                            // No memory to note it either: the error itself still goes on.
+                        }
+                    }
+                    throw exhausted
                 } finally {
                     inFlight.end(chunk, completed)
                 }

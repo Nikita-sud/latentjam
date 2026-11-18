@@ -752,6 +752,13 @@ internal class DefaultSimilarityEngine(
 
     override fun setAnalysisPacing(slow: Boolean): Unit = backend.setAnalysisPacing(slow)
 
+    override suspend fun prepareAudioAnalysis(): Unit = withContext(dispatcher) {
+        mutex.withLock {
+            // Only where indexing itself would load it (see indexLibrary's phase 1).
+            if (mutableState.value is EngineState.Ready && !audioRestoreFailed) ensureAudioModel()
+        }
+    }
+
     override suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> =
         withContext(dispatcher) {
             mutex.withLock {

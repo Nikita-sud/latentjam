@@ -254,6 +254,13 @@ public interface SimilarityEngine {
      */
     public suspend fun rememberedAudioFailures(tracks: List<TrackDescriptor>): Map<TrackId, EngineError> = emptyMap()
 
+    /**
+     * Loads the audio model now if it is not loaded, as the next [stageLibraryIndex] with a track to analyse would:
+     * a caller that marks tracks as "being analysed" calls it first, so that the load is not part of that. A failed
+     * load is not reported here; the staging call reports it per track, as before.
+     */
+    public suspend fun prepareAudioAnalysis(): Unit = Unit
+
     /** Battery Saver (2e): [slow] analysis decodes one track at a time; the vectors are the same. */
     public fun setAnalysisPacing(slow: Boolean): Unit = Unit
 

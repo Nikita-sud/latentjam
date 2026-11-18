@@ -42,6 +42,9 @@ class GatedAudioPassTest {
         var persists = 0
         var onStage: (Int) -> Unit = {}
 
+        var onPrepare: () -> Unit = {}
+        override suspend fun prepare() = onPrepare()
+
         /** What AppGraph does with each chunk's report (the retry ledger); none by default. */
         var settle: suspend (List<TrackDescriptor>, IndexReport) -> IndexReport = { _, report -> report }
         /** The staged chunk (1-based) the engine reports as stalled, with [stalledErrors]; 0 is none. */
@@ -283,6 +286,67 @@ class GatedAudioPassTest {
             log,
         )
     }
+
+    @Test
+    fun aChunkThatRunsOutOfMemoryIsReportedAsCrashedAndTheErrorGoesOn() = runTest {
+        val log = ArrayList<String>()
+        val marker = object : InFlightMarker {
+            override fun begin(chunk: List<TrackDescriptor>) {
+                log += "begin " + chunk.size
+            }
+            override fun crashed(chunk: List<TrackDescriptor>) {
+                log += "crashed " + chunk.joinToString(",") { it.id.value }
+            }
+            override fun end(chunk: List<TrackDescriptor>, completed: Boolean) {
+                log += "end " + completed
+            }
+        }
+        engine.onStage = { chunk -> if (chunk == 2) throw OutOfMemoryError() }
+        val ended = runCatching { pass().goWith(inFlight = marker) }.exceptionOrNull()
+        assertTrue(ended is OutOfMemoryError)
+        assertEquals(
+            listOf("begin 8", "end true", "begin 8", "crashed t8,t9,t10,t11,t12,t13,t14,t15", "end false"),
+            log,
+        )
+    }
+
+    @Test
+    fun anErrorThatIsNotMemoryIsNoCrashedChunk() = runTest {
+        var crashed = 0
+        val marker = object : InFlightMarker {
+            override fun crashed(chunk: List<TrackDescriptor>) {
+                crashed++
+            }
+        }
+        engine.onStage = { throw Glitch() }
+        assertTrue(runCatching { pass().goWith(inFlight = marker) }.exceptionOrNull() is Glitch)
+        assertEquals(0, crashed)
+    }
+
+    @Test
+    fun theModelIsLoadedBeforeTheFirstChunkIsMarkedAndOnlyWhenThereIsWork() = runTest {
+        val log = ArrayList<String>()
+        val marker = object : InFlightMarker {
+            override fun begin(chunk: List<TrackDescriptor>) {
+                log += "begin"
+            }
+        }
+        engine.onPrepare = { log += "prepare" }
+        // The first chunk is analysed already: nothing is loaded for it.
+        engine.indexed += tracks.take(8).map { it.id }
+        assertEquals(AudioPassEnd.COMPLETED, pass().goWith(inFlight = marker))
+        assertEquals(listOf("prepare", "begin", "begin"), log)
+
+        // A library with nothing to analyse loads no model.
+        log.clear()
+        assertEquals(AudioPassEnd.COMPLETED, pass().goWith(inFlight = marker))
+        assertEquals(emptyList(), log)
+    }
+
+    /** What the platform's OutOfMemoryError is to common code, which cannot name it: an [Error] of that name. */
+    private class OutOfMemoryError : Error("out of memory")
+
+    private class Glitch : Error("a bug, not memory")
 
     @Test
     fun aChunkWithNothingToAnalyseIsNotMarked() = runTest {
