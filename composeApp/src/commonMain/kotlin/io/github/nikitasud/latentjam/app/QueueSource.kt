@@ -107,6 +107,17 @@ internal sealed interface QueueSourceGroup {
     data class FolderTracks(val node: FolderNode) : QueueSourceGroup
 }
 
+/**
+ * Whether a user playlist's page can be opened now. Its rows are found through the catalog, which is built after the
+ * library is published ([catalogSource] is the track list it was built from): opened before that, or while the
+ * catalog is still the one of an older library, the page would show no rows, and it stays as opened.
+ */
+internal fun playlistPageResolvable(
+    tracks: List<TrackDescriptor>?,
+    catalog: LibraryCatalog?,
+    catalogSource: List<TrackDescriptor>?,
+): Boolean = tracks != null && catalog != null && catalogSource === tracks
+
 /** Missing and legacy identities fall back to the queue, never to a similarly named place. */
 internal fun QueueSource.resolveGroup(
     catalog: LibraryCatalog?,

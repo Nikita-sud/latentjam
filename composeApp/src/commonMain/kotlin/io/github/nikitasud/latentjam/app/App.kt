@@ -1993,6 +1993,8 @@ private fun AppShell(
                 QueueSourceKind.COLLECTION, QueueSourceKind.LIBRARY_GROUP -> {
                     val build: suspend () -> CollectionSelection = when (source.kind) {
                         QueueSourceKind.COLLECTION -> {
+                            // Before the catalog is built the page would open empty and stay so: the chip raises the queue.
+                            if (!playlistPageResolvable(tracks, catalog, catalogSource)) return false
                             val playlist = source.reference?.let { id ->
                                 playlistsState.playlists.firstOrNull { it.id == id }
                             } ?: return false
