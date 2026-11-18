@@ -33,6 +33,16 @@ struct AlacHandle {
     std::vector<uint8_t> input;
 };
 
+// The frame length a cookie declares, read as ALACDecoder::Init finds it (after an optional 'frma' and 'alac'
+// atom header, 12 bytes each), or 0 when the cookie is too short. [cookie] holds at least kCookieFloor bytes.
+uint32_t declaredFrameLength(const uint8_t *cookie, size_t size) {
+    size_t at = 0;
+    if (!memcmp(cookie + 4, "frma", 4)) at += 12;
+    if (!memcmp(cookie + at + 4, "alac", 4)) at += 12;
+    if (size < at + sizeof(ALACSpecificConfig)) return 0;
+    return (uint32_t(cookie[at]) << 24) | (uint32_t(cookie[at + 1]) << 16) | (uint32_t(cookie[at + 2]) << 8) | cookie[at + 3];
+}
+
 uint32_t bytesFor(uint32_t bitDepth) {
     switch (bitDepth) {
         case 16: return 2;
@@ -51,6 +61,9 @@ extern "C" JNIEXPORT jlong JNICALL JNI(create)(JNIEnv *env, jobject, jbyteArray 
     std::vector<uint8_t> copy(static_cast<size_t>(size) < kCookieFloor ? kCookieFloor : static_cast<size_t>(size), 0);
     env->GetByteArrayRegion(cookie, 0, size, reinterpret_cast<jbyte *>(copy.data()));
     if (env->ExceptionCheck()) return 0;
+    // Init allocates three buffers of frameLength * 4 bytes before anything checks the number: refuse it first.
+    const uint32_t declared = declaredFrameLength(copy.data(), static_cast<size_t>(size));
+    if (declared < kMinFrameLength || declared > kMaxFrameLength) return 0;
     auto *handle = new (std::nothrow) AlacHandle();
     if (!handle) return 0;
     const ALACSpecificConfig &config = handle->decoder.mConfig;
@@ -89,7 +102,9 @@ extern "C" JNIEXPORT jint JNICALL JNI(decode)(JNIEnv *env, jobject, jlong handle
     const ALACSpecificConfig &config = alac->decoder.mConfig;
     const size_t frameBytes = static_cast<size_t>(config.frameLength) * config.numChannels * alac->bytesPerSample;
     if (static_cast<size_t>(env->GetArrayLength(output)) < frameBytes) return -1;
-    alac->input.assign(static_cast<size_t>(length) + alac->slack, 0);
+    // Twice the packet: the entropy decoder's own end check counts from the element it is in, so by itself it lets a
+    // damaged packet read up to one packet length past where that element's data starts.
+    alac->input.assign(static_cast<size_t>(length) * 2 + alac->slack, 0);
     env->GetByteArrayRegion(input, 0, length, reinterpret_cast<jbyte *>(alac->input.data()));
     if (env->ExceptionCheck()) return -1;
     std::vector<uint8_t> pcm(frameBytes, 0);

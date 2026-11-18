@@ -47,8 +47,8 @@ def main():
     if (ebur / "COPYING").read_text() not in bundled_notice or (ebur / "queue/sys/queue.h").read_text().split("#ifndef")[0].rstrip() not in bundled_notice:
         raise SystemExit("Missing libebur128 MIT/BSD notices")
     alac = ROOT / "core/audio-dsp/src/main/cpp/vendor/alac"
-    # Two files carry LatentJam's marked fixes (vendor/alac/README.md); every other file is Apple's, unchanged.
-    alac_changed = {"ALACDecoder.cpp", "EndianPortable.c"}
+    # Three files carry LatentJam's marked fixes (vendor/alac/README.md); every other file is Apple's, unchanged.
+    alac_changed = {"ALACDecoder.cpp", "EndianPortable.c", "ag_dec.c"}
     alac_files = set()
     for line in (alac / "UPSTREAM.txt").read_text().splitlines():
         if "  " in line and len(line.split("  ")[0]) == 64:

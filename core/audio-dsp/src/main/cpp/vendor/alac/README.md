@@ -17,5 +17,8 @@ the header of every file).
 - `EndianPortable.c`: any target whose compiler reports little-endian byte order is treated as little-endian. Upstream
   knew only x86 and Windows, and Apple hosts got the answer from Apple's headers, so on Android's ARM targets every
   big-endian field (frame length, sample rate) was read unswapped and no stream opened. Marked with `LatentJam:`.
+- `ag_dec.c`: the entropy decoder's end check counts what is left behind the element it reads. Upstream compared a
+  position counted from that element with the size of the whole buffer, which let a damaged packet read up to one
+  packet length past its end. Marked with `LatentJam:`.
 
 No other file is changed.

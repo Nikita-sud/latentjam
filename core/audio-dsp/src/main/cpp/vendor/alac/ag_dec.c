@@ -287,7 +287,10 @@ int32_t dyn_decomp( AGParamRecPtr params, BitBuffer * bitstream, int32_t * pc, i
 
 	in = bitstream->cur;
 	startPos = bitstream->bitIndex;
-	maxPos = bitstream->byteSize * 8;
+	// LatentJam: bit positions here count from `in`, not from the start of the buffer, so the limit is what is
+	// left behind `in`. Upstream used the whole buffer's size, which let a damaged packet read up to that many
+	// bytes past its end.
+	maxPos = (bitstream->cur < bitstream->end) ? (uint32_t)(bitstream->end - bitstream->cur) * 8 : 0;
 	bitPos = startPos;
 
     mb = params->mb0;
