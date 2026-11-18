@@ -211,6 +211,7 @@ internal class AndroidPlaybackController(
             pendingAdvance.invalidate()
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
+            controller?.let(::adoptExternalQueue)
             rebuildQueueSnapshot()
             pushState()
             mainScope.launch {
@@ -222,6 +223,7 @@ internal class AndroidPlaybackController(
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             if (controller?.mediaItemCount != 0) anticipatedResumption = null
             controller?.let(::adoptActiveResumption)
+            controller?.let(::adoptExternalQueue)
             rebuildQueueSnapshot()
             pushState()
         }
@@ -382,6 +384,7 @@ internal class AndroidPlaybackController(
         withContext(Dispatchers.Main.immediate) {
             val player = controller()
             adoptActiveResumption(player)
+            adoptExternalQueue(player)
             rebuildQueueSnapshot()
             pushState()
         }
@@ -597,6 +600,7 @@ internal class AndroidPlaybackController(
                 }
                 smartRemovedIds.clear()
                 AndroidPlaybackStarts.forgetQueued()
+                AndroidPlaybackStarts.forgetExternalQueue()
                 anticipatedResumption = null
                 AndroidPlaybackStarts.announce(StartCause.USER_PICK, TrackId(prepared.selectedItem.mediaId))
                 curatedTailId = if (keepOrderInSmart) tracks.last().id.value else null
@@ -961,12 +965,15 @@ internal class AndroidPlaybackController(
             return@withContext
         }
         val count = player.mediaItemCount
-        if (from !in 0 until count || to !in 0 until count || from == to) return@withContext
+        // Row numbers are the visible queue's; the player's differ when it holds a row the queue cannot show.
+        val (fromMediaIndex, toMediaIndex) = visibleMoveInPlayer(cachedQueueMediaIndices, from, to) ?: return@withContext
+        if (fromMediaIndex !in 0 until count || toMediaIndex !in 0 until count) return@withContext
         queueGeneration++
-        if (movedTowardPlayhead(from, to, player.currentMediaItemIndex.takeIf { it >= 0 })) {
-            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(from).mediaId))
+        val current = cachedVisibleQueueIndices.getOrNull(player.currentMediaItemIndex)?.takeIf { it >= 0 }
+        if (movedTowardPlayhead(from, to, current)) {
+            AndroidPlaybackStarts.queuedByHand(TrackId(player.getMediaItemAt(fromMediaIndex).mediaId))
         }
-        player.moveMediaItem(from, to)
+        player.moveMediaItem(fromMediaIndex, toMediaIndex)
         rebuildQueueSnapshot()
         pool = sourceQueueAfterVisibleReorder(pool, cachedQueue, mode)
         pushState()
@@ -1076,6 +1083,7 @@ internal class AndroidPlaybackController(
             }
             smartRemovedIds.clear()
             AndroidPlaybackStarts.forgetQueued()
+            AndroidPlaybackStarts.forgetExternalQueue()
             curatedTailId = null
             anticipatedResumption = null
             val startPositionMs = positionMs.coerceAtLeast(0L)
@@ -1453,8 +1461,18 @@ internal class AndroidPlaybackController(
     /** Main-thread only. */
     private fun rebuildQueueSnapshot() {
         val player = controller ?: return
+        // A row no map names (one added to the queue from outside the app) is named from the player's own item and
+        // joins the source, as a row added in the app does: a playing item always has a track to publish.
+        val unnamed = LinkedHashMap<String, TrackDescriptor>(0)
         val physicalRows = (0 until player.mediaItemCount).map { itemIndex ->
-            trackById(player.getMediaItemAt(itemIndex).mediaId)
+            val item = player.getMediaItemAt(itemIndex)
+            trackById(item.mediaId)
+                ?: unnamed[item.mediaId]
+                ?: item.toProvisionalTrack()?.also { unnamed[item.mediaId] = it }
+        }
+        if (unnamed.isNotEmpty()) {
+            poolById = poolById.plusTracks(unnamed.values)
+            pool = pool + unnamed.values
         }
         val traversalOrder = playerTraversalOrder(player)
         val snapshot = playbackQueueSnapshot(
@@ -1530,6 +1548,30 @@ internal class AndroidPlaybackController(
         // Ownership has moved into this controller's pool/pending state; release the global URI
         // graph even when Media3 has not installed the timeline yet.
         MediaBrowseRegistry.clearActiveResumption(resume)
+    }
+
+    /**
+     * Takes a queue installed from outside the app (Android Auto, a voice request, another app) as this controller's
+     * own once the player holds it: its rows become the source the saved session names and the list that leaving
+     * shuffle or SMART goes back to, and what was remembered about the queue before it is dropped. Until then the
+     * source of the queue the app built last would stand in for it.
+     */
+    private fun adoptExternalQueue(player: Player) {
+        if (!AndroidPlaybackStarts.awaitsExternalQueue) return
+        val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
+        if (!AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId })) return
+        pool = adoptedQueueRows(
+            ids = items.map { it.mediaId },
+            named = ::trackById,
+            provisional = { row -> items[row].toProvisionalTrack() },
+        )
+        poolById = pool.associateByIdValue()
+        smartContinuationIds.clear()
+        smartPlanPositions.clear()
+        curatedTailId = null
+        anticipatedResumption = null
+        beginFreshRecoveryAttempt()
+        queueGeneration++
     }
 
     /** Coarse position refresh while playing; idle otherwise. */
@@ -1671,6 +1713,7 @@ internal class AndroidPlaybackController(
             built.addListener(playerListener)
             built.shuffleModeEnabled = mode == ShuffleMode.ON
             adoptActiveResumption(built)
+            adoptExternalQueue(built)
             if (pool.isEmpty() && built.mediaItemCount > 0) {
                 // The service can be populated by Android Auto or playback resumption before this
                 // controller exists. MediaItem metadata is enough for an honest provisional state;

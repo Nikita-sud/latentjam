@@ -59,7 +59,15 @@ internal fun installMediaBrowseCatalog(context: Context) {
     }
     // A queue from Android Auto, a voice request or another app did not come from what the app last
     // started: keeping that source would label the player and the listening log with it.
-    MediaBrowseRegistry.onExternalQueue = { AppGraph.queueSource.value = null }
+    MediaBrowseRegistry.onExternalQueue = {
+        AppGraph.queueSource.value = null
+        // A car or a voice request can start playback in a process no screen ever opened. As for a resumed queue
+        // below, the app's controller connects, so the queue has history, a saved session and SMART's library.
+        AppGraph.appScope.launch {
+            AppGraph.playback.synchronizeWithPlatformSession()
+            supplySmartLibraryQuietly()
+        }
+    }
     // Settings load their saved queue eagerly from preferences, so this answers without waiting.
     // Without music access the queue cannot be read: the tile then opens the app, which asks again.
     MediaBrowseRegistry.canRestoreSavedQueue = {
