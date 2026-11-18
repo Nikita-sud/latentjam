@@ -106,6 +106,36 @@ internal class ResumePlaybackStoreTest {
     }
 
     @Test
+    fun aPositionWrittenAfterAStalePairIsReadBackAtTheNextStart() {
+        store().write(null, playing)
+        // The process ended between the two files: the session is write 5, the position still write 4.
+        session.values["resume_serial"] = 5L
+        position.values["resume_serial"] = 4L
+        val restarted = store()
+        val restored = restarted.read()
+        assertEquals(playing.copy(positionMs = 0), restored)
+
+        // The listener plays on in the same track and queue: only positions are written from here.
+        val later = playing.copy(positionMs = 90_000)
+        restarted.write(restored, later)
+
+        assertEquals(later, store().read())
+    }
+
+    @Test
+    fun aPositionFileThatWasLostIsWrittenWholeByThePositionAlone() {
+        store().write(null, playing)
+        position.values.clear()
+        val restarted = store()
+        val restored = restarted.read()
+        assertEquals(0L, restored?.positionMs)
+
+        restarted.write(restored, playing.copy(positionMs = 30_000))
+
+        assertEquals(playing.copy(positionMs = 30_000), store().read())
+    }
+
+    @Test
     fun anEmptiedQueueErasesTheSessionAndALegacyOneWithIt() {
         settings.values += mapOf("resume_track_id" to "7", "resume_shuffle_mode" to "ON")
         val store = store()
