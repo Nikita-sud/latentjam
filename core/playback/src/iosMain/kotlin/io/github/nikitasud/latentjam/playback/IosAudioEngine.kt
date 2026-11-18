@@ -816,6 +816,11 @@ internal class IosAudioEngine(
         // old stereo output against a new mono input. Detach and set BOTH formats first.
         if (lj_eq_ios_connect_deck(engine, player, submix, playerBus, file.processingFormat) == 0) return false
         if (lj_eq_ios_connect(engine, submix, equalizer, file.processingFormat) == 0) return false
+        // The main mixer plays a mono input 3 dB down (a mixer's pan law; measured in IosPlayerNodeFactsTest and
+        // IosMonoLevelTest). Made up at the equalizer unit's output, a mono file is as loud as the same music in two
+        // channels, which is what Android plays. Every deck of this graph has the file's layout and goes through
+        // this one unit, so the one gain serves both.
+        lj_eq_ios_set_output_gain(equalizer, if (file.processingFormat.channelCount == 1u) MONO_MAKE_UP else 1f)
         applySettings()
         engine.prepare()
         lj_eq_ios_reset(equalizer)
@@ -940,6 +945,9 @@ internal class IosAudioEngine(
     private companion object {
         const val NO_TOKEN = -1L
         const val OFFLINE_QUANTUM = 512u
+
+        /** The square root of two: what undoes a mixer's 3 dB for a mono input. */
+        const val MONO_MAKE_UP = 1.4142135f
 
         /** The fade a late-started next track opens with, against a click. */
         const val RAMP_IN_MS = 20L

@@ -294,9 +294,9 @@ internal class IosPlayerNodeFactsTest {
         for (i in n until 2 * n - 64) assertTrue(kotlin.math.abs(values[i] - (i - n)) <= 2, "converted frame $i is ${values[i]}")
     }
 
-    // Framework logic, and a defect it explains (not fixed here): a mixer plays a mono input 3 dB down, into a mono
-    // output as into a stereo one, and a stereo input as it is. The app's graph has two mixers, so a mono file sounds
-    // 6 dB quieter than the same music in two channels.
+    // Framework logic: the main mixer plays a mono input 3 dB down, into a mono output as into a stereo one, and a
+    // stereo input as it is. Through the app's graph a mono file therefore came out 3 dB below the same music in two
+    // channels; IosAudioEngine makes that up at the equalizer unit's output (IosMonoLevelTest).
     @Test fun aMixerTurnsAMonoInputDownByThreeDecibels() {
         for (channels in listOf(1, 2)) for (outChannels in listOf(1, 2)) {
             val engine = AVAudioEngine()
