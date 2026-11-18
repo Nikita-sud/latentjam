@@ -577,6 +577,11 @@ object AppGraph {
         koin.getOrNull<SmartPresses>()?.clear()
     }
 
+    /** Clear listening history: when each heart was given goes with it; the hearts themselves stay. */
+    internal suspend fun forgetFavoriteTimes() {
+        koin.getOrNull<FavoriteTimes>()?.clear()
+    }
+
     /** SMART's impression log, for the debug export (null when the platform binds none). */
     internal val smartImpressionLog: SmartImpressionLog?
         get() = koin.getOrNull()

@@ -235,9 +235,10 @@ internal fun favoriteChanges(before: Collection<TrackId>, after: Collection<Trac
 
 /**
  * Follows the favourites through every path that changes them (the heart, the notification, bulk edits, duplicate
- * merges, a backup restore): each durable change is diffed against the last list seen, the heart times are kept in
- * [times] (FULL's favourited_days_ago), and the hearts go to SMART's impression log while [logEnabled] (the history
- * setting). The first list seen is the baseline: it records nothing, and drops times of tracks no longer hearted.
+ * merges, a backup restore): each durable change is diffed against the last list seen, and while [logEnabled] (the
+ * history setting) the heart times are kept in [times] (FULL's favourited_days_ago) and the hearts go to SMART's
+ * impression log. With the setting off a new heart gets no time; a heart taken back loses its time either way. The
+ * first list seen is the baseline: it records nothing, and drops times of tracks no longer hearted.
  */
 fun CoroutineScope.launchFavoriteRecorder(
     favorites: io.github.nikitasud.latentjam.history.Favorites,
@@ -266,8 +267,10 @@ fun CoroutineScope.launchFavoriteRecorder(
         val (added, removed) = favoriteChanges(before, current)
         if (added.isEmpty() && removed.isEmpty()) return@collect
         val at = clock()
-        times.update(added, removed, at)
-        if (log != null && logEnabled()) {
+        val recording = logEnabled()
+        // When a song was hearted is listening data: kept only while the history is.
+        times.update(if (recording) added else emptyList(), removed, at)
+        if (log != null && recording) {
             val keys = trackKey(added + removed)
             log.recordFavorites(
                 added.map { io.github.nikitasud.latentjam.history.SmartFavoriteEvent(at, keys[it].orEmpty(), true) } +

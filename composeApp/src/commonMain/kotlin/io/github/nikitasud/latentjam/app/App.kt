@@ -4868,6 +4868,7 @@ private fun AppShell(
                     AppGraph.history.clear()
                     AppGraph.smartImpressionLog?.clear()
                     AppGraph.forgetSmartPresses()
+                    AppGraph.forgetFavoriteTimes()
                     // What For You showed on which day is drawn from the listening: it goes with it.
                     AppGraph.forYouImpressions.clear()
                     forYouPage.forYouCardsShown = emptySet()
