@@ -218,6 +218,9 @@ internal object MapRebuild {
 
         // The Map's own inputs, read as App reads them: the scanned library with cached genre facts.
         val scan = AppGraph.library.scan()
+        // This process may plan a queue before any screen synchronizes the library (a headset press while the
+        // rebuild runs): the engine restored the rows of hidden tracks with its index and must know they are out of sight.
+        engine.setNotShown(scan.notShown, scan.complete)
         val loaded = GenreEnrichment(AppGraph.settings).apply(scan.tracks)
         val ids = loaded.map(TrackDescriptor::id)
         if (!isActive()) throw CancellationException("Map rebuild cancelled")
