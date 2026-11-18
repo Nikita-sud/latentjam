@@ -141,7 +141,12 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
     override val saveListeningHistory: StateFlow<Boolean> = mutableSaveListeningHistory.asStateFlow()
     private val mutableRememberSearches = MutableStateFlow(readRecordingPreference(KEY_REMEMBER_SEARCHES))
     override val rememberSearches: StateFlow<Boolean> = mutableRememberSearches.asStateFlow()
-    private val mutableResumePlayback = MutableStateFlow(readResumePlayback())
+    private val resumeStore = ResumePlaybackStore(
+        legacy = preferences,
+        session = context.getSharedPreferences(RESUME_SESSION_FILE, Context.MODE_PRIVATE),
+        position = context.getSharedPreferences(RESUME_POSITION_FILE, Context.MODE_PRIVATE),
+    )
+    private val mutableResumePlayback = MutableStateFlow(resumeStore.read())
     override val resumePlayback: StateFlow<ResumePlayback?> = mutableResumePlayback.asStateFlow()
 
     override fun setThemeMode(mode: ThemeMode) {
@@ -371,90 +376,8 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         runCatching { preferences.getBoolean(key, true) }.getOrNull(),
     )
 
-    private fun readResumePlayback(): ResumePlayback? {
-        val trackId = readString(KEY_RESUME_TRACK) ?: return null
-        val mode = readString(KEY_RESUME_MODE) ?: return null
-        val position = runCatching { preferences.getLong(KEY_RESUME_POSITION, 0L) }.getOrNull() ?: 0L
-        val encodedQueueState = readString(KEY_RESUME_QUEUE_STATE)
-        val queueState = encodedQueueState?.let(::decodeResumeQueueState)
-        // The former comma codec is read only when no versioned value exists. A malformed payload must
-        // not silently pair with a stale legacy queue left by an interrupted migration.
-        val legacyQueueIds = if (encodedQueueState == null) {
-            readString(KEY_RESUME_QUEUE)
-                ?.split(',')
-                ?.filter { it.isNotEmpty() }
-                .orEmpty()
-        } else {
-            emptyList()
-        }
-        return ResumePlayback(
-            trackId = trackId,
-            shuffleMode = mode,
-            positionMs = position,
-            // Absent on sessions saved before queue sources existed; null simply hides the label.
-            sourceKind = readString(KEY_RESUME_SOURCE_KIND),
-            sourceName = readString(KEY_RESUME_SOURCE_NAME),
-            sourceReference = readString(KEY_RESUME_SOURCE_REFERENCE),
-            queueTrackIds = queueState?.queueTrackIds ?: legacyQueueIds,
-            queueIndex = queueState?.queueIndex ?: -1,
-            sourceQueueTrackIds = queueState?.sourceQueueTrackIds.orEmpty(),
-            sourceQueuePersisted = queueState?.sourceQueuePersisted ?: false,
-            smartContinuationIds = queueState?.smartContinuationIds.orEmpty(),
-            smartPlanPositions = queueState?.smartPlanPositions.orEmpty(),
-        )
-    }
-
     override fun setResumePlayback(state: ResumePlayback?) {
-        val previous = mutableResumePlayback.value
-        if (state != null && previous?.sameSessionExceptPosition(state) == true) {
-            // Position advances every 10 seconds while the queue usually stays unchanged for many
-            // minutes. Re-encoding a potentially 10k-row queue here created avoidable CPU, GC and
-            // a large SharedPreferences value write for every position bucket.
-            preferences.edit().putLong(KEY_RESUME_POSITION, state.positionMs).apply()
-            mutableResumePlayback.value = state
-            return
-        }
-        preferences.edit().apply {
-            if (state == null) {
-                remove(KEY_RESUME_TRACK).remove(KEY_RESUME_MODE).remove(KEY_RESUME_POSITION)
-                remove(KEY_RESUME_SOURCE_KIND).remove(KEY_RESUME_SOURCE_NAME)
-                remove(KEY_RESUME_SOURCE_REFERENCE)
-                remove(KEY_RESUME_QUEUE_STATE).remove(KEY_RESUME_QUEUE)
-            } else {
-                putString(KEY_RESUME_TRACK, state.trackId)
-                putString(KEY_RESUME_MODE, state.shuffleMode)
-                putLong(KEY_RESUME_POSITION, state.positionMs)
-                if (state.sourceKind == null) remove(KEY_RESUME_SOURCE_KIND) else {
-                    putString(KEY_RESUME_SOURCE_KIND, state.sourceKind)
-                }
-                if (state.sourceName == null) remove(KEY_RESUME_SOURCE_NAME) else {
-                    putString(KEY_RESUME_SOURCE_NAME, state.sourceName)
-                }
-                if (state.sourceReference == null) remove(KEY_RESUME_SOURCE_REFERENCE) else {
-                    putString(KEY_RESUME_SOURCE_REFERENCE, state.sourceReference)
-                }
-                // Live and source queues are one length-prefixed value: opaque ids cannot collide
-                // with separators and SharedPreferences commits the pair in this editor update.
-                remove(KEY_RESUME_QUEUE)
-                if (state.queueTrackIds.isEmpty()) {
-                    remove(KEY_RESUME_QUEUE_STATE)
-                } else {
-                    putString(
-                        KEY_RESUME_QUEUE_STATE,
-                        encodeResumeQueueState(
-                            ResumeQueueState(
-                                queueTrackIds = state.queueTrackIds,
-                                sourceQueueTrackIds = state.sourceQueueTrackIds,
-                                queueIndex = state.queueIndex,
-                                sourceQueuePersisted = state.sourceQueuePersisted,
-                                smartContinuationIds = state.smartContinuationIds,
-                                smartPlanPositions = state.smartPlanPositions,
-                            ),
-                        ),
-                    )
-                }
-            }
-        }.apply()
+        resumeStore.write(mutableResumePlayback.value, state)
         mutableResumePlayback.value = state
     }
 
@@ -486,11 +409,6 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_SMART_RANKER = "smart_ranker"
         const val KEY_SAVE_HISTORY = "save_listening_history"
         const val KEY_REMEMBER_SEARCHES = "remember_searches"
-        const val KEY_RESUME_TRACK = "resume_track_id"
-        const val KEY_RESUME_MODE = "resume_shuffle_mode"
-        const val KEY_RESUME_POSITION = "resume_position_ms"
-        const val KEY_RESUME_SOURCE_KIND = "resume_source_kind"
-        const val KEY_RESUME_SOURCE_NAME = "resume_source_name"
         const val KEY_NOTIFICATION_FAVORITE = "notification_favorite"
         const val KEY_LOCK_SCREEN_PLAYER = "lock_screen_player"
         const val KEY_LOCK_PLAYER_VENDOR_NOTE_HIDDEN = "lock_player_vendor_note_hidden"
@@ -511,10 +429,6 @@ internal class AndroidAppSettings(context: Context) : AppSettings {
         const val KEY_AUDIO_CARRY_OVERS = "audio_carry_overs"
         const val KEY_DUPLICATE_DISMISSALS = "duplicate_dismissals_v1"
         const val KEY_MAP_REBUILD_REQUESTED_AT = "map_rebuild_requested_at_ms"
-        const val KEY_RESUME_SOURCE_REFERENCE = "resume_source_reference"
-        const val KEY_RESUME_QUEUE_STATE = "resume_queue_state_v2"
-        /** Read-only migration key used by builds before collision-safe queue state. */
-        const val KEY_RESUME_QUEUE = "resume_queue_track_ids"
     }
 }
 
