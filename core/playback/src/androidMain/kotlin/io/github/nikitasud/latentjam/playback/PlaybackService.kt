@@ -296,6 +296,9 @@ public class PlaybackService : MediaLibraryService() {
                     LibraryResult.RESULT_ERROR_BAD_VALUE,
                     params,
                 )
+            if (parentId == BROWSE_TRACKS_ID || catalog.collections.any { it.id == parentId }) {
+                lastListedRows[browser.packageName] = ListedRows.Parent(parentId)
+            }
             LibraryResult.ofItemList(ImmutableList.copyOf(resultPage), params)
         }
 
@@ -353,6 +356,7 @@ public class PlaybackService : MediaLibraryService() {
                     LibraryResult.RESULT_ERROR_BAD_VALUE,
                     params,
                 )
+            lastListedRows[browser.packageName] = ListedRows.Search(query)
             LibraryResult.ofItemList(
                 ImmutableList.copyOf(resultPage.map(::playableItem)),
                 params,
@@ -388,23 +392,28 @@ public class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             if (asksForAnything(mediaItems.map(::requestedRow))) return playAnything(controller)
+            // One track picked in a car or asked for by voice becomes the list it was picked from; see [expandedPick].
+            var expanded = false
             val resolved = browseFuture {
-                val request = playableRequestFrom(
-                    controller,
-                    mediaItems,
-                    startIndex.takeUnless { it == C.INDEX_UNSET },
-                    startPositionMs.takeUnless { it == C.TIME_UNSET },
-                )
-                MediaSession.MediaItemsWithStartPosition(
-                    request.items,
-                    request.startIndex ?: C.INDEX_UNSET,
-                    request.startPositionMs ?: C.TIME_UNSET,
-                )
+                expandedPickFrom(controller, mediaItems)?.also { expanded = true } ?: run {
+                    val request = playableRequestFrom(
+                        controller,
+                        mediaItems,
+                        startIndex.takeUnless { it == C.INDEX_UNSET },
+                        startPositionMs.takeUnless { it == C.TIME_UNSET },
+                    )
+                    MediaSession.MediaItemsWithStartPosition(
+                        request.items,
+                        request.startIndex ?: C.INDEX_UNSET,
+                        request.startPositionMs ?: C.TIME_UNSET,
+                    )
+                }
             }
             if (controller.packageName == packageName) return resolved
             return Futures.transform(
                 resolved,
                 { queue ->
+                    if (expanded) expandedQueueSize = queue.mediaItems.size
                     AndroidPlaybackStarts.announceExternalQueue(
                         queue.mediaItems,
                         queue.startIndex,
@@ -437,6 +446,69 @@ public class PlaybackService : MediaLibraryService() {
         }
     }
 
+
+    /** The list each controller outside the app was shown last, by its package; main thread only. */
+    private val lastListedRows = HashMap<String, ListedRows>()
+
+    /** The size of an expanded pick ([expandedPick]) about to be installed; null when none is. */
+    private var expandedQueueSize: Int? = null
+
+    /**
+     * The queue for a single track [controller] picked, when [expandedPick] gives one. Nothing is read or built for the
+     * app's own controller, nor in SMART: both play the request as it came.
+     */
+    private suspend fun expandedPickFrom(
+        controller: MediaSession.ControllerInfo,
+        mediaItems: List<MediaItem>,
+    ): MediaSession.MediaItemsWithStartPosition? {
+        val fromApp = controller.packageName == packageName
+        val mode = AndroidShuffleModeRegistry.mode.value
+        val requested = mediaItems.map(::requestedRow)
+        if (fromApp || mode == ShuffleMode.SMART || requested.singleOrNull()?.carriesAudio != false) return null
+        val listed = lastListedRows[controller.packageName]
+        // The whole library and its playlists are read for this, and a long list becomes as many media items.
+        val queue = withContext(Dispatchers.IO) {
+            val catalog = MediaBrowseRegistry.catalog?.invoke() ?: return@withContext null
+            val pick = expandedPick(
+                fromApp = fromApp,
+                requested = requested,
+                mode = mode,
+                listedRows = when (listed) {
+                    is ListedRows.Parent -> if (listed.id == BROWSE_TRACKS_ID) {
+                        catalog.tracks
+                    } else {
+                        catalog.collections.firstOrNull { it.id == listed.id }?.tracks
+                    }
+                    is ListedRows.Search -> rankMediaSearch(catalog.tracks, listed.query)
+                    null -> null
+                },
+                allRows = catalog.tracks,
+                idOf = { it.id.value },
+                search = { words -> rankMediaSearch(catalog.tracks, words) },
+            ) ?: return@withContext null
+            MediaSession.MediaItemsWithStartPosition(pick.rows.map(::playableItem), pick.startIndex, C.TIME_UNSET)
+        } ?: return null
+        // Back on the main thread, where the black box reads the player.
+        recordExternalMediaEvent(controller.packageName, "pick played with its list: ${queue.mediaItems.size} rows")
+        return queue
+    }
+
+    /**
+     * Shuffle draws its order without regard to the row a queue starts on, so the rows it put before that row would
+     * never play. For an expanded pick the order is turned to begin at the pick, as the app's own shuffled start is.
+     */
+    private fun startShuffleAtExpandedPick() {
+        val size = expandedQueueSize ?: return
+        expandedQueueSize = null
+        val player = playbackPlayer ?: return
+        if (!player.shuffleModeEnabled || size < 2 || player.mediaItemCount != size) return
+        player.setShuffleOrder(
+            DefaultShuffleOrder(
+                shuffleOrderStartingAt(nativeTraversal(player), player.currentMediaItemIndex),
+                System.nanoTime(),
+            ),
+        )
+    }
 
     /** [browseFuture] for a saved-queue read, counted so the foreground is not released under it. */
     private fun <T : Any> resumptionFuture(block: suspend () -> T): ListenableFuture<T> {
@@ -683,6 +755,7 @@ public class PlaybackService : MediaLibraryService() {
             val installingResumption = pendingResumptionMode != null
             applyPendingResumptionMode()
             if (!installingResumption) clearStaleActiveResumption()
+            startShuffleAtExpandedPick()
         }
 
         // How each play began is read here, from the player itself, for the listening log — see
