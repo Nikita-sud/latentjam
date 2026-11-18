@@ -134,6 +134,14 @@ internal class IosAudioEngine(
      * it any more, so before it plays again its segment is cued again from where it stood ([play]).
      */
     private var needsCue = false
+
+    /**
+     * The next track queued on the current deck right behind the current segment ([chainNext]): the node plays the
+     * two sample after sample. [token] is its segment's, [onEnded] what its own end will call once it is current.
+     */
+    private class Chained(val file: AVAudioFile, val token: Long, val onSeam: () -> Unit, val onEnded: () -> Unit)
+
+    private var chained: Chained? = null
     private var completionGeneration: Long = 0L
     private var completion: (() -> Unit)? = null
     private var outputSupportsEqualizer: Boolean = true
@@ -196,6 +204,7 @@ internal class IosAudioEngine(
         // while building it cannot leave the engine scheduling segments on dead nodes.
         currentFile = null
         completion = null
+        chained = null
         segmentStartFrame = 0L
         pausedFrame = 0L
         invalidateCompletion()
@@ -256,6 +265,7 @@ internal class IosAudioEngine(
         cancelOverlap()
         engine.stop()
         player.stop()
+        chained = null
         currentFile = file
         segmentStartFrame = 0L
         pausedFrame = 0L
@@ -291,6 +301,7 @@ internal class IosAudioEngine(
             cancelOverlap()
             engine.stop()
             player.stop()
+            chained = null
             lj_eq_ios_reset(equalizer)
             segmentStartFrame = 0L
             pausedFrame = 0L
@@ -314,7 +325,10 @@ internal class IosAudioEngine(
      * the emptied segment says the same ([SegmentEnd.FLUSHED]) but is not waited for: on a device it may not come.
      */
     private fun noteSystemStop() {
-        if (currentFile != null && player.playing && !engine.running) needsCue = true
+        if (currentFile != null && player.playing && !engine.running) {
+            needsCue = true
+            chained = null
+        }
     }
 
     /** Music-library DRM playback bypasses this graph; reflect that honestly in Settings. */
@@ -371,6 +385,8 @@ internal class IosAudioEngine(
         cancelOverlap()
         val current = currentFile ?: return null
         if (!engine.running) return null
+        // A track queued behind the current one is this seam already; the caller takes it back first.
+        if (chained != null) return null
         val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
             ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return null
         // The graph after the submixer runs in the current file's format and stays so after the
@@ -575,6 +591,7 @@ internal class IosAudioEngine(
         currentFile = null
         completion = null
         needsCue = false
+        chained = null
         segmentStartFrame = 0L
         pausedFrame = 0L
     }
@@ -618,6 +635,8 @@ internal class IosAudioEngine(
         // last frame and the item then ends through the scheduled segment's completion.
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val frame = requestedFrame.coerceIn(0L, lastFrame)
+        // Stopping the node drops whatever is queued on it.
+        chained = null
         invalidateCompletion()
         cancelOverlap()
         engine.stop()
@@ -646,6 +665,11 @@ internal class IosAudioEngine(
     private fun currentFrame(): Long {
         val file = currentFile ?: return 0L
         val played = playedFrames(player)
+        if (played != null && chained != null && segmentStartFrame + played >= file.length) {
+            // The clock is past the current file's last frame: the queued track is what sounds.
+            crossSeam()
+            return currentFrame()
+        }
         val frame = playheadFrame(played, segmentStartFrame, pausedFrame, lastRenderedFrame, file.length)
         if (played != null) lastRenderedFrame = frame
         return frame
@@ -687,15 +711,95 @@ internal class IosAudioEngine(
      * again before it can sound.
      */
     private fun segmentFinished(file: AVAudioFile, token: Long) {
+        // The clock first: if the node is past a seam, the queued track is the current one before this notice is read
+        // (the notice of a queued track that has itself played out is then the current track's).
+        val frame = currentFrame()
         val current = token == completionGeneration && currentFile === file
-        when (segmentEnd(current, engine.running, currentFrame(), file.length, endToleranceFrames(file))) {
+        when (segmentEnd(current, engine.running, frame, file.length, endToleranceFrames(file))) {
             SegmentEnd.STALE -> Unit
-            SegmentEnd.PLAYED_OUT -> {
+            SegmentEnd.PLAYED_OUT -> if (chained == null) {
                 pausedFrame = file.length
                 completion?.invoke()
             }
-            SegmentEnd.FLUSHED -> needsCue = true
+            // Else a track is queued behind this one and the clock has not reached the seam: the clock decides when
+            // the queued track is the current one, never this notice, whose timing on a device is not known here.
+            SegmentEnd.FLUSHED -> {
+                needsCue = true
+                // Whatever was queued behind went with it.
+                chained = null
+            }
         }
+    }
+
+    /**
+     * Queues [url] on the current deck right behind the track that is playing, for a seam without a gap. Only a
+     * readable file of the same sample rate and channel count as the current one, only while the current one sounds
+     * and nothing else is under way (an overlap, a deck that has to be cued again); false otherwise, and then the
+     * plain seam applies. When the node's clock passes the current file's last frame the queued one becomes the
+     * current file ([crossSeam]): [onSeam] is called once, and [onEnded] when the queued track itself has played out.
+     */
+    fun chainNext(url: NSURL, onSeam: () -> Unit, onEnded: () -> Unit): Boolean {
+        val current = currentFile ?: return false
+        if (chained != null || standbyFile != null || needsCue) return false
+        if (!engine.running || !player.playing) return false
+        val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
+            ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return false
+        val playing = current.processingFormat
+        val next = file.processingFormat
+        // The node would convert another rate (with its converter's ringing) and raises on another layout.
+        if (playing.channelCount != next.channelCount || playing.sampleRate != next.sampleRate) return false
+        // Behind a segment that has already played out the file would simply start: that is no seam to adopt.
+        if (currentFrame() >= current.length) return false
+        val token = ++tokens
+        chained = Chained(file, token, onSeam, onEnded)
+        player.scheduleSegment(
+            file = file,
+            startingFrame = 0L,
+            frameCount = file.length.coerceAtMost(UInt.MAX_VALUE.toLong()).toUInt(),
+            atTime = null,
+            completionCallbackType = segmentNotice,
+            completionHandler = { _ ->
+                dispatch_async(dispatch_get_main_queue()) { segmentFinished(file, token) }
+            },
+        )
+        return true
+    }
+
+    /** Whether a track is queued behind the current one and has not begun yet. */
+    val hasChained: Boolean get() = chained != null
+
+    /** How many seams this engine has taken: tells a queued track that began from one that was dropped. */
+    var seamsCrossed: Long = 0L
+        private set
+
+    /**
+     * Takes the queued track back before it has begun (the queue changed, the sleep timer holds, repeat-one). A node
+     * gives up one queued segment only with everything else, so the current track is cued again at the exact frame
+     * it is at, which costs a moment of silence. If the seam has in fact been passed, the current track's last frame
+     * is cued and its end takes the plain way.
+     */
+    fun dropChained() {
+        if (chained == null) return
+        val file = currentFile ?: return
+        val resume = player.playing && engine.running
+        chained = null
+        cueAt(file, currentFrame(), resume)
+    }
+
+    /** The node has gone from the current file into the queued one: the queued one is the current file now. */
+    private fun crossSeam() {
+        val next = chained ?: return
+        val previous = currentFile ?: return
+        chained = null
+        seamsCrossed++
+        val start = seamSegmentStart(segmentStartFrame, previous.length)
+        currentFile = next.file
+        completion = next.onEnded
+        completionGeneration = next.token
+        segmentStartFrame = start
+        pausedFrame = (start + (playedFrames(player) ?: -start)).coerceIn(0L, next.file.length)
+        // Not from inside whatever asked for the position: the controller takes the row over on its own turn.
+        dispatch_async(dispatch_get_main_queue()) { next.onSeam() }
     }
 
     /** How near its end a stopped engine's last known frame must be for a finished segment to count as played: a second. */

@@ -150,7 +150,155 @@ internal class IosOfflineEngineTest {
         assertEquals(2, ended)
     }
 
+    // ------------------------------------------------------------------ a seam without a gap
+
+    /** Continues [first]: frame k holds k, so the two played one after the other count up by one throughout. */
+    private fun second(): NSURL = IosTestWaves.stereo(rate, n) { it }
+
+    private class Seam { var seams = 0; var firstEnded = 0; var secondEnded = 0 }
+
+    /** Plays [first] to 0.2 s before its end and queues [second] behind it. */
+    private fun chained(engine: IosAudioEngine, seam: Seam): IntArray {
+        assertTrue(engine.load(first(), autoPlay = true) { seam.firstEnded++ })
+        val head = engine.render(n - LEAD)
+        assertEquals(300L, engine.positionMs())
+        assertTrue(engine.chainNext(second(), onSeam = { seam.seams++ }, onEnded = { seam.secondEnded++ }))
+        assertTrue(engine.hasChained)
+        return head
+    }
+
+    @Test fun aTrackQueuedBehindTheCurrentOnePlaysOnWithoutAGapAndBecomesTheCurrentTrackAtTheSeam() = engine { engine ->
+        val seam = Seam()
+        val head = chained(engine, seam)
+        // Up to a tenth of a second before the seam: still the first track.
+        val beforeSeam = engine.render(LEAD - 4410)
+        assertEquals(400L, engine.positionMs())
+        assertEquals(500L, engine.durationMs())
+        assertTrue(engine.hasChained)
+        // Across the seam and a tenth of a second into the second track. The clock says where it is before any
+        // notice has been heard: the position starts again at the seam.
+        val acrossSeam = engine.render(2 * 4410)
+        assertEquals(100L, engine.positionMs())
+        assertFalse(engine.hasChained)
+        val rest = engine.render(n - 4410 + 2000)
+        pump()
+        val values = head + beforeSeam + acrossSeam + rest
+        assertSilent(values, 0, DELAY, "the equalizer's delay")
+        // Every frame of both files once and in order: nothing inserted, dropped or repeated at the seam.
+        assertCountsUp(values, DELAY, -n, 2 * n, "through the seam")
+        assertSilent(values, DELAY + 2 * n, values.size, "after the second file")
+        assertEquals(1, seam.seams, "the seam is reported once")
+        assertEquals(0, seam.firstEnded, "the first track's end is the seam, not an end of playback")
+        assertEquals(1, seam.secondEnded, "the second track ends as any track does")
+        assertEquals(500L, engine.positionMs())
+    }
+
+    @Test fun theSeamIsTakenFromTheFirstSegmentsNoticeToo() = engine { engine ->
+        val seam = Seam()
+        chained(engine, seam)
+        engine.render(LEAD + 4410)
+        // Nobody has asked for the position: the first segment's notice alone makes the queued track current.
+        pump()
+        assertEquals(1, seam.seams)
+        assertFalse(engine.hasChained)
+        assertEquals(100L, engine.positionMs())
+        assertEquals(0, seam.firstEnded)
+        engine.render(n)
+        pump()
+        assertEquals(1, seam.seams)
+        assertEquals(1, seam.secondEnded)
+    }
+
+    @Test fun aQueuedTrackTakenBackNeverSoundsAndTheCurrentOneEndsThePlainWay() = engine { engine ->
+        val seam = Seam()
+        chained(engine, seam)
+        engine.render(4410)
+        // The queue changed, repeat-one was switched on, the sleep timer holds: the join is taken back.
+        engine.dropChained()
+        assertFalse(engine.hasChained)
+        assertTrue(engine.playing)
+        assertEquals(400L, engine.positionMs())
+        val values = engine.render(LEAD + 4000)
+        pump()
+        // After the cue (delay and fade-in): the first file from where it was to its end, then nothing of the second.
+        val from = n - LEAD + 4410
+        assertCountsUp(values, DELAY + 500, from + 500 - n, n - from - 500, "the first file's remainder")
+        assertSilent(values, DELAY + (n - from), values.size, "the second file must not sound")
+        assertEquals(0, seam.seams)
+        assertEquals(1, seam.firstEnded)
+        assertEquals(0, seam.secondEnded)
+    }
+
+    @Test fun aSeekOrAStopOfTheEngineDropsWhatWasQueued() = engine { engine ->
+        val seam = Seam()
+        chained(engine, seam)
+        engine.seekTo(100L)
+        assertFalse(engine.hasChained)
+        val values = engine.render(n)
+        pump()
+        assertCountsUp(values, DELAY + 500, 4410 + 500 - n, n - 4410 - 500, "from the seek to the first file's end")
+        assertSilent(values, DELAY + n - 4410, values.size, "nothing queued is left")
+        assertEquals(0, seam.seams)
+        assertEquals(1, seam.firstEnded)
+    }
+
+    @Test fun aSystemStopMidTrackDropsWhatWasQueuedAndIsNoSeamAndNoEnd() = engine { engine ->
+        // Files longer than the second within which a stop counts as the end.
+        val seam = Seam()
+        assertTrue(engine.load(long(), autoPlay = true) { seam.firstEnded++ })
+        engine.render(5_000)
+        assertEquals(113L, engine.positionMs())
+        assertTrue(engine.chainNext(long(), onSeam = { seam.seams++ }, onEnded = { seam.secondEnded++ }))
+        engine.stopEngineAsTheSystemDoes()
+        // Both segments report themselves finished: the first was emptied mid-track, the second never began.
+        pump()
+        assertFalse(engine.hasChained)
+        assertEquals(0, seam.seams + seam.firstEnded + seam.secondEnded)
+        assertEquals(113L, engine.positionMs())
+        // Cued again, the first track plays on alone to its own end.
+        assertTrue(engine.recueAfterSystemStop())
+        assertTrue(engine.play())
+        assertGoesOnFromFrameFiveThousand(engine.render(LONG), "after the stop")
+        pump()
+        assertEquals(1, seam.firstEnded)
+        assertEquals(0, seam.seams + seam.secondEnded)
+    }
+
+    @Test fun aPauseKeepsTheQueuedTrackAndTheSeamStaysWhole() = engine { engine ->
+        val seam = Seam()
+        val head = chained(engine, seam)
+        val more = engine.render(4410)
+        engine.pause()
+        assertTrue(engine.hasChained)
+        assertEquals(400L, engine.positionMs())
+        assertTrue(engine.play())
+        val rest = engine.render(LEAD - 4410 + n + 2000)
+        pump()
+        val values = head + more + rest
+        assertCountsUp(values, DELAY, -n, 2 * n, "through a pause and the seam")
+        assertEquals(1, seam.seams)
+        assertEquals(1, seam.secondEnded)
+    }
+
+    @Test fun onlyAFileOfTheSameRateAndLayoutIsQueuedBehind() = engine { engine ->
+        assertTrue(engine.load(first(), autoPlay = true) {})
+        engine.render(1000)
+        assertFalse(engine.chainNext(IosTestWaves.mono(rate, n) { it }, {}, {}), "another channel count")
+        assertFalse(engine.chainNext(IosTestWaves.stereo(48_000, n) { it }, {}, {}), "another sample rate")
+        assertFalse(engine.chainNext(NSURL.fileURLWithPath("/nowhere/at/all.wav"), {}, {}), "a file that is not there")
+        assertFalse(engine.hasChained)
+        assertTrue(engine.chainNext(second(), {}, {}))
+        assertFalse(engine.chainNext(second(), {}, {}), "one at a time")
+        // Paused, nothing is queued either: the join is made while the track sounds.
+        engine.dropChained()
+        engine.pause()
+        assertFalse(engine.chainNext(second(), {}, {}))
+    }
+
     private companion object {
+        /** How long before the first file's end the tests queue the second: 0.2 s. */
+        const val LEAD = 8820
+
         /** The equalizer unit's delay at 44.1 kHz: a two-hundredth of a second. */
         const val DELAY = 220
 
