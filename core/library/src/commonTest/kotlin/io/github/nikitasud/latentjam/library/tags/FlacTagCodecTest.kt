@@ -105,6 +105,30 @@ internal class FlacTagCodecTest {
     }
 
     @Test
+    fun aMultiArtistEditSavesOverAnArtistsFieldThatCreditsNobody() {
+        val file = FlacFixtures.file(
+            FlacFixtures.VORBIS_COMMENT to FlacFixtures.comments("ARTIST" to "X", "ARTISTS" to ""),
+            FlacFixtures.PADDING to ByteArray(500),
+        )
+        val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "A; B"))
+        assertEquals("A; B", codec.read(ByteArraySource(out)).artist)
+        CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "Solo"))
+    }
+
+    @Test
+    fun aLyricsEditReplacesLyricsStoredUnderTheSpacedName() {
+        val file = FlacFixtures.file(
+            FlacFixtures.VORBIS_COMMENT to FlacFixtures.comments("TITLE" to "t", "UNSYNCED LYRICS" to "old words"),
+            FlacFixtures.PADDING to ByteArray(500),
+        )
+        assertEquals("old words", codec.read(ByteArraySource(file)).lyrics)
+        val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(lyrics = "new words"))
+        assertEquals("new words", EmbeddedLyrics.read(ByteArraySource(out))?.text)
+        val removed = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(lyrics = ""))
+        assertEquals(null, EmbeddedLyrics.read(ByteArraySource(removed)))
+    }
+
+    @Test
     fun editWithinPaddingIsInPlaceAndTouchesOnlyMetadata() {
         val file = tagged()
         val plan = codec.plan(ByteArraySource(file), TagEdits(title = "A somewhat longer title"))

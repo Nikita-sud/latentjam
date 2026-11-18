@@ -52,6 +52,20 @@ internal class Mp4TagCodecTest {
     }
 
     @Test
+    fun aMultiArtistEditSavesOverAnArtistsItemThatCreditsNobody() {
+        for (nobody in listOf("", " ; ")) {
+            val file = Mp4Fixtures.file(
+                listOf(Mp4Fixtures.text("©ART", "X"), Mp4Fixtures.freeform("ARTISTS", nobody)),
+                freeAfterIlst = 2000,
+            )
+            assertEquals(emptyList(), codec.read(ByteArraySource(file)).artists)
+            val out = CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "A; B"))
+            assertEquals("A; B", codec.read(ByteArraySource(out)).artist)
+            CodecAssertions.assertWriteMatchesExpectation(codec, file, TagEdits(artist = "Solo"))
+        }
+    }
+
+    @Test
     fun editWithinIlstFreeIsInPlaceAndMovesNothing() {
         val file = Mp4Fixtures.file(items, freeAfterIlst = 2000)
         val plan = codec.plan(ByteArraySource(file), TagEdits(title = "A much longer song title"))

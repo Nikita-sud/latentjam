@@ -243,16 +243,11 @@ public data class TagSnapshot(
     public fun expectedAfter(edits: TagEdits): TagSnapshot = expect(edits.normalized())
 
     private fun expect(edits: TagEdits): TagSnapshot {
-        var newTrackTotal = number(trackTotal, edits.trackTotal)
-        var newDiscTotal = number(discTotal, edits.discTotal)
+        // A total stands without a number in every format: ID3 keeps the pair as "0/12".
+        val newTrackTotal = number(trackTotal, edits.trackTotal)
+        val newDiscTotal = number(discTotal, edits.discTotal)
         val newTrackNumber = number(trackNumber, edits.trackNumber)
         val newDiscNumber = number(discNumber, edits.discNumber)
-        // Rewriting an ID3 number/total pair needs a number. An untouched frame can still
-        // contain a lone total ("/12"): unrelated edits preserve its bytes and readable total.
-        if (format == TagFormat.MP3) {
-            if (newTrackNumber == null && (edits.trackNumber != null || edits.trackTotal != null)) newTrackTotal = null
-            if (newDiscNumber == null && (edits.discNumber != null || edits.discTotal != null)) newDiscTotal = null
-        }
         // Removing the cover promotes the next picture; every other picture stays where it was.
         val (newCover, newOtherPictures) = when (val edit = edits.cover) {
             CoverEdit.Keep -> cover to otherPictures

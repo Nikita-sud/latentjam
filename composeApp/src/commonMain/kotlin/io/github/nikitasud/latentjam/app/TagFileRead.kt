@@ -8,6 +8,7 @@ import io.github.nikitasud.latentjam.library.tags.TagCodecs
 import io.github.nikitasud.latentjam.library.tags.TagSnapshot
 import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import kotlinx.coroutines.CancellationException
 
 /** What the editor learns from a file before the user types anything (spec §6.1). */
 internal sealed interface TagFileRead {
@@ -23,6 +24,19 @@ internal fun tagFileReadOf(snapshot: TagSnapshot?): TagFileRead {
         refusal != null -> TagFileRead.NotEditable(tagProblemOf(refusal))
         else -> TagFileRead.Ready(snapshot)
     }
+}
+
+/**
+ * [tagFileReadOf] what [read] finds in an opened file. A reader that fails in any way leaves the file
+ * [TagProblem.UNREADABLE]: a tag too large for the heap is an Error on Android, which a `catch` of
+ * Exception lets through, and one such file among those an editor reads would end the app.
+ */
+internal inline fun tagFileReadOrUnreadable(read: () -> TagSnapshot?): TagFileRead = try {
+    tagFileReadOf(read())
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: Throwable) {
+    TagFileRead.NotEditable(TagProblem.UNREADABLE)
 }
 
 /**

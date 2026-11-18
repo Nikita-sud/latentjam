@@ -160,6 +160,32 @@ internal class AndroidTrackIdentitiesTest {
         assertEquals(listOf(TrackId("20"), TrackId("21")), f.scan(track("20"), track("21")).map { it.id })
     }
 
+    @Test fun aFileWhoseTagsDoNotFitInMemoryDoesNotEndThePassAndIsNotReadAtEveryLaunch() {
+        val f = Fixture(tags)
+        val tracks = (1..5).map { track(it.toString()) }.toTypedArray()
+        f.scan(*tracks)
+        f.reader = { if (it.id.value == "3") throw OutOfMemoryError("a cover larger than the heap") else tags }
+        f.remember()
+        assertEquals(5, f.reads)
+        // Recorded as read, with no tags: the next launch does not open it again to fail the same way.
+        f.restart(); f.scan(*tracks); f.remember()
+        assertEquals(5, f.reads)
+        // A file that only failed to open is still tried again.
+        val more = tracks + track("6")
+        f.reader = { if (it.id.value == "6") throw IOException("unreadable") else tags }
+        f.scan(*more); f.remember()
+        assertEquals(6, f.reads)
+        f.scan(*more); f.remember()
+        assertEquals(7, f.reads)
+    }
+
+    @Test fun aPotentialDuplicateTooLargeToReadVetoesAMatchLikeAnyUnreadFile() {
+        val f = Fixture(tags)
+        f.scan(track("10")); f.remember()
+        f.reader = { if (it.id.value == "21") throw OutOfMemoryError("a cover larger than the heap") else tags }
+        assertEquals(listOf(TrackId("20"), TrackId("21")), f.scan(track("20"), track("21")).map { it.id })
+    }
+
     @Test fun aFailedTagPassWriteChangesNothingAndTheNextPassRetries() {
         val f = Fixture(tags)
         val tracks = (1..20).map { track(it.toString()) }.toTypedArray()

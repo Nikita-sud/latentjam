@@ -73,7 +73,9 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
             decode(storage.read()).also { entries = it }
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
+            // An Error too: the file is the whole cache in one string, and [save] already knows a heap
+            // that cannot hold it. Read as an Exception only, that ended the app each time Search opened.
             mutableMapOf<String, Entry>().also { entries = it }
         }
         val ids = songs.mapTo(HashSet()) { it.id.value }
@@ -136,8 +138,9 @@ internal class LyricsSearchCache(private val clock: TimeSource = TimeSource.Mono
                 dirty = true
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
-                // An unreadable file must not permanently become a cached "no lyrics".
+            } catch (_: Throwable) {
+                // An unreadable file must not permanently become a cached "no lyrics". Nor may one
+                // song end the index and the app: a tag too large for the heap is an Error.
             }
             scanned++
             if (scanned % 64 == 0) {
@@ -235,9 +238,31 @@ private fun Long?.orEmptyRevision(): String = this?.toString().orEmpty()
 internal class LyricSearchDocument private constructor(
     val text: String,
     private val normalized: String,
-    private val words: List<LyricWord>,
+    /**
+     * Three numbers a word, in order: where it starts in [normalized], and where it starts and ends
+     * in [text]. One array, not an object per word: the index holds every song's document for the
+     * life of the process, and at 28 bytes a word the objects outweighed the lyrics themselves.
+     */
+    private val words: IntArray,
 ) {
-    private data class LyricWord(val normalizedStart: Int, val sourceStart: Int, val sourceEnd: Int)
+    private val wordCount: Int get() = words.size / 3
+
+    private fun normalizedStart(word: Int): Int = words[word * 3]
+
+    private fun sourceStart(word: Int): Int = words[word * 3 + 1]
+
+    private fun sourceEnd(word: Int): Int = words[word * 3 + 2]
+
+    /** The last word that starts at or before [position] in [normalized]; -1 when none does. */
+    private fun wordAt(position: Int): Int {
+        var low = 0
+        var high = wordCount - 1
+        while (low <= high) {
+            val middle = (low + high) ushr 1
+            if (normalizedStart(middle) <= position) low = middle + 1 else high = middle - 1
+        }
+        return high
+    }
 
     /** Match whole words, permitting the final word to be unfinished while the listener types. */
     fun snippet(query: String): String? = snippetNormalized(normalizeLyricQuery(query))
@@ -250,19 +275,18 @@ internal class LyricSearchDocument private constructor(
             val at = normalized.indexOf(needle, from)
             if (at < 0) return null
             if (unspacedScript || at == 0 || normalized[at - 1] == ' ') {
-                val found = words.binarySearch { it.normalizedStart.compareTo(at) }
-                val first = if (found >= 0) found else -found - 2
+                val first = wordAt(at)
                 if (first >= 0) {
                     val end = at + needle.length
                     var last = first
-                    while (last + 1 < words.size && words[last + 1].normalizedStart < end) last++
-                    val startChar = words[first].sourceStart +
-                        (if (unspacedScript) at - words[first].normalizedStart else 0)
-                            .coerceAtMost(words[first].sourceEnd - words[first].sourceStart)
+                    while (last + 1 < wordCount && normalizedStart(last + 1) < end) last++
+                    val startChar = sourceStart(first) +
+                        (if (unspacedScript) at - normalizedStart(first) else 0)
+                            .coerceAtMost(sourceEnd(first) - sourceStart(first))
                     val endChar = if (unspacedScript) {
                         (startChar + needle.length).coerceAtMost(text.length)
                     } else {
-                        words[last].sourceEnd
+                        sourceEnd(last)
                     }
                     val excerptStart = (startChar - 36).coerceAtLeast(0)
                     val excerptEnd = maxOf(endChar, startChar + 124).coerceAtMost(text.length)
@@ -283,18 +307,23 @@ internal class LyricSearchDocument private constructor(
         fun build(raw: String): LyricSearchDocument? {
             val text = raw.take(MAX_TEXT_CHARS).replace(Regex("\\s+"), " ").trim()
             if (text.isEmpty()) return null
-            val words = ArrayList<LyricWord>()
+            var words = IntArray(3 * 64)
+            var filled = 0
             val normalized = buildString {
                 lyricWordRanges(text).forEach { range ->
                     val word = normalizeSearchText(text.substring(range))
                     if (word.isNotEmpty()) {
                         if (isNotEmpty()) append(' ')
-                        words += LyricWord(length, range.first, range.last + 1)
+                        if (filled + 3 > words.size) words = words.copyOf(words.size * 2)
+                        words[filled] = length
+                        words[filled + 1] = range.first
+                        words[filled + 2] = range.last + 1
+                        filled += 3
                         append(word)
                     }
                 }
             }
-            return normalized.takeIf { it.isNotEmpty() }?.let { LyricSearchDocument(text, it, words) }
+            return normalized.takeIf { it.isNotEmpty() }?.let { LyricSearchDocument(text, it, words.copyOf(filled)) }
         }
     }
 }

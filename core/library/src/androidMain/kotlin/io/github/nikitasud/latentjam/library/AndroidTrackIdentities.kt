@@ -220,7 +220,9 @@ internal class AndroidTrackIdentities(
                     sourceRevision = row.revision.toString(),
                     storageVolume = row.volume,
                 )
-                val facts = safelyRead(probe) ?: continue
+                // A file whose tags do not fit in memory fails the same way at every launch: it is recorded as
+                // read, with no tags, like a file that has none.
+                val facts = safelyRead(probe, tooLarge = TrackIdentityTags()) ?: continue
                 updates += old to facts
                 updatedRows += index
                 if (updates.size >= REMEMBER_CHUNK) commitUpdates()
@@ -239,12 +241,19 @@ internal class AndroidTrackIdentities(
     @Synchronized
     fun sourceId(id: TrackId): String = load()[id.value]?.source ?: id.value
 
-    private fun safelyRead(track: TrackDescriptor): TrackIdentityTags? = try {
+    /**
+     * [track]'s tags, or null when they could not be read. [tooLarge] is the answer for a file that
+     * breaks the reader with an Error (a tag larger than the heap is an OutOfMemoryError): one file
+     * another app wrote must not end the scan or the process.
+     */
+    private fun safelyRead(track: TrackDescriptor, tooLarge: TrackIdentityTags? = null): TrackIdentityTags? = try {
         readTags(track)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (_: Exception) {
         null
+    } catch (_: Throwable) {
+        tooLarge
     }
 
     private fun load(): MutableMap<String, Entry> {

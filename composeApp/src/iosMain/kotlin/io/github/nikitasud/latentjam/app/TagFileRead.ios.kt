@@ -29,7 +29,7 @@ internal actual suspend fun readTagFile(track: TrackDescriptor): TagFileRead = w
         val handle = NSFileHandle.fileHandleForReadingAtPath(path)
             ?: return@withContext TagFileRead.NotEditable(TagProblem.UNREADABLE)
         try {
-            tagFileReadOf(TagCodecs.read(FileHandleSource(handle)))
+            tagFileReadOrUnreadable { TagCodecs.read(FileHandleSource(handle)) }
         } finally {
             handle.closeFile()
         }

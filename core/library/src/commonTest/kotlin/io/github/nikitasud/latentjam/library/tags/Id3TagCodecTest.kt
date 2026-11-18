@@ -158,6 +158,43 @@ internal class Id3TagCodecTest {
     }
 
     @Test
+    fun aTotalEnteredAloneIsStoredNotDropped() {
+        for (major in listOf(3, 4)) {
+            val bare = Id3TestTags.build(major, listOf(TestFrame("TIT2", latin1Body("Title"))), padding = 512) + mp3Payload()
+            val out = CodecAssertions.assertWriteMatchesExpectation(codec, bare, TagEdits(trackTotal = "12", discTotal = "2"))
+            val after = codec.read(ByteArraySource(out))
+            assertEquals(null, after.trackNumber)
+            assertEquals(12, after.trackTotal)
+            assertEquals(null, after.discNumber)
+            assertEquals(2, after.discTotal)
+            // A lone total can be changed, restating it writes nothing, and a number joins it.
+            val changed = CodecAssertions.assertWriteMatchesExpectation(codec, out, TagEdits(trackTotal = "10"))
+            assertEquals(10, codec.read(ByteArraySource(changed)).trackTotal)
+            assertIs<WritePlan.NoChange>(codec.plan(ByteArraySource(out), TagEdits(trackTotal = "12", discTotal = "2")))
+            val numbered = codec.read(
+                ByteArraySource(CodecAssertions.assertWriteMatchesExpectation(codec, out, TagEdits(trackNumber = "3"))),
+            )
+            assertEquals(3, numbered.trackNumber)
+            assertEquals(12, numbered.trackTotal)
+            // Clearing the number keeps the total that stood beside it.
+            val cleared = codec.read(
+                ByteArraySource(CodecAssertions.assertWriteMatchesExpectation(codec, tagged(padding = 512, major = major), TagEdits(trackNumber = ""))),
+            )
+            assertEquals(null, cleared.trackNumber)
+            assertEquals(12, cleared.trackTotal)
+        }
+        // An untagged file gets its first tag for a total alone.
+        val first = CodecAssertions.assertWriteMatchesExpectation(codec, mp3Payload(), TagEdits(trackTotal = "12"))
+        assertEquals(12, codec.read(ByteArraySource(first)).trackTotal)
+    }
+
+    @Test
+    fun aLoneTotalAsOtherTaggersWriteItIsKeptWhenRestated() {
+        val file = Id3TestTags.build(3, listOf(TestFrame("TRCK", latin1Body("/12")))) + mp3Payload()
+        assertIs<WritePlan.NoChange>(codec.plan(ByteArraySource(file), TagEdits(trackTotal = "12")))
+    }
+
+    @Test
     fun removingLyricsLeavesNoOtherLanguageBehind() {
         fun uslt(language: String, text: String) =
             TestFrame("USLT", byteArrayOf(0) + language.encodeToByteArray() + byteArrayOf(0) + text.encodeToByteArray())

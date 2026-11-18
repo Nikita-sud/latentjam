@@ -128,7 +128,8 @@ internal object VorbisFields {
         DATE to listOf("YEAR"),
         TRACK_TOTAL to listOf("TOTALTRACKS"),
         DISC_TOTAL to listOf("TOTALDISCS"),
-        LYRICS to listOf("UNSYNCEDLYRICS"),
+        // "UNSYNCED LYRICS" is foobar2000's name for the field; the player reads all three ([EmbeddedLyrics]).
+        LYRICS to listOf("UNSYNCEDLYRICS", "UNSYNCED LYRICS"),
     )
 
     /** Every name whose value the editor owns; anything else is preserved untouched. */
@@ -171,7 +172,8 @@ internal object VorbisFields {
     fun apply(entries: List<VorbisEntry>, edits: TagEdits): List<VorbisEntry> {
         var out = entries
         out = set(out, TITLE, edits.title)
-        val hadArtists = out.any { it.key == ARTISTS }
+        // As the snapshot reads it: a list that credits nobody ("ARTISTS=") is no list, and stays as it is.
+        val hadArtists = out.any { it.key == ARTISTS && TagFacts.splitArtists(it.value).isNotEmpty() }
         out = setJoined(out, ARTIST, edits.artist)
         if (edits.artist != null && hadArtists) {
             out = setMany(out, ARTISTS, CreditedArtists.fromDisplay(edits.artist))

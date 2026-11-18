@@ -53,7 +53,10 @@ internal data class FileWriteResult(
     val status: FileWriteStatus,
     val refusal: TagRefusal? = null,
     val newLength: Long? = null,
-    /** The whole file was written anew (the tag did not fit in place): its audio starts at another byte now. */
+    /**
+     * The whole file was written anew (the tag did not fit in place): its audio starts at another byte now. Also
+     * a failed save whose copy over the file had begun before the original was put back.
+     */
     val rewritten: Boolean = false,
 ) {
     /**

@@ -116,6 +116,31 @@ internal class VorbisCommentsTest {
     }
 
     @Test
+    fun anArtistsFieldThatCreditsNobodyIsLeftAsItIs() {
+        // The snapshot reads such a list as empty, and the verifier expects it to stay empty.
+        for (nobody in listOf("", ";", " ; ")) {
+            val before = entries("ARTIST" to "X", "ARTISTS" to nobody)
+            assertEquals(emptyList(), VorbisFields.read(before).artists)
+            val after = VorbisFields.apply(before, TagEdits(artist = "A; B"))
+            assertEquals(listOf("ARTIST=A; B", "ARTISTS=$nobody"), keys(after))
+            assertEquals(emptyList(), VorbisFields.read(after).artists)
+        }
+    }
+
+    @Test
+    fun lyricsUnderTheSpacedNameAreTheLyricsTheEditorOwns() {
+        // foobar2000 names the field "UNSYNCED LYRICS"; the player reads it, so the editor must too.
+        val before = entries("TITLE" to "t", "UNSYNCED LYRICS" to "old words", "ALBUM" to "a")
+        assertEquals("old words", VorbisFields.read(before).lyrics)
+        val after = VorbisFields.apply(before, TagEdits(lyrics = "new words"))
+        assertEquals(listOf("TITLE=t", "LYRICS=new words", "ALBUM=a"), keys(after))
+        assertEquals("new words", EmbeddedLyrics.fromComments(after.map { it.key to it.value })?.text)
+        val removed = VorbisFields.apply(before, TagEdits(lyrics = ""))
+        assertEquals(listOf("TITLE=t", "ALBUM=a"), keys(removed))
+        assertNull(EmbeddedLyrics.fromComments(removed.map { it.key to it.value }))
+    }
+
+    @Test
     fun numberEditKeepsATotalThatWasEmbeddedInThePair() {
         val after = VorbisFields.apply(entries("TRACKNUMBER" to "3/12"), TagEdits(trackNumber = "4"))
         assertEquals(listOf("TRACKNUMBER=4", "TRACKTOTAL=12"), keys(after))

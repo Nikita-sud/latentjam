@@ -45,6 +45,29 @@ internal object Mp4TagCodec : TagCodec {
 
     private class Tags(val meta: Mp4Box, val ilst: Mp4Box)
 
+    /** A sink that keeps nothing: it only says whether what was written is exactly [expected]. */
+    private class SameBytes(private val expected: ByteArray) : ByteSink {
+        private var position = 0
+        private var same = true
+
+        val matched: Boolean get() = same && position == expected.size
+
+        override fun write(bytes: ByteArray, offset: Int, count: Int) {
+            if (!same) return
+            if (count > expected.size - position) {
+                same = false
+                return
+            }
+            for (i in 0 until count) {
+                if (bytes[offset + i] != expected[position + i]) {
+                    same = false
+                    return
+                }
+            }
+            position += count
+        }
+    }
+
     override fun recognizes(head: ByteArray): Boolean = head.size >= 8 && Mp4Boxes.typeOf(head, 4) == "ftyp"
 
     private fun parse(source: RandomAccessSource): Parsed {
@@ -60,8 +83,10 @@ internal object Mp4TagCodec : TagCodec {
         if (atom.size > MAX_MOOV) return Parsed.Bad(TagRefusal.MP4_TAGS_TOO_LARGE)
         val bytes = source.read(atom.offset, atom.size.toInt()) ?: return Parsed.Bad(TagRefusal.TRUNCATED)
         val tree = Mp4Boxes.parse(bytes) ?: return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
-        // Only a tree that reproduces its own bytes exactly is safe to edit and write back.
-        if (!tree.serialize().contentEquals(bytes)) return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
+        // Only a tree that reproduces its own bytes exactly is safe to edit and write back. Compared as
+        // it is written, never serialized whole: with a cover in it that copy, and the buffer growing
+        // under it, took three more times the atom's size.
+        if (!SameBytes(bytes).also(tree::write).matched) return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
         val boxes = Mp4Boxes.walk(tree).toList()
         for (stsd in boxes.filter { it.type == "stsd" }) {
             // Entries that do not add up could hide the one that marks the file protected.
@@ -171,6 +196,12 @@ internal object Mp4TagCodec : TagCodec {
 
     private fun isArtists(item: Mp4Box): Boolean = item.type == "----" && freeformName(item)?.equals(ARTISTS, ignoreCase = true) == true
 
+    /** Every name the ARTISTS freeform items credit, in order: [TagSnapshot.artists]. */
+    private fun creditedArtists(items: List<Mp4Box>): List<String> = items.filter(::isArtists)
+        .flatMap { dataBoxes(it) }
+        .mapNotNull { value(it)?.decodeToString() }
+        .flatMap { TagFacts.splitArtists(it) }
+
     /**
      * For `----:com.apple.iTunes:ORIGINALYEAR` (true) or `ORIGINALDATE` (false), whether it is
      * year-only; null for any other item. Never written by the editor, only moved ([OriginalDates]).
@@ -234,10 +265,7 @@ internal object Mp4TagCodec : TagCodec {
             otherPictures = maxOf(0, covers.size - 1),
             nextCover = covers.getOrNull(1),
             pictures = covers.map { it.crc32 }.sorted(),
-            artists = items.filter(::isArtists)
-                .flatMap { dataBoxes(it) }
-                .mapNotNull { value(it)?.decodeToString() }
-                .flatMap { TagFacts.splitArtists(it) },
+            artists = creditedArtists(items),
             originalDates = originalDates(items),
         )
     }
@@ -506,8 +534,13 @@ internal object Mp4TagCodec : TagCodec {
         replaceItem(items, type, Mp4Box.container(type, listOf(dataBox(0, value))))
     }
 
-    /** Rewrites the ARTISTS freeform item from a new display credit — only when the file has one. */
+    /**
+     * Rewrites the ARTISTS freeform item from a new display credit — only when the file has one that
+     * credits a name, exactly when [TagSnapshot.artists] is not empty. An item that credits nobody is
+     * left as it is, as [TagSnapshot.expectedAfter] predicts for a file whose list reads empty.
+     */
     private fun setArtists(items: MutableList<Mp4Box>, artist: String) {
+        if (creditedArtists(items).isEmpty()) return
         val first = items.indexOfFirst(::isArtists)
         if (first < 0) return
         val names = CreditedArtists.fromDisplay(artist)

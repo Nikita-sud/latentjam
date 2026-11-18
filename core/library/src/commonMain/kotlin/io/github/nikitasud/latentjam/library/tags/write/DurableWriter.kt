@@ -26,8 +26,12 @@ public sealed interface WriteResult {
     /** The app's store or the file's volume lacks room. Nothing was touched. */
     public data object NotEnoughSpace : WriteResult
 
-    /** The file is exactly as it was: the save stopped before it, or was rolled back and checked. */
-    public data class Failed(public val detail: String) : WriteResult
+    /**
+     * The file is exactly as it was: the save stopped before it, or was rolled back and checked.
+     * [touched]: it held other bytes in between (a copy over it began, and its backup was put back),
+     * so a reader that had it open may have read some of them.
+     */
+    public data class Failed(public val detail: String, public val touched: Boolean = false) : WriteResult
 
     /** The file may be partly written. Its journal record is open, and [TagRecovery] finishes it. */
     public data class RecoveryPending(public val writeId: String) : WriteResult
@@ -209,8 +213,9 @@ public class DurableWriter(
         }
         return when (outcome) {
             TagRecovery.Outcome.COMPLETED -> WriteResult.Saved(newLength, rewritten = true)
-            TagRecovery.Outcome.ROLLED_BACK, TagRecovery.Outcome.RESTORED ->
-                WriteResult.Failed("the new file did not verify; the original was kept")
+            TagRecovery.Outcome.ROLLED_BACK -> WriteResult.Failed("the new file did not verify; the original was kept")
+            TagRecovery.Outcome.RESTORED ->
+                WriteResult.Failed("the new file did not verify; the original was put back", touched = true)
             TagRecovery.Outcome.FOREIGN -> WriteResult.Failed(CHANGED)
             TagRecovery.Outcome.STUCK ->
                 if (atomic && notReplaced(prepared, target)) {

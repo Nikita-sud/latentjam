@@ -86,13 +86,17 @@ internal class TagModelTest {
     }
 
     @Test
-    fun expectedAfterDropsTotalsWithoutNumberOnId3() {
+    fun expectedAfterKeepsLoneTotalsOnId3Too() {
+        // ID3 holds the pair in one frame, and a total without a number stays in it as "0/12".
         val id3 = base.copy(format = TagFormat.MP3, version = "ID3v2.4")
         val after = id3.expectedAfter(TagEdits(trackNumber = "", discNumber = ""))
         assertNull(after.trackNumber)
-        assertNull(after.trackTotal)
+        assertEquals(base.trackTotal, after.trackTotal)
         assertNull(after.discNumber)
-        assertNull(after.discTotal)
+        assertEquals(base.discTotal, after.discTotal)
+        val bare = TagSnapshot(TagFormat.MP3, "ID3v2.3").expectedAfter(TagEdits(trackTotal = "12"))
+        assertNull(bare.trackNumber)
+        assertEquals(12, bare.trackTotal)
     }
 
     @Test
