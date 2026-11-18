@@ -118,6 +118,12 @@ internal class IosAudioEngine : EqualizerController {
      * playhead is then here, not at [pausedFrame] (the last pause or seek, or the start of the track).
      */
     private var lastRenderedFrame: Long? = null
+
+    /**
+     * The system emptied the current deck in the middle of its track ([SegmentEnd.FLUSHED]): nothing is scheduled on
+     * it any more, so before it plays again its segment is cued again from where it stood ([play]).
+     */
+    private var needsCue = false
     private var completionGeneration: Long = 0L
     private var completion: (() -> Unit)? = null
     private var outputSupportsEqualizer: Boolean = true
@@ -273,6 +279,8 @@ internal class IosAudioEngine : EqualizerController {
             segmentStartFrame = 0L
             pausedFrame = 0L
             scheduleSegment(file, 0L)
+        } else if (needsCue) {
+            cueAt(file, currentFrame(), resume = false)
         }
         if (!ensureEngineRunning()) return false
         player.play()
@@ -374,10 +382,15 @@ internal class IosAudioEngine : EqualizerController {
                 dispatch_async(dispatch_get_main_queue()) {
                     // Only once promoted is this the playing track whose end moves the queue on.
                     if (token == completionGeneration && currentFile === file) {
-                        pausedFrame = file.length
-                        completion?.invoke()
+                        segmentFinished(file, token)
                     } else if (token == standbyToken) {
-                        standbyDrained = true
+                        when (segmentEnd(true, engine.running, standbyPlayedFrame(file), file.length, endToleranceFrames(file))) {
+                            SegmentEnd.PLAYED_OUT -> standbyDrained = true
+                            // Emptied by the system before it counted: no overlap is left to carry on with, and
+                            // the seam is the plain one.
+                            SegmentEnd.FLUSHED -> cancelOverlap()
+                            SegmentEnd.STALE -> Unit
+                        }
                     }
                 }
             },
@@ -523,18 +536,50 @@ internal class IosAudioEngine : EqualizerController {
         lj_eq_ios_reset(equalizer)
         currentFile = null
         completion = null
+        needsCue = false
         segmentStartFrame = 0L
         pausedFrame = 0L
     }
 
-    fun seekTo(positionMs: Long) {
+    fun seekTo(positionMs: Long, resume: Boolean = player.playing) {
         val file = currentFile ?: return
-        val wasPlaying = player.playing
+        cueAt(file, millisToFrame(positionMs, file), resume)
+    }
+
+    /** Whether a file is cued, playing or not. */
+    val cued: Boolean get() = currentFile != null
+
+    /** Whether the engine renders. False while paused here, and after the system stopped it under a playing track. */
+    val running: Boolean get() = engine.running
+
+    /**
+     * Whether the output has a format the engine can start on. Between two routes it can have none (no channels, no
+     * rate), and an engine started then fails or raises; the caller waits, or pauses, instead.
+     */
+    val outputReady: Boolean
+        get() = engine.outputNode.outputFormatForBus(0u).let { it.channelCount > 0u && it.sampleRate > 0.0 }
+
+    /**
+     * Cues the current file again where it stands, without starting it, after the system stopped the engine (a
+     * change of route, or of the output's format). A stopped engine is uninitialized and what its player node still
+     * holds is not known; a fresh segment from the last frame that sounded is. The position is the one
+     * [lastRenderedFrame] kept, so at most the ticker's interval is heard twice. False when no file is cued.
+     */
+    fun recueAfterSystemStop(): Boolean {
+        val file = currentFile ?: return false
+        val frame = currentFrame()
+        // A segment that played out needs no cue: [play] schedules it afresh by itself.
+        if (!player.playing && shouldRestartConsumedSegment(frame, file.length)) return true
+        cueAt(file, frame, resume = false)
+        return true
+    }
+
+    private fun cueAt(file: AVAudioFile, requestedFrame: Long, resume: Boolean) {
         // A segment must not start at file.length: it would contain no frames at all. Lyric taps
         // and the seek bar can ask for a position at or past the end, so the target stays on the
         // last frame and the item then ends through the scheduled segment's completion.
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
-        val frame = millisToFrame(positionMs, file).coerceIn(0L, lastFrame)
+        val frame = requestedFrame.coerceIn(0L, lastFrame)
         invalidateCompletion()
         cancelOverlap()
         engine.stop()
@@ -544,7 +589,7 @@ internal class IosAudioEngine : EqualizerController {
         segmentStartFrame = frame
         pausedFrame = frame
         scheduleSegment(file, frame)
-        if (wasPlaying && ensureEngineRunning()) player.play()
+        if (resume && ensureEngineRunning()) player.play()
     }
 
     val playing: Boolean
@@ -585,6 +630,7 @@ internal class IosAudioEngine : EqualizerController {
             completion?.invoke()
             return
         }
+        needsCue = false
         // The AU advertises its fixed latency. DataPlayedBack accounts for downstream
         // processing latency, so the delayed tail is rendered before advancing the queue.
         val token = ++tokens
@@ -596,15 +642,30 @@ internal class IosAudioEngine : EqualizerController {
             atTime = null,
             completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
             completionHandler = { _ ->
-                dispatch_async(dispatch_get_main_queue()) {
-                    if (token == completionGeneration && currentFile === file) {
-                        pausedFrame = file.length
-                        completion?.invoke()
-                    }
-                }
+                dispatch_async(dispatch_get_main_queue()) { segmentFinished(file, token) }
             },
         )
     }
+
+    /**
+     * The current deck's node says its segment of [file] is finished ([segmentEnd]): played out, which ends the
+     * track; or emptied by the system stopping the engine mid-track, which does not, and leaves the deck to be cued
+     * again before it can sound.
+     */
+    private fun segmentFinished(file: AVAudioFile, token: Long) {
+        val current = token == completionGeneration && currentFile === file
+        when (segmentEnd(current, engine.running, currentFrame(), file.length, endToleranceFrames(file))) {
+            SegmentEnd.STALE -> Unit
+            SegmentEnd.PLAYED_OUT -> {
+                pausedFrame = file.length
+                completion?.invoke()
+            }
+            SegmentEnd.FLUSHED -> needsCue = true
+        }
+    }
+
+    /** How near its end a stopped engine's last known frame must be for a finished segment to count as played: a second. */
+    private fun endToleranceFrames(file: AVAudioFile): Long = file.processingFormat.sampleRate.toLong()
 
     // A file AVAudioFile opens but cannot decode (32-bit FLAC in MP4) is unplayable, like an unreadable one, so the
     // controller walks on: scheduled, it plays nothing, and a crossfade's ramp-in read of it would end the app.
