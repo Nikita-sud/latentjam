@@ -17,6 +17,7 @@ import platform.posix.memcpy
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalForeignApi::class)
@@ -100,6 +101,48 @@ class AudioImportFilesTest {
         assertEquals(ImportOutcome.IMPORTED, importFile(source, target))
         assertContentEquals(byteArrayOf(4, 5), read("$target/song.mp3.partial"))
         assertEquals(2, manager.contentsOfDirectoryAtPath(target, null)?.size)
+    }
+
+    private fun importPickersCopy(source: String, target: String) = importOne(
+        manager, NSURL.fileURLWithPath(target, isDirectory = true), NSURL.fileURLWithPath("$source/song.mp3"),
+        consumeSource = true,
+    )
+
+    @Test
+    fun aPickersCopyIsMovedIntoPlaceAndNotKeptBesideIt() = withFiles { source, target ->
+        val bytes = ByteArray(4096) { (it % 251).toByte() }
+        write("$source/song.mp3", bytes)
+        assertEquals(ImportOutcome.IMPORTED, importPickersCopy(source, target))
+        assertContentEquals(bytes, read("$target/song.mp3"))
+        assertFalse(manager.fileExistsAtPath("$source/song.mp3"))
+        assertEquals(listOf("song.mp3"), manager.contentsOfDirectoryAtPath(target, null))
+    }
+
+    @Test
+    fun aPickersCopyOfASongAlreadyImportedIsRemoved() = withFiles { source, target ->
+        val bytes = ByteArray(150_000) { (it % 251).toByte() }
+        write("$source/song.mp3", bytes)
+        write("$target/song.mp3", bytes)
+        assertEquals(ImportOutcome.ALREADY_PRESENT, importPickersCopy(source, target))
+        assertFalse(manager.fileExistsAtPath("$source/song.mp3"))
+        assertEquals(listOf("song.mp3"), manager.contentsOfDirectoryAtPath(target, null))
+    }
+
+    @Test
+    fun aPickersCopyBesideADifferentSongOfThatNameGetsANewNameAndIsGone() = withFiles { source, target ->
+        write("$source/song.mp3", byteArrayOf(1, 2, 3))
+        write("$target/song.mp3", byteArrayOf(4, 5, 6))
+        assertEquals(ImportOutcome.IMPORTED, importPickersCopy(source, target))
+        assertContentEquals(byteArrayOf(4, 5, 6), read("$target/song.mp3"))
+        assertContentEquals(byteArrayOf(1, 2, 3), read("$target/song (2).mp3"))
+        assertFalse(manager.fileExistsAtPath("$source/song.mp3"))
+    }
+
+    @Test
+    fun aFileThatIsNotThePickersCopyStaysWhereItWas() = withFiles { source, target ->
+        write("$source/song.mp3", byteArrayOf(1, 2, 3))
+        assertEquals(ImportOutcome.IMPORTED, importFile(source, target))
+        assertContentEquals(byteArrayOf(1, 2, 3), read("$source/song.mp3"))
     }
 
     @Test
