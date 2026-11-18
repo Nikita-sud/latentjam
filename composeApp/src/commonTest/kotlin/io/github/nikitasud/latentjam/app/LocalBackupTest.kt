@@ -227,6 +227,37 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun theSmartSwitchAndLearnFromHabitsSurviveBackupRestore() = runTest {
+        val source = fixture(emptyList())
+        source.settings.setSmartEnabled(false)
+        source.settings.setLearnFromHabits(false)
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(emptyList())
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertFalse(destination.settings.smartEnabled.value)
+        assertFalse(destination.settings.learnFromHabits.value)
+
+        // They travel as two more keys of the look record, which 0.9.5 reads key by key: its reader
+        // (decodeAppearance, unchanged) gives the same look and the record keeps its three fields.
+        val record = encoded.lineSequence().single { it.startsWith("K\t") }.split('\t')
+        assertEquals(3, record.size)
+        val look = record[1].drop(1).chunked(2).map { it.toInt(16).toByte() }.toByteArray().decodeToString()
+        assertContains(look, ";smart=false")
+        assertContains(look, ";habits=false")
+        assertEquals(source.settings.appearance.value, decodeAppearance(look))
+
+        // A file that says nothing of them (0.9.5 and older) leaves both as they are.
+        val older = encoded.lineSequence().joinToString("\n") { line ->
+            if (line.startsWith("K\t")) "K\ts${encodeAppearance(Appearance()).hex()}\tdots" else line
+        }
+        destination.settings.setSmartEnabled(true)
+        destination.service.importEncoded(older, LocalBackupRestoreMode.REPLACE)
+        assertTrue(destination.settings.smartEnabled.value)
+        assertFalse(destination.settings.learnFromHabits.value)
+    }
+
+    @Test
     fun appearanceRoundTripsInTheCodecAndRejectsInvalidDuplicateAndPrematureRecords() {
         val snapshot = emptySnapshot().copy(
             settings = emptySnapshot().settings.copy(
@@ -1969,6 +2000,10 @@ internal class LocalBackupTest {
         override fun setArtistVariety(level: Int) { artistVariety.value = sanitizeArtistVariety(level) }
         override val includeNoveltyMixes: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
+        override val smartEnabled: MutableStateFlow<Boolean> = MutableStateFlow(DEFAULT_SMART_ENABLED)
+        override fun setSmartEnabled(enabled: Boolean) { smartEnabled.value = enabled }
+        override val learnFromHabits: MutableStateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
+        override fun setLearnFromHabits(enabled: Boolean) { learnFromHabits.value = enabled }
         override val normalizeVolume: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)

@@ -84,6 +84,13 @@ internal data class LocalBackupSettings(
     val appearance: Appearance = Appearance(),
     /** The browse header's style; see [appearance]. */
     val pageHeaderStyle: PageHeaderStyle = PageHeaderStyle.DOTS,
+    /**
+     * The SMART master switch. From 0.9.6 it travels as one more key of the "K" record's list, which 0.9.5 reads
+     * key by key and so ignores; null when the file does not say, and a restore then leaves the switch as it is.
+     */
+    val smartEnabled: Boolean? = null,
+    /** "Learn from my habits"; travels and restores as [smartEnabled] does. */
+    val learnFromHabits: Boolean? = null,
 )
 
 /**
@@ -343,7 +350,11 @@ internal object LocalBackupCodec {
                     )
                 }
                 if (snapshot.formatVersion >= FIRST_VERSION_WITH_APPEARANCE) {
-                    appendRecord("K", encodeAppearance(appearance).encodeField(), pageHeaderStyle.persistedValue)
+                    appendRecord(
+                        "K",
+                        (encodeAppearance(appearance) + encodeBackupSwitches(smartEnabled, learnFromHabits)).encodeField(),
+                        pageHeaderStyle.persistedValue,
+                    )
                 }
             }
             snapshot.tracks.sortedBy(LocalBackupTrackReference::originalId).forEach { track ->
@@ -432,6 +443,8 @@ internal object LocalBackupCodec {
         var sortOrders: SortOrders? = null
         var groupSortOrders: GroupSortOrders? = null
         var look: Pair<Appearance, PageHeaderStyle>? = null
+        var smartEnabled: Boolean? = null
+        var learnFromHabits: Boolean? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -543,6 +556,8 @@ internal object LocalBackupCodec {
                     val encodedAppearance = record.nextField().decodeField("appearance")
                     if (!encodedAppearance.startsWith(APPEARANCE_PREFIX)) formatError("Unknown appearance")
                     val appearance = decodeAppearance(encodedAppearance)
+                    smartEnabled = encodedAppearance.backupSwitch(SMART_SWITCH_KEY)
+                    learnFromHabits = encodedAppearance.backupSwitch(HABITS_SWITCH_KEY)
                     // Tolerant like the appearance: a header style from a later build falls back to
                     // the default instead of refusing the whole restore.
                     val style = pageHeaderStyleFromPersisted(record.nextField())
@@ -672,6 +687,8 @@ internal object LocalBackupCodec {
                     groupSortOrders = groupSortOrders ?: GroupSortOrders(),
                     appearance = look?.first ?: Appearance(),
                     pageHeaderStyle = look?.second ?: PageHeaderStyle.DOTS,
+                    smartEnabled = smartEnabled,
+                    learnFromHabits = learnFromHabits,
                 ),
             tracks = tracks,
             playlists = playlists,
@@ -1023,6 +1040,19 @@ internal object LocalBackupCodec {
     }
 
     private const val HEX = "0123456789abcdef"
+    private const val SMART_SWITCH_KEY = "smart"
+    private const val HABITS_SWITCH_KEY = "habits"
+
+    /** The switches a snapshot knows, as more `;key=value` pairs after the look's own ([encodeAppearance]). */
+    private fun encodeBackupSwitches(smartEnabled: Boolean?, learnFromHabits: Boolean?): String = buildString {
+        smartEnabled?.let { append(';').append(SMART_SWITCH_KEY).append('=').append(it) }
+        learnFromHabits?.let { append(';').append(HABITS_SWITCH_KEY).append('=').append(it) }
+    }
+
+    /** The value of the switch [key] in a "K" record's key list; null when it is absent or not a boolean. */
+    private fun String.backupSwitch(key: String): Boolean? = split(';').firstNotNullOfOrNull { pair ->
+        pair.takeIf { it.startsWith("$key=") }?.substring(key.length + 1)?.toBooleanStrictOrNull()
+    }
 }
 
 /**
@@ -1037,6 +1067,11 @@ internal class LocalBackupService(
     private val library: MusicLibrary,
     private val smartExclusions: SmartExclusions,
     private val favorites: Favorites,
+    /**
+     * Applies a restored SMART master switch. The app passes the call that also stops or resumes the analysis and
+     * tells the player ([AppGraph.setSmartEnabled]); the default only stores it.
+     */
+    private val applySmartEnabled: suspend (Boolean) -> Unit = { settings.setSmartEnabled(it) },
 ) {
     /**
      * Builds the document for the picker. Encoding up to 64 Mi characters, and folding the library
@@ -1110,6 +1145,8 @@ internal class LocalBackupService(
                 groupSortOrders = settings.groupSortOrders.value,
                 appearance = settings.appearance.value,
                 pageHeaderStyle = settings.pageHeaderStyle.value,
+                smartEnabled = settings.smartEnabled.value,
+                learnFromHabits = settings.learnFromHabits.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -1334,6 +1371,9 @@ internal class LocalBackupService(
                     settings.setAppearance(snapshot.settings.appearance)
                     settings.setPageHeaderStyle(snapshot.settings.pageHeaderStyle)
                 }
+                // Switched off before the backup, they stay off after it: a file from 0.9.5 or older says nothing.
+                snapshot.settings.learnFromHabits?.let(settings::setLearnFromHabits)
+                snapshot.settings.smartEnabled?.let { applySmartEnabled(it) }
                 settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 completed += LocalBackupSection.SETTINGS
             }

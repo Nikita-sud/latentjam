@@ -3193,6 +3193,8 @@ private fun BackupSettings(
             library = library,
             smartExclusions = AppGraph.smartExclusions,
             favorites = AppGraph.favorites,
+            // The restore runs off the main thread; the switch is applied where the Settings toggle applies it.
+            applySmartEnabled = { enabled -> withContext(Dispatchers.Main) { AppGraph.setSmartEnabled(enabled) } },
         )
     }
     // The export job is composition-scoped, and a recreated screen must never inherit a busy flag
