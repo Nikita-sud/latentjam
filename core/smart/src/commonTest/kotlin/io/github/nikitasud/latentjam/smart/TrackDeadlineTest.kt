@@ -178,13 +178,17 @@ internal class TrackDeadlineTest {
         val decoding = DeadlineDecoding(workers, budget = 60.seconds)
         val results = mutableListOf<Pair<TrackId, Result<FloatArray>>>()
 
-        decoding.each(
-            tracks = tracks,
-            ahead = 1,
-            prefetch = { track -> vector(track) },
-            finish = { _, vector -> Result.success(vector) },
-            onResult = { track, result -> results += track.id to result },
-        )
+        // On a real dispatcher, as every test here: under runTest's own scheduler the budget is virtual time, which
+        // runs out the moment the test waits for a worker thread, whatever its length.
+        withContext(Dispatchers.Default) {
+            decoding.each(
+                tracks = tracks,
+                ahead = 1,
+                prefetch = { track -> vector(track) },
+                finish = { _, vector -> Result.success(vector) },
+                onResult = { track, result -> results += track.id to result },
+            )
+        }
 
         assertEquals(tracks.map { it.id }, results.map { it.first })
         assertTrue(results.all { it.second.isSuccess })
