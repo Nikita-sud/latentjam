@@ -247,7 +247,8 @@ public object TextRepair {
      * pair: "Ні" would become "ͳ", "Ві" "³", "Её" "Ÿ". The fallback is refused
      * when the whole repair is a single two-byte pair with no ASCII letter or
      * digit anywhere in the text — "BjĂ¶rk" still repairs, a bare "Я" read as
-     * "РЇ" is the price.
+     * "РЇ" is the price. Several such words in one text ("Ні, Ні") pass this
+     * check by their length alone; [isStandaloneSequence] is what refuses them.
      */
     private fun isPlausibleFallback(text: String, repaired: String): Boolean =
         text.length - repaired.length >= 2 ||
@@ -255,16 +256,20 @@ public object TextRepair {
 
     /**
      * The other half of the short-word guard for the Windows-1250/1251 fallbacks:
-     * whether [bytes] hold exactly one multi-byte UTF-8 sequence and the characters of
-     * [text] it was read from stand as a word of their own, with no letter of any script
-     * directly before or after them. Genuine "Ні" beside a number or a bracket ("Ні 2",
-     * "Ні (Live)") is that shape and would read "ͳ 2"; mojibake of a single accented
-     * letter inside a Latin word ("MГјller") has letters beside it and still repairs, and
-     * so does anything holding two or more sequences ("GrĂĽĂźe").
+     * whether every multi-byte UTF-8 sequence in [bytes] was read from characters of
+     * [text] that stand as a word of their own, with no letter of any script directly
+     * before or after them. Genuine "Ні" beside a number or a bracket ("Ні 2",
+     * "Ні (Live)") is that shape and would read "ͳ 2", and so is the same word said
+     * twice or more ("Ні, Ні", "Ні Ні", "Её, Её"): two short words are no more mojibake
+     * than one. Mojibake of an accented letter inside a Latin word ("MГјller") has
+     * letters beside it and still repairs, and so does any text whose sequences touch
+     * each other ("GrĂĽĂźe", a whole Cyrillic or CJK word).
+     *
+     * The price: mojibake made only of one-letter words, each apart from the next, is
+     * left as read too — "РЇ Рё РЇ" for "Я и Я", as a bare "РЇ" always was.
      */
     private fun isStandaloneSequence(text: String, bytes: ByteArray): Boolean {
-        var start = -1
-        var end = -1
+        var seen = false
         var index = 0
         while (index < bytes.size) {
             val lead = bytes[index].toInt() and 0xFF
@@ -275,16 +280,15 @@ public object TextRepair {
                 else -> 4
             }
             if (length > 1) {
-                if (start >= 0) return false
-                start = index
-                end = index + length
+                val end = index + length
+                val letterBefore = index > 0 && text[index - 1].isLetter()
+                val letterAfter = end < text.length && text[end].isLetter()
+                if (letterBefore || letterAfter) return false
+                seen = true
             }
             index += length
         }
-        if (start < 0) return false
-        val letterBefore = start > 0 && text[start - 1].isLetter()
-        val letterAfter = end < text.length && text[end].isLetter()
-        return !letterBefore && !letterAfter
+        return seen
     }
 
     /**

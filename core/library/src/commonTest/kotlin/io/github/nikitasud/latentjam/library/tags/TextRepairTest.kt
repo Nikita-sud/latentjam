@@ -127,6 +127,18 @@ internal class TextRepairTest {
     }
 
     @Test
+    fun repeatedStandaloneShortWordsStayAsWritten() {
+        // Two or three such words are no more mojibake than one: "Ні, Ні" must not read "ͳ, ͳ".
+        for (text in listOf("Ні, Ні", "Ві-Ві", "Её, Её", "Ні! Ні! Ні!")) assertEquals(text, TextRepair.repair(text))
+    }
+
+    @Test
+    fun mojibakeOfOneLetterWordsEachApartIsThePriceAndStaysAsRead() {
+        // "Я и Я" read as Windows-1251: every sequence stands alone, the shape of the genuine words above.
+        assertEquals("РЇ Рё РЇ", TextRepair.repair("РЇ Рё РЇ"))
+    }
+
+    @Test
     fun aSinglePairInsideALatinWordStillRepairs() {
         assertEquals("Müller", TextRepair.repair("MГјller"))
         assertEquals("Müller", TextRepair.repair("MĂĽller"))

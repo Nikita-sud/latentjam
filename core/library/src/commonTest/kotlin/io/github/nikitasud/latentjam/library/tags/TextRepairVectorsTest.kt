@@ -17,6 +17,9 @@ import kotlin.test.assertEquals
  * table they were lost in, which the rule deliberately leaves as read; and the standalone
  * short words the fallback tables must not touch ("Ні 2"), next to what they still repair; and
  * uppercase cp1252 mojibake of Latin letters ("FÃŠTE"), next to genuine "PĂŞUNE".
+ *
+ * One vector no longer follows that model: "Ні Ні", which it turned into "ͳ ͳ". The guard now
+ * refuses a text whose every sequence stands as a word of its own, not only a single one.
  */
 internal class TextRepairVectorsTest {
 
@@ -178,7 +181,7 @@ internal class TextRepairVectorsTest {
             "\u0422\u0456" to "\u0422\u0456", // lone-word
             "\u0412\u0456" to "\u0412\u0456", // lone-word
             "\u0407\u0457" to "\u0407\u0457", // lone-word
-            "\u041D\u0456 \u041D\u0456" to "\u0373 \u0373", // lone-word (repaired)
+            "\u041D\u0456 \u041D\u0456" to "\u041D\u0456 \u041D\u0456", // lone-word
             "\u0411\u0456-2" to "\u0411\u0456-2", // lone-word
             "M\u0413\u0458ller" to "M\u00FCller", // lone-word (repaired)
             "M\u0102\u013Dller" to "M\u00FCller", // lone-word (repaired)
