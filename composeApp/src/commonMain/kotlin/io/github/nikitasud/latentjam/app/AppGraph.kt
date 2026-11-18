@@ -20,7 +20,6 @@ import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.musicLibraryModule
 import io.github.nikitasud.latentjam.library.nowMillis
 import io.github.nikitasud.latentjam.smart.IndexReport
-import io.github.nikitasud.latentjam.smart.isAnalysisTimeout
 import io.github.nikitasud.latentjam.playback.FadeEntryRule
 import io.github.nikitasud.latentjam.playback.NextTrackChooser
 import io.github.nikitasud.latentjam.playback.PlaybackController
@@ -1292,6 +1291,12 @@ object AppGraph {
     private val analysisRetries: AnalysisRetryLedger by lazy { AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis) }
 
     /**
+     * Which tracks wait out their retry backoff now, read from the stored ledger (a copy: the pass's own ledger is not
+     * touched, and a process with no pass yet answers too). No pass will analyse them before their wait ends.
+     */
+    internal fun analysisHolds(): (TrackDescriptor) -> Boolean = AnalysisRetryLedger(analysisStore.retryLedger, ::nowMillis)::holding
+
+    /**
      * D1/D2 after a chunk: a timeout is retried later (the engine no longer remembers it), and the third one is handed
      * to the engine to remember, shown as failed with Retry. Any other outcome ends the track's entry.
      */
@@ -1301,7 +1306,7 @@ object AppGraph {
         for (track in chunk) {
             val error = report.errors[track.id]
             when {
-                error != null && error.isAnalysisTimeout() -> if (retries.timedOut(track)) exhausted += track
+                error != null && error.countsInRetryLedger() -> if (retries.timedOut(track)) exhausted += track
                 // Only an answer about the file ends its count: analysed, or failed for good. A passing failure
                 // (codec contention, a suspension on iOS, the model) or a track the chunk skipped keeps it.
                 error is EngineError.InvalidAudio -> retries.forget(track.id)
@@ -1318,7 +1323,7 @@ object AppGraph {
         engine.rememberAudioFailures(exhausted)
         analysisStore.retryLedger = retries.encoded()
         val errors = LinkedHashMap(report.errors)
-        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis timed out ${AnalysisRetryLedger.CAP} times")
+        for (track in exhausted) errors[track.id] = EngineError.InvalidAudio("Analysis failed ${AnalysisRetryLedger.CAP} times")
         return report.copy(errors = errors)
     }
 

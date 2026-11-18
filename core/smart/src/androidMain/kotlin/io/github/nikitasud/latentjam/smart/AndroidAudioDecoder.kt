@@ -64,7 +64,13 @@ internal enum class DecodeLoopGuardResult {
 internal sealed interface AudioDecodeResult {
     data class Success(val waveform: FloatArray, val validSamples: Int) : AudioDecodeResult
     data class InvalidAudio(val detail: String) : AudioDecodeResult
-    data class Unavailable(val detail: String) : AudioDecodeResult
+    /**
+     * [trackLocal]: the failure came while decoding this file, after its codec had started (a codec error on its
+     * data, the decode loop's own time limits), and was no sign of contention. Such a failure is the file's own and
+     * usually comes back at every try, so the caller may count the tries; a source that cannot be opened, a codec
+     * that cannot be started and contention are not (the card may be away, the codecs busy).
+     */
+    data class Unavailable(val detail: String, val trackLocal: Boolean = false) : AudioDecodeResult
 }
 
 /** The operation that failed, used to keep parser rejection separate from transient access/codec. */
@@ -72,6 +78,9 @@ internal enum class AudioDecodeFailureStage {
     SOURCE_OPEN,
     SOURCE_PARSE,
     CODEC,
+
+    /** The codec (or the app's decoder) had started: the failure came while decoding the file's data. */
+    DECODE,
 }
 
 /** Pure classification seam covered by host tests; only a readable source's parser failure sticks. */
@@ -79,6 +88,8 @@ internal fun classifyAudioDecodeException(
     stage: AudioDecodeFailureStage,
     error: Throwable,
     startMs: Long,
+    /** MediaCodec says the failure may pass (see [isCodecContention]); a parameter so host tests can say so. */
+    contention: Boolean = error.isCodecContention(),
 ): AudioDecodeResult {
     val detail = buildString {
         append(error.javaClass.simpleName.ifBlank { "Audio decode failure" })
@@ -91,7 +102,10 @@ internal fun classifyAudioDecodeException(
     ) {
         AudioDecodeResult.InvalidAudio(detail)
     } else {
-        AudioDecodeResult.Unavailable(detail)
+        AudioDecodeResult.Unavailable(
+            detail,
+            trackLocal = stage == AudioDecodeFailureStage.DECODE && !contention && !error.isSourceAccessFailure(),
+        )
     }
 }
 
@@ -396,6 +410,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                     val own = appDecoder(mime, inputFormat)
                         ?: return AudioDecodeResult.InvalidAudio("No decoder for $mime")
                     if (stages != null) lap { stages.lookup += it }
+                    failureStage = AudioDecodeFailureStage.DECODE
                     val decoded = own.use { decodePackets(it, extractor, targetSampleRate, targetSamples, downmixMode, isCancelled) }
                         ?: return AudioDecodeResult.InvalidAudio("Decoder produced no valid PCM at ${startMs}ms ($mime)")
                     mark = System.nanoTime()
@@ -403,6 +418,7 @@ internal class AndroidAudioDecoder(private val context: Context) {
                 }
                 if (stages != null) lap { stages.lookup += it }
                 val codec = startCodec(decoderName, inputFormat, backoff, isCancelled)
+                failureStage = AudioDecodeFailureStage.DECODE
                 try {
                     if (stages != null) lap { stages.start += it }
                     val decoded = decodeLoop(

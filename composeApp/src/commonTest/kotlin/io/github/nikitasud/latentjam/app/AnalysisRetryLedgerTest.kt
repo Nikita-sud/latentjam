@@ -4,6 +4,7 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.smart.EngineError
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
@@ -100,5 +101,31 @@ class AnalysisRetryLedgerTest {
         assertEquals(ids, ledgerKeeps(ids, recoveryRetry = false, librarySnapshotAuthoritative = true))
         assertEquals(null, ledgerKeeps(ids, recoveryRetry = false, librarySnapshotAuthoritative = false))
         assertEquals(emptyList(), ledgerKeeps(ids, recoveryRetry = true, librarySnapshotAuthoritative = false))
+    }
+
+    @Test
+    fun aFailureOnTheFilesOwnDataCountsAsATimeoutDoesAndAPassingOneDoesNot() {
+        assertTrue(EngineError.AudioUnavailable("Analysis timed out after 90 s").countsInRetryLedger())
+        assertTrue(EngineError.AudioUnavailable("CodecException at 0ms", trackLocal = true).countsInRetryLedger())
+        // The card is away, the codecs are busy, the model is loading, the model itself failed: tried again as before.
+        assertFalse(EngineError.AudioUnavailable("FileNotFoundException at 0ms").countsInRetryLedger())
+        assertFalse(EngineError.AudioUnavailable("Analysis waited 12 s for the model").countsInRetryLedger())
+        assertFalse(EngineError.BackendFailure("Embedding failed").countsInRetryLedger())
+        assertFalse(EngineError.ModelUnavailable.countsInRetryLedger())
+        // Already an answer about the file: the engine remembers it by itself.
+        assertFalse(EngineError.InvalidAudio("no PCM").countsInRetryLedger())
+    }
+
+    @Test
+    fun theMapRebuildDoesNotWaitForATrackTheLedgerHoldsBack() {
+        val ledger = AnalysisRetryLedger(null) { now }
+        val other = TrackDescriptor(id = TrackId("b"), audioUri = "file:///b.mp3", durationMs = 100_000)
+        ledger.timedOut(track)
+        // One failure is tried again by the next pass: the rebuild still waits for it.
+        assertEquals(listOf(track, other), MapRebuild.awaitedByRebuild(listOf(track, other), AnalysisRetryLedger(ledger.encoded()) { now }::holding))
+        ledger.timedOut(track)
+        assertEquals(listOf(other), MapRebuild.awaitedByRebuild(listOf(track, other), AnalysisRetryLedger(ledger.encoded()) { now }::holding))
+        now += 61 * 60_000
+        assertEquals(listOf(track, other), MapRebuild.awaitedByRebuild(listOf(track, other), AnalysisRetryLedger(ledger.encoded()) { now }::holding))
     }
 }

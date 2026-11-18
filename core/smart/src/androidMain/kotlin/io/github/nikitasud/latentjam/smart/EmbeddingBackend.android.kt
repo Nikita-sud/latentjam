@@ -279,6 +279,8 @@ internal class OnnxEmbeddingBackend(
             var windows = 0
             var invalidAudioFailure: String? = null
             var unavailableFailure: String? = null
+            // Whether every unavailable window so far failed on the file's own data (AudioDecodeResult.Unavailable).
+            var unavailableTrackLocal = true
             var backendContractFailure: String? = null
 
             fun inferStable(waveform: FloatArray, startMs: Long): FloatArray? {
@@ -371,6 +373,7 @@ internal class OnnxEmbeddingBackend(
                     }
                     is AudioDecodeResult.Unavailable -> {
                         if (unavailableFailure == null) unavailableFailure = decoded.detail
+                        if (!decoded.trackLocal) unavailableTrackLocal = false
                     }
                 }
             }
@@ -393,6 +396,7 @@ internal class OnnxEmbeddingBackend(
                             backendContractFailure = backendContractFailure,
                             unavailableFailure = unavailableFailure,
                             invalidAudioFailure = invalidAudioFailure,
+                            unavailableTrackLocal = unavailableTrackLocal,
                         ),
                     ),
                 )
@@ -561,9 +565,11 @@ internal fun zeroSuccessfulAudioWindowsError(
     backendContractFailure: String?,
     unavailableFailure: String?,
     invalidAudioFailure: String?,
+    /** Every unavailable window failed on the file's own data: see [EngineError.AudioUnavailable.trackLocal]. */
+    unavailableTrackLocal: Boolean = false,
 ): EngineError = when {
     backendContractFailure != null -> EngineError.BackendFailure(backendContractFailure)
-    unavailableFailure != null -> EngineError.AudioUnavailable(unavailableFailure)
+    unavailableFailure != null -> EngineError.AudioUnavailable(unavailableFailure, trackLocal = unavailableTrackLocal)
     invalidAudioFailure != null -> EngineError.InvalidAudio(invalidAudioFailure)
     else -> EngineError.AudioUnavailable("No audio decode attempt completed")
 }

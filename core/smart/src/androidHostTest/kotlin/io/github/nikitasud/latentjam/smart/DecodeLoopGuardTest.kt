@@ -7,6 +7,8 @@ package io.github.nikitasud.latentjam.smart
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 internal class DecodeLoopGuardTest {
 
@@ -158,5 +160,49 @@ internal class DecodeLoopGuardTest {
 
         val unavailable = assertIs<AudioDecodeResult.Unavailable>(result)
         assertEquals("IllegalStateException: codec resource exhausted at 5000ms", unavailable.detail)
+    }
+
+    @Test
+    fun aFailureWhileDecodingTheFilesDataIsTheFilesOwn() {
+        val result = classifyAudioDecodeException(
+            stage = AudioDecodeFailureStage.DECODE,
+            error = IllegalStateException("Decoder made no progress for 5 seconds"),
+            startMs = 5_000L,
+            contention = false,
+        )
+
+        assertTrue(assertIs<AudioDecodeResult.Unavailable>(result).trackLocal)
+    }
+
+    @Test
+    fun contentionWhileDecodingIsNotTheFilesOwn() {
+        val result = classifyAudioDecodeException(
+            stage = AudioDecodeFailureStage.DECODE,
+            error = IllegalStateException("codec reclaimed"),
+            startMs = 5_000L,
+            contention = true,
+        )
+
+        assertFalse(assertIs<AudioDecodeResult.Unavailable>(result).trackLocal)
+    }
+
+    @Test
+    fun aSourceThatIsAwayOrACodecThatDoesNotStartIsNotTheFilesOwn() {
+        val away = classifyAudioDecodeException(AudioDecodeFailureStage.SOURCE_OPEN, java.io.FileNotFoundException("gone"), 0L)
+        val busy = classifyAudioDecodeException(AudioDecodeFailureStage.CODEC, java.io.IOException("no codec"), 0L, contention = false)
+        val revoked = classifyAudioDecodeException(AudioDecodeFailureStage.DECODE, SecurityException("revoked"), 0L, contention = false)
+
+        assertFalse(assertIs<AudioDecodeResult.Unavailable>(away).trackLocal)
+        assertFalse(assertIs<AudioDecodeResult.Unavailable>(busy).trackLocal)
+        assertFalse(assertIs<AudioDecodeResult.Unavailable>(revoked).trackLocal)
+    }
+
+    @Test
+    fun aTrackIsTheFilesOwnFailureOnlyWhenEveryUnavailableWindowWas() {
+        val own = zeroSuccessfulAudioWindowsError(null, "codec error at 0ms", "no PCM", unavailableTrackLocal = true)
+        val mixed = zeroSuccessfulAudioWindowsError(null, "codec busy at 0ms", null, unavailableTrackLocal = false)
+
+        assertTrue(assertIs<EngineError.AudioUnavailable>(own).trackLocal)
+        assertFalse(assertIs<EngineError.AudioUnavailable>(mixed).trackLocal)
     }
 }

@@ -34,6 +34,12 @@ public sealed interface EngineError {
      */
     public data class AudioUnavailable(
         public val technicalDetail: String? = null,
+        /**
+         * The failure came from decoding this file's own data (a codec error on it, the decode loop's time limits),
+         * not from the source being away or the codecs being busy. It usually comes back at every try, so the app
+         * counts such tries as it counts timeouts and stops after the third; the engine itself remembers nothing.
+         */
+        public val trackLocal: Boolean = false,
     ) : EngineError
 
     /**
