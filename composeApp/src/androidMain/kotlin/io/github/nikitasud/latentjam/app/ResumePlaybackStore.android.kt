@@ -52,8 +52,10 @@ internal class ResumePlaybackStore(
     fun write(previous: ResumePlayback?, state: ResumePlayback?) {
         if (state != null && !legacyPending && previous?.sameSessionExceptPosition(state) == true) {
             // Position advances every 10 seconds while the queue usually stays unchanged for many
-            // minutes: only the small position file is written.
-            position.edit().putLong(KEY_RESUME_POSITION, state.positionMs).apply()
+            // minutes: only the small position file is written. With the session's serial each time: a
+            // position file left one write behind the session (or lost) reads as the start of the track, and
+            // a write of the position alone would otherwise never make it the session's again.
+            position.edit().putLong(KEY_SERIAL, serial).putLong(KEY_RESUME_POSITION, state.positionMs).apply()
             return
         }
         if (state == null) {

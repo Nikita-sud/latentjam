@@ -4,11 +4,15 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.playback.NowPlaying
+import io.github.nikitasud.latentjam.playback.PlaybackController
+import io.github.nikitasud.latentjam.playback.PlaybackStart
 import kotlin.concurrent.Volatile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.dropWhile
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 /**
@@ -34,6 +38,8 @@ internal class HeldResumeQueue(
     val saved: ResumePlayback,
     /** For each restored row, its place in [saved]'s queue. */
     val restoredIndices: List<Int>,
+    /** What the player said of the listener's hand when the hold was made; null where that was not taken. */
+    val madeAt: ResumeHoldMoment? = null,
 ) {
     /** The ids of the rows the player was given, in order. */
     val restoredIds: List<String> = restoredIndices.map { saved.queueTrackIds[it] }
@@ -103,10 +109,55 @@ internal fun heldResumeQueue(
     restoredIndices: List<Int>,
     known: (String) -> Boolean,
     authoritative: Boolean,
+    madeAt: ResumeHoldMoment? = null,
 ): HeldResumeQueue? {
     if (authoritative || restoredIndices.isEmpty()) return null
     val shortened = restoredIndices.size < saved.queueTrackIds.size || saved.sourceQueueTrackIds.any { !known(it) }
-    return if (shortened) HeldResumeQueue(saved, restoredIndices) else null
+    return if (shortened) HeldResumeQueue(saved, restoredIndices, madeAt) else null
+}
+
+/**
+ * What the player said of the listener's hand at one moment: how many requests this app had made of it
+ * ([PlaybackController.userPlaybackRevision]; it stays 0 where the player reports a start at once) and the start
+ * at the playhead.
+ */
+internal class ResumeHoldMoment(val userPlaybackRevision: Long, val startSequence: Long?)
+
+internal fun PlaybackController.resumeHoldMoment(): ResumeHoldMoment =
+    ResumeHoldMoment(userPlaybackRevision, state.value.playbackStart?.sequence)
+
+/**
+ * Whether the listener has used the player since [made]. Putting the stored queue back loads it paused and, on
+ * Android, cancels a play request still preparing its queue and a Next still waiting for its track: over the
+ * listener's own command that would be a tap that does nothing.
+ *
+ * Any request this app made of the player counts ([userPlaybackRevision]), at once, before the player shows
+ * anything of it. Where requests are not counted, a new start with a cause counts ([start]): a pick, Next,
+ * Previous, or a track that followed while playing. The start a restore itself makes has no cause. A hold whose
+ * moment was not taken ([made] null: a resume no screen started, which the listener asked for) always counts.
+ */
+internal fun listenerActedSince(made: ResumeHoldMoment?, userPlaybackRevision: Long, start: PlaybackStart?): Boolean {
+    if (made == null || userPlaybackRevision != made.userPlaybackRevision) return true
+    return start != null && start.sequence != made.startSequence && start.cause != null
+}
+
+/** Whether [now] is a player at rest: no sound and no intent to play (buffering after Play, or a seek, shows Pause). */
+private fun NowPlaying.atRest(): Boolean = !isPlaying && !showPauseButton
+
+/** Whether the stored queue may be put back over the held one right now; see [listenerActedSince]. */
+internal fun PlaybackController.atRestSince(made: ResumeHoldMoment?): Boolean =
+    state.value.let { now -> now.atRest() && !listenerActedSince(made, userPlaybackRevision, now.playbackStart) }
+
+/**
+ * The player's state once it is at rest, for putting the stored queue back over a held one; null as soon as the
+ * listener has used the player since [made], however long ago. The hold then simply stays, and the next start
+ * of the app restores the stored queue.
+ */
+internal suspend fun awaitRestForHeldQueue(playback: PlaybackController, made: ResumeHoldMoment?): NowPlaying? {
+    val now = playback.state.first { now ->
+        listenerActedSince(made, playback.userPlaybackRevision, now.playbackStart) || now.atRest()
+    }
+    return now.takeIf { it.atRest() && !listenerActedSince(made, playback.userPlaybackRevision, it.playbackStart) }
 }
 
 /** The hold of this process, if a restore made one: set by the restore, read by the writer of the saved session. */
