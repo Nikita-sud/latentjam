@@ -130,6 +130,17 @@ internal class DefaultSimilarityEngine(
     }
     private val mutableState = MutableStateFlow<EngineState>(EngineState.Uninitialized)
     private val knownTracks = TrackTable()
+
+    /**
+     * Tracks on the device that the library does not show (hidden, or of a source switched off), as the last
+     * [synchronizeLibrary] named them. Their analysis is kept, so showing them again analyses nothing anew, and that is
+     * all: they are in no snapshot, search result, transition sample or count, exactly as when it was dropped.
+     */
+    private var notShownIds: Set<TrackId> = emptySet()
+
+    /** Stored audio vectors of the tracks the library shows: what [EngineState.Ready] counts. */
+    private fun shownVectors(): Int =
+        if (notShownIds.isEmpty()) index.size else index.size - notShownIds.count { it in index }
     /** Identity of the descriptor used to create each in-memory/persisted audio vector (as digests). */
     private val audioVectorIdentities = IdentityDigests()
     /** Track-local audio failures that should not wake the model again for unchanged media. */
@@ -245,7 +256,7 @@ internal class DefaultSimilarityEngine(
                     textVectorIdentities.clear()
                 }
             }
-            mutableState.value = EngineState.Ready(indexedCount = index.size)
+            mutableState.value = EngineState.Ready(indexedCount = shownVectors())
             println(
                 "SMART: models audio=lazy, " +
                     "scorer=${if (predictorLoaded) "ready" else "unavailable"}, " +
@@ -417,7 +428,7 @@ internal class DefaultSimilarityEngine(
                 persistAudioIndex()
                 persistTextIndex()
             }
-            mutableState.value = EngineState.Ready(indexedCount = index.size)
+            mutableState.value = EngineState.Ready(indexedCount = shownVectors())
             IndexReport(
                 indexed = indexed,
                 failed = errors.size,
@@ -481,26 +492,39 @@ internal class DefaultSimilarityEngine(
     override suspend fun synchronizeLibrary(
         library: List<TrackDescriptor>,
         pruneMissing: Boolean,
+        notShown: Set<TrackId>,
     ): Int =
         withContext(dispatcher) {
             mutex.withLock {
                 if (mutableState.value !is EngineState.Ready) return@withLock 0
                 adoptMovedContainerIdentities(library)
                 val liveIds = library.mapTo(HashSet(library.size)) { it.id }
+                // A track that is only out of sight is still on the device: dropping its rows as a deleted track's
+                // had a folder switched back on, or a track un-hidden, analysed all over again. A partial scan
+                // lists only part of them, and so takes none away.
+                val named = if (notShown.any(liveIds::contains)) notShown - liveIds else notShown
+                val outOfSight = if (pruneMissing) named else (notShownIds + named) - liveIds
+                if (outOfSight != notShownIds) {
+                    notShownIds = outOfSight
+                    // What the snapshot, the transition sample and the count read changed, though no row did.
+                    indexRevision++
+                    snapshotCache = null
+                }
+                fun onDevice(id: TrackId): Boolean = id in liveIds || id in outOfSight
                 // ids(), not entries(): a copy of every vector only to read its key would be a
                 // second index at every launch.
                 val staleAudio = if (pruneMissing) {
-                    index.ids().filterNot(liveIds::contains)
+                    index.ids().filterNot(::onDevice)
                 } else {
                     emptyList()
                 }
                 val staleText = if (pruneMissing) {
-                    textIndex?.ids()?.filterNot(liveIds::contains).orEmpty()
+                    textIndex?.ids()?.filterNot(::onDevice).orEmpty()
                 } else {
                     emptyList()
                 }
                 val staleAudioFailures = if (pruneMissing) {
-                    audioFailureIdentities.ids().filterNot(liveIds::contains)
+                    audioFailureIdentities.ids().filterNot(::onDevice)
                 } else {
                     emptyList()
                 }
@@ -564,7 +588,7 @@ internal class DefaultSimilarityEngine(
                 }
                 rememberTracks(library)
                 shareLibraryIds()
-                mutableState.value = EngineState.Ready(indexedCount = index.size)
+                mutableState.value = EngineState.Ready(indexedCount = shownVectors())
                 (staleAudio + changedAudio).distinct().size
             }
         }
@@ -679,7 +703,8 @@ internal class DefaultSimilarityEngine(
      */
     private fun transitionSampleLocked(): List<TrackId> {
         transitionSample?.takeIf { it.first == indexRevision }?.let { return it.second }
-        val drawn = index.ids().sortedBy { it.value }.shuffled(kotlin.random.Random(TRANSITION_SAMPLE_SEED))
+        val drawn = index.ids().filterNot(notShownIds::contains).sortedBy { it.value }
+            .shuffled(kotlin.random.Random(TRANSITION_SAMPLE_SEED))
             .take(TRANSITION_SAMPLE_SIZE)
         transitionSample = indexRevision to drawn
         return drawn
@@ -984,7 +1009,7 @@ internal class DefaultSimilarityEngine(
                 val vector = runCatching { encoder.encode(query.trim()) }.getOrNull()
                     ?.takeIf { it.size == TextEncoder.TEXT_DIM && it.all(Float::isFinite) }
                     ?: return@withLock emptyList()
-                target.nearest(vector, limit)
+                target.nearest(vector, limit, exclude = notShownIds)
             }
         }
 
@@ -1079,7 +1104,7 @@ internal class DefaultSimilarityEngine(
                     )
                 }
                 persistForPlayback("audio", ::persistAudioIndex)
-                mutableState.value = EngineState.Ready(indexedCount = index.size)
+                mutableState.value = EngineState.Ready(indexedCount = shownVectors())
             }
 
             // The scorer graph has 100 slots but deliberately supports a shorter, zero-padded
@@ -1448,7 +1473,7 @@ internal class DefaultSimilarityEngine(
         if (!audioRestoreFailed) {
             println("SMART: the stored audio index was read on a press's retry $pressRestoreRetries (${index.size} tracks)")
             audioIndexUnreadableNow = false
-            if (mutableState.value is EngineState.Ready) mutableState.value = EngineState.Ready(indexedCount = index.size)
+            if (mutableState.value is EngineState.Ready) mutableState.value = EngineState.Ready(indexedCount = shownVectors())
         }
     }
 
@@ -1953,7 +1978,8 @@ internal class DefaultSimilarityEngine(
         albumArtistGuess = null
         val knownIds = rows.mapTo(HashSet()) { it.id }
         for (id in history.asSequence().map { it.trackId }.distinct()) {
-            if (id in knownIds) continue
+            // A track out of sight has a stored row now; it stays out, as when it had none.
+            if (id in knownIds || id in notShownIds) continue
             rows += SmartTrack(
                 id = id,
                 audioRow = index.storedRow(id) ?: continue,
@@ -2122,7 +2148,7 @@ internal class DefaultSimilarityEngine(
                 // The audio rows the last hub was computed for are still the rows: nothing to do, and no build.
                 if (hubCache?.key?.audioRevision == audioRevision) return@withLock
                 // As a press: too few analysed rows plan from metadata, and build no snapshot.
-                if (index.size < requiredAudioCorpus(knownTracks.size)) return@withLock
+                if (shownVectors() < requiredAudioCorpus(knownTracks.size)) return@withLock
                 val cached = snapshotCache != null
                 // A cached snapshot answers at once; a new one starts the pass when its hub is not exact for these rows.
                 try {

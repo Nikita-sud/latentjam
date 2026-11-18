@@ -68,6 +68,58 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
+    fun `tracks the library does not show keep their analysis and SMART reads what it read without them`() = runTest {
+        // Hidden tracks and the tracks of a source switched off: here the last hundred, four of them in the history.
+        val shown = library.dropLast(100)
+        val notShown = library.takeLast(100).mapTo(HashSet()) { it.id }
+        suspend fun restored(): Triple<DefaultSimilarityEngine, FakeIndexStore, FakeIndexStore> {
+            val audioStore = FakeIndexStore()
+            val textStore = FakeIndexStore()
+            val built = engine(audioStore, textStore)
+            built.initialize()
+            built.indexLibrary(library)
+            built.ensureMetadataVectors(library)
+            built.persistPendingAnalysis()
+            built.release()
+            return Triple(engine(audioStore, textStore).also { it.initialize() }, audioStore, textStore)
+        }
+        // As it was: their analysis dropped with that of tracks that are gone.
+        val (pruned) = restored()
+        pruned.synchronizeLibrary(shown, pruneMissing = true)
+        val (kept, audioStore, textStore) = restored()
+        kept.synchronizeLibrary(shown, pruneMissing = true, notShown = notShown)
+
+        assertEquals(notShown, notShown.filterTo(HashSet()) { kept.embedding(it) != null }, "nothing to analyse again")
+        assertEquals(
+            digest(requireNotNull(pruned.smartSnapshot(history))),
+            digest(requireNotNull(kept.smartSnapshot(history))),
+            "the rows SMART measures against are the shown library's, with or without the kept analysis",
+        )
+        for (seed in listOf(3, 404, 777)) {
+            val queue = kept.smartQueue(library[seed], shown, 12, history)
+            assertEquals(pruned.smartQueue(library[seed], shown, 12, history), queue)
+            assertEquals(emptyList(), queue.filter { it in notShown }, "never offered")
+        }
+        assertEquals(emptyList(), kept.semanticSearch("Rock", limit = library.size).filter { it.trackId in notShown })
+        assertEquals(pruned.semanticSearch("Rock", limit = 20), kept.semanticSearch("Rock", limit = 20))
+        assertEquals(pruned.state.value, kept.state.value, "the count of analysed tracks is of the shown ones")
+
+        // Kept on storage too, and a track that is truly gone still loses its analysis.
+        val gone = shown.last()
+        kept.synchronizeLibrary(shown.dropLast(1), pruneMissing = true, notShown = notShown)
+        assertEquals(null, kept.embedding(gone.id))
+        kept.release()
+        val restarted = engine(audioStore, textStore).also { it.initialize() }
+        restarted.synchronizeLibrary(shown.dropLast(1), pruneMissing = true, notShown = notShown)
+        assertEquals(notShown.size, notShown.count { restarted.embedding(it) != null })
+        assertEquals(null, restarted.embedding(gone.id))
+        // Shown again (un-hidden, the source switched back on): offered again, with nothing analysed anew.
+        val back = library.last()
+        restarted.synchronizeLibrary(shown.dropLast(1) + back, pruneMissing = true, notShown = notShown - back.id)
+        assertEquals(true, requireNotNull(restarted.smartSnapshot(emptyList())).tracks.any { it.id == back.id })
+    }
+
+    @Test
     fun `with the hub kept a cold press computes the exact hub and every press plans the recorded queues`() = runTest {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()

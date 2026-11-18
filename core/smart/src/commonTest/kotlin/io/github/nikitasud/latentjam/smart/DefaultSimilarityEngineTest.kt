@@ -1068,6 +1068,30 @@ internal class DefaultSimilarityEngineTest {
     }
 
     @Test
+    fun aTrackOutOfSightKeepsItsAnalysisAndATrackThatIsGoneLosesIt() = runTest {
+        val harness = Harness()
+        harness.registerTriangle()
+        harness.engine.initialize()
+        harness.engine.indexLibrary(listOf(seed, near, far))
+
+        // near is hidden (or its folder is switched off); far was deleted.
+        val removed = harness.engine.synchronizeLibrary(listOf(seed), pruneMissing = true, notShown = setOf(near.id))
+
+        assertEquals(1, removed)
+        assertNotNull(harness.engine.embedding(near.id))
+        assertEquals(null, harness.engine.embedding(far.id))
+        assertEquals(setOf(seed.id, near.id), harness.store.snapshots["test-model"]?.keys)
+        assertEquals(EngineState.Ready(indexedCount = 1), harness.engine.state.value, "the shown tracks analysed")
+        // A partial scan cannot list what is out of sight, and takes nothing away.
+        harness.engine.synchronizeLibrary(listOf(seed), pruneMissing = false)
+        assertEquals(EngineState.Ready(indexedCount = 1), harness.engine.state.value)
+        // Shown again: there at once.
+        assertEquals(0, harness.engine.synchronizeLibrary(listOf(seed, near), pruneMissing = true))
+        assertEquals(EngineState.Ready(indexedCount = 2), harness.engine.state.value)
+        assertEquals(0, harness.engine.missingFromIndexOf(listOf(seed, near)))
+    }
+
+    @Test
     fun ambiguousPartialScanPreservesMissingVectorsButInvalidatesChangedVisibleRows() = runTest {
         val harness = Harness()
         harness.registerTriangle()

@@ -103,11 +103,16 @@ public interface SimilarityEngine {
      * argument are also removed; pass false for a partial/ambiguous scan (for example while media
      * permission is unavailable) so it cannot erase durable rows or remembered audio failures.
      *
+     * [notShown] are tracks on the device that [library] leaves out because the listener hid them or switched their
+     * source off. Their rows are kept like a listed track's, so showing them again analyses nothing anew; they are
+     * never offered, and nothing SMART measures a queue against includes them.
+     *
      * @return number of stale audio fingerprints removed
      */
     public suspend fun synchronizeLibrary(
         library: List<TrackDescriptor>,
         pruneMissing: Boolean = true,
+        notShown: Set<TrackId> = emptySet(),
     ): Int
 
     /**

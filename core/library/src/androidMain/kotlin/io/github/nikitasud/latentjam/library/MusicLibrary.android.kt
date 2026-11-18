@@ -152,10 +152,13 @@ internal class MediaStoreMusicLibrary(
         val hidden = visibilityMutex.withLock { readHiddenIds() }
         val excludedSources = visibilityMutex.withLock { readExcludedSourceIds() }
         val snapshot = queryTracks()
+        val shown = snapshot.tracks.filterNot { track ->
+            track.id.value in hidden || sourceId(track.folderPath) in excludedSources
+        }
         snapshot.copy(
-            tracks = snapshot.tracks.filterNot { track ->
-                track.id.value in hidden || sourceId(track.folderPath) in excludedSources
-            },
+            tracks = shown,
+            // Out of sight, not gone: with these a complete scan no longer reads as "their files were deleted".
+            notShown = notShownIds(known = snapshot.tracks, shown = shown),
             // MediaStore answers for mounted volumes only. With a card out, ejected or still being checked after a
             // boot, its songs are simply absent from the rows: such a scan is no evidence that they are gone. Taken
             // for a complete one, it let the analysis of every song on the card be dropped, to be done again from
