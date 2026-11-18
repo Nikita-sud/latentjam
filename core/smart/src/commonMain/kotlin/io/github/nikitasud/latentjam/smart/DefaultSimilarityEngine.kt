@@ -1020,7 +1020,34 @@ internal class DefaultSimilarityEngine(
         personal = personal,
     )
 
+    /**
+     * [planAudioQueue], except that a plan the heap has no room for is the queue a cold index gets. The snapshot build
+     * already answers so; the walk after it (its pool, the personal term, the sequencer) allocates too, and an Error
+     * from there reached playback, which catches only exceptions, and ended the process during a press.
+     */
     private suspend fun planQueue(
+        seed: TrackDescriptor,
+        library: List<TrackDescriptor>,
+        length: Int,
+        history: List<SmartHistoryEvent>,
+        companionGroups: List<Set<TrackId>>,
+        continueWalk: Boolean,
+        precedingTrackIds: List<TrackId> = emptyList(),
+        personal: io.github.nikitasud.latentjam.smart.personal.PersonalInputs? = null,
+    ): List<TrackId> = try {
+        planAudioQueue(seed, library, length, history, companionGroups, continueWalk, precedingTrackIds, personal)
+    } catch (exhausted: Error) {
+        withContext(dispatcher) {
+            mutex.withLock {
+                // No cached snapshot is left to hold memory the fallback needs.
+                snapshotCache = null
+                println("SMART: queue=metadata, the plan did not fit in memory (${exhausted::class.simpleName})")
+                metadataFallback(seed, library, length, history, companionGroups)
+            }
+        }
+    }
+
+    private suspend fun planAudioQueue(
         seed: TrackDescriptor,
         library: List<TrackDescriptor>,
         length: Int,

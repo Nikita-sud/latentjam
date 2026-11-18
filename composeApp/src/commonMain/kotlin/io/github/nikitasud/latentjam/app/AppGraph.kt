@@ -1407,6 +1407,18 @@ internal suspend fun runAutomaticIndexingSafely(
         } catch (secondary: Exception) {
             println("SMART: could not record the interruption: $secondary")
         }
+    } catch (exhausted: Error) {
+        // Out of memory (which common Kotlin cannot name) is no exception, so it left this launch for the platform's
+        // uncaught handler and ended the process; the next launch started the same pass and ended the same way. It
+        // stops the pass as any failure does: what is analysed stays stored and SMART goes on from it. Any other
+        // Error is a bug and goes on.
+        if (!exhausted.isOutOfMemory()) throw exhausted
+        println("SMART: automatic indexing ran out of memory")
+        try {
+            onInterrupted(AnalysisOutOfMemory(exhausted))
+        } catch (secondary: Exception) {
+            println("SMART: could not record the interruption: $secondary")
+        }
     } finally {
         // A batch can be cancelled after installing vectors but before reaching its checkpoint.
         // Persist that dirty window before allowing a replacement worker to acquire its resources.
@@ -1416,6 +1428,10 @@ internal suspend fun runAutomaticIndexingSafely(
             } catch (failure: Exception) {
                 // The engine retains dirty flags; a retry still attempts the outstanding save.
                 println("SMART: final indexing checkpoint failed: $failure")
+            } catch (exhausted: Error) {
+                // The checkpoint of a pass that ran out of memory may not fit either; the last one written stays.
+                if (!exhausted.isOutOfMemory()) throw exhausted
+                println("SMART: final indexing checkpoint ran out of memory")
             }
         }
         try {
@@ -1432,6 +1448,9 @@ internal suspend fun runAutomaticIndexingSafely(
         }
     }
 }
+
+/** Whether this is the platform's OutOfMemoryError, by its name: common Kotlin has no such class. */
+internal fun Throwable.isOutOfMemory(): Boolean = this::class.simpleName == "OutOfMemoryError"
 
 /** Which kind of call relaunches analysis; each honours the stop reasons its own way (plan 1e-min). */
 enum class AnalysisCall {
@@ -1467,6 +1486,9 @@ internal class LastAnalysisCall(
 
 /** The platform refused to show the analysis in the foreground (a background start). */
 internal class AnalysisShowFailed(cause: Throwable) : RuntimeException(cause)
+
+/** The pass ran out of memory: it stops as a failed pass does, and what is analysed stays stored. */
+internal class AnalysisOutOfMemory(cause: Throwable) : RuntimeException(cause)
 
 /** A completed UI library scan plus whether it proves which durable SMART rows are still live. */
 internal data class AutomaticIndexingRequest(
