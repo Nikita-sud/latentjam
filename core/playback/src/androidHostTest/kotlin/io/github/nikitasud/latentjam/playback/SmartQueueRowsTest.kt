@@ -51,4 +51,30 @@ internal class SmartQueueRowsTest {
             smartRowsToDrop(listOf("seed", "pick"), keepThrough = 0, eligible = { false }, smartOwned = { true }),
         )
     }
+
+    @Test
+    fun everyQueuedTrackTheNewLibraryLacksKeepsItsDescriptorInAnyMode() {
+        // A queue shuffled or in order: the playing row and a later one are known only from the library before the sync.
+        val before = mapOf("playing" to "Playing", "later" to "Later", "kept" to "Kept (old tags)")
+        val library = setOf("kept", "other")
+
+        assertEquals(
+            listOf("Playing", "Later"),
+            descriptorsLeavingLibrary(
+                queueIds = listOf("kept", "playing", "later", "playing"),
+                inLibrary = { it in library },
+                known = before::get,
+            ),
+        )
+    }
+
+    @Test
+    fun aQueueTheLibraryHoldsInFullKeepsNothingAside() {
+        assertEquals(
+            emptyList(),
+            descriptorsLeavingLibrary(listOf("a", "b"), inLibrary = { true }, known = { error("never asked") }),
+        )
+        // A row nothing ever named has no descriptor to keep.
+        assertEquals(emptyList(), descriptorsLeavingLibrary(listOf("unknown"), inLibrary = { false }, known = { null as String? }))
+    }
 }

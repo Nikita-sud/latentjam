@@ -400,20 +400,13 @@ internal class AndroidPlaybackController(
                 else -> 0
             }
             // Generated tracks are normally resolved through smartById rather than the source
-            // queue's poolById. Preserve descriptors through the current item before replacing the
-            // eligible map, or excluding the playing artist would make NowPlaying disappear.
-            val retainedHistory = if (mode == ShuffleMode.SMART && player != null) {
-                (0..keepThrough)
-                    .mapNotNull { index ->
-                        val id = player.getMediaItemAt(index).mediaId
-                        (prepared.second[id] ?: trackById(id))?.let { id to it }
-                    }
-                    .toMap()
-            } else {
-                emptyMap()
-            }
+            // queue's poolById. Preserve the descriptor of every row the player holds before
+            // replacing the eligible map, whatever the mode: or excluding the playing artist would
+            // make NowPlaying disappear, also for a SMART pick now playing in order or shuffled.
+            val queueIds = player?.let { List(it.mediaItemCount) { index -> it.getMediaItemAt(index).mediaId } }.orEmpty()
+            val retainedRows = descriptorsLeavingLibrary(queueIds, inLibrary = { it in prepared.second }, known = ::trackById)
             smartLibrary = prepared.first
-            smartById = if (retainedHistory.isEmpty()) prepared.second else prepared.second.plusTracks(retainedHistory.values)
+            smartById = if (retainedRows.isEmpty()) prepared.second else prepared.second.plusTracks(retainedRows)
             smartLibrarySupplied = true
             queueGeneration++
             if (mode == ShuffleMode.SMART && player != null) {
@@ -421,7 +414,7 @@ internal class AndroidPlaybackController(
                 // already played and the current seed, then remove the future rows SMART itself put
                 // there that are newly ineligible. A row the listener queued by hand stays.
                 val dropped = smartRowsToDrop(
-                    ids = List(player.mediaItemCount) { player.getMediaItemAt(it).mediaId },
+                    ids = queueIds,
                     keepThrough = keepThrough,
                     eligible = { it in prepared.second },
                     smartOwned = { TrackId(it).let { id -> id in smartPlanPositions || id in smartContinuationIds } },

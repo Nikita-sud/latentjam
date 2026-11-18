@@ -22,3 +22,16 @@ internal fun smartRowsToDrop(
     val id = ids[index]
     !eligible(id) && smartOwned(id)
 }
+
+/**
+ * What the player holds that SMART's new library does not: the descriptor, as [known] before the sync, of every track
+ * in [queueIds] the library no longer has ([inLibrary]). The controller keeps them next to the new library, so a
+ * queued row keeps its title and the playing track stays the playing track whatever the shuffle mode: a queue played
+ * in order or shuffled can hold rows only SMART's library ever named (the rows SMART picked, a queue from the car).
+ * Without them a sync that left out the playing track published "nothing is playing" while it played.
+ */
+internal fun <T : Any> descriptorsLeavingLibrary(
+    queueIds: List<String>,
+    inLibrary: (String) -> Boolean,
+    known: (String) -> T?,
+): List<T> = queueIds.distinct().filterNot(inLibrary).mapNotNull(known)
