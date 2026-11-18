@@ -371,7 +371,7 @@ internal class IosAudioEngine(
     val effectiveOutputVolume: Float get() = engine.mainMixerNode.outputVolume * player.volume
 
     private fun applyMixerGain() {
-        engine.mainMixerNode.outputVolume = transportGain
+        engine.mainMixerNode.outputVolume = if (silentOutput) 0f else transportGain
         player.volume = currentGain
         standby.volume = standbyGain
     }
@@ -823,8 +823,21 @@ internal class IosAudioEngine(
         return true
     }
 
-    private fun ensureEngineRunning(): Boolean =
-        engine.running || engine.startAndReturnError(null)
+    private fun ensureEngineRunning(): Boolean {
+        if (engine.running) return true
+        // Before the first frame can sound, not only at the next change of the gain.
+        if (silentOutput) engine.mainMixerNode.outputVolume = 0f
+        return engine.startAndReturnError(null)
+    }
+
+    /**
+     * A debug build started with LATENTJAM_SILENT_OUTPUT=1 plays everything at volume zero: the Simulator sounds
+     * through the Mac's speakers, and a check of real playback there (a seam, a recovery) has to be inaudible. The
+     * whole graph still runs, its clocks and notices included. Never in a release build.
+     */
+    @OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+    private val silentOutput: Boolean =
+        Platform.isDebugBinary && NSProcessInfo.processInfo.environment["LATENTJAM_SILENT_OUTPUT"] == "1"
 
     private fun millisToFrame(milliseconds: Long, file: AVAudioFile): Long =
         (milliseconds.coerceAtLeast(0L) * file.processingFormat.sampleRate / 1000.0).toLong()
