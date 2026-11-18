@@ -120,21 +120,26 @@ internal class FileSmartLogStore internal constructor(private val pathOf: () -> 
         }
     }
 
-    private fun endsInsideALine(p: String): Boolean {
-        val f = fopen(p, "rb") ?: return false
-        try {
-            fseek(f, 0, SEEK_END)
-            if (ftell(f) == 0L) return false
-            fseek(f, -1, SEEK_END)
-            return fgetc(f) != '\n'.code
-        } finally {
-            fclose(f)
-        }
-    }
-
     private companion object {
         const val FILE_NAME = "smart_impressions.log"
         const val CHUNK = 64 * 1024
         const val NEWLINE: Byte = 10
+    }
+}
+
+/**
+ * True when the file at [p] ends inside a line: its last byte is not a line feed. A missing or empty file ends on a
+ * line boundary; only a write cut short leaves a fragment, and an append straight after it would be glued to it.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun endsInsideALine(p: String): Boolean {
+    val f = fopen(p, "rb") ?: return false
+    try {
+        fseek(f, 0, SEEK_END)
+        if (ftell(f) == 0L) return false
+        fseek(f, -1, SEEK_END)
+        return fgetc(f) != '\n'.code
+    } finally {
+        fclose(f)
     }
 }

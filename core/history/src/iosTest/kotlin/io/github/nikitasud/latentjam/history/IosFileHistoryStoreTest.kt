@@ -120,6 +120,32 @@ class IosFileHistoryStoreTest {
     }
 
     @Test
+    fun aListenAfterATornTailStartsOnALineOfItsOwn() = runTest {
+        // What a write cut short (a full disk, a power cut) leaves: a fragment with no line feed.
+        val torn = "v3|3432|1|2"
+        seedText("listening_history.log", "$firstLine\n$torn")
+
+        val history = DefaultListeningHistory(FileHistoryStore())
+        history.record(bareEvent)
+
+        // The fragment is closed first: glued to it, the new listen would be refused with it.
+        assertContentEquals(
+            "$firstLine\n$torn\n$recordedLine\n".encodeToByteArray(),
+            bytesAt("listening_history.log"),
+        )
+        assertEquals(1, DefaultListeningHistory(FileHistoryStore()).stats()[TrackId("4343")]?.plays)
+    }
+
+    @Test
+    fun forYouOffersAfterATornTailStartOnALineOfTheirOwn() = runTest {
+        seedText("foryou_impressions.txt", "first\ntor")
+
+        FileForYouImpressionStore().append(listOf("second", "third"))
+
+        assertEquals(listOf("first", "tor", "second", "third"), FileForYouImpressionStore().read())
+    }
+
+    @Test
     fun replaceRewritesALogItCannotDecode() = runTest {
         seed("listening_history.log", damagedLine)
 
