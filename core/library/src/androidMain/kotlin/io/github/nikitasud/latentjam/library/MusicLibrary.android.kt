@@ -141,7 +141,7 @@ internal class MediaStoreMusicLibrary(
             // boot, its songs are simply absent from the rows: such a scan is no evidence that they are gone. Taken
             // for a complete one, it let the analysis of every song on the card be dropped, to be done again from
             // scratch when the card came back.
-            complete = snapshot.complete && !storageMayBeMissing(recentVolumeStates()),
+            complete = snapshot.complete && !storageMayBeMissing(),
         )
     }
 
@@ -224,7 +224,7 @@ internal class MediaStoreMusicLibrary(
             if (ids.isEmpty()) return@withContext emptySet()
             // MediaStore answers for mounted volumes only. A card that is out keeps its rows, and
             // its songs come back under the same ids when it returns: nothing is certain until then.
-            if (storageMayBeMissing(recentVolumeStates())) return@withContext emptySet()
+            if (storageMayBeMissing()) return@withContext emptySet()
             val present = audioRowIds()?.mapTo(HashSet()) { identities.logicalId(it.value) }
                 ?: return@withContext emptySet()
             provablyMissing(ids, present) { true }
@@ -260,16 +260,37 @@ internal class MediaStoreMusicLibrary(
      * it saw within the last week too (a card taken out stays listed, unmounted). Before Android 11
      * a card that is physically out is not listed at all; that case cannot be seen from here.
      */
-    private fun recentVolumeStates(): List<String?> = try {
+    private fun recentVolumes(): List<VolumeState> = try {
         val storage = context.getSystemService(android.os.storage.StorageManager::class.java)
         when {
-            storage == null -> listOf(null)
+            storage == null -> listOf(VolumeState(null, null))
             android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R ->
-                storage.recentStorageVolumes.map { it.state }
-            else -> storage.storageVolumes.map { it.state }
+                storage.recentStorageVolumes.map { VolumeState(volumeId(it), it.state) }
+            else -> storage.storageVolumes.map { VolumeState(volumeId(it), it.state) }
         }
     } catch (_: Exception) {
-        listOf(null)
+        listOf(VolumeState(null, null))
+    }
+
+    /** A volume's name as a scanned track's [TrackDescriptor.storageVolume] holds it; null when it has none. */
+    private fun volumeId(volume: android.os.storage.StorageVolume): String? = when {
+        volume.isPrimary -> FolderTree.PRIMARY_VOLUME
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R -> volume.mediaStoreVolumeName?.lowercase()
+        // MediaStore names a card by its lowercase id before Android 11 too.
+        else -> volume.uuid?.lowercase()
+    }
+
+    /**
+     * [storageMayBeMissing] for the volumes the system lists now and the ones the registry knows songs on. A registry
+     * that cannot be read knows nothing, and then every volume that is away counts, as it did before.
+     */
+    private fun storageMayBeMissing(): Boolean {
+        val known = try {
+            identities.volumes()
+        } catch (_: java.io.IOException) {
+            null
+        }
+        return storageMayBeMissing(recentVolumes(), known)
     }
 
     private suspend fun queryTracks(): LibraryScan {
@@ -282,7 +303,7 @@ internal class MediaStoreMusicLibrary(
                     identities.resolve(
                         tracks,
                         allAudioIds = if (probe) audioRowIds()?.mapTo(HashSet(), TrackId::value) else null,
-                        storageAvailable = probe && !storageMayBeMissing(recentVolumeStates()),
+                        storageAvailable = probe && !storageMayBeMissing(),
                         cancellationCheck = { job.ensureActive() },
                     )
                 } catch (_: java.io.IOException) {
@@ -717,15 +738,32 @@ internal fun mediaStoreLibraryScan(
     LibraryScan(tracks = emptyList(), complete = false)
 }
 
+/** A storage volume the system lists: its name as tracks carry it (null when it has none) and its state. */
+internal class VolumeState(val id: String?, val state: String?) {
+    val mounted: Boolean
+        get() = state == android.os.Environment.MEDIA_MOUNTED || state == android.os.Environment.MEDIA_MOUNTED_READ_ONLY
+}
+
 /**
- * Whether storage that may hold songs is not readable now: a volume the system lists that is not
- * mounted, whether taken out, being checked after it came back, ejected or unreadable. A state the
- * system did not give counts too, so a device that cannot say is never taken for a complete one.
+ * Whether storage that holds songs of the library is not readable now: a volume the system lists that is not
+ * mounted (taken out, being checked after it came back, ejected or unreadable) and that [known], the volumes the
+ * identity registry has songs on, names. A state the system did not give counts as not mounted.
+ *
+ * Only such a volume can make a scan miss songs. Counting every one made each scan incomplete for a week after any
+ * card or USB stick was taken out, and for good with a card the phone cannot read, whether or not music was ever on
+ * it: nothing deleted left the library's stores, and a playlist file opened from another app was never offered.
+ *
+ * A volume with no name (a card whose file system cannot be read) may be any volume of [known] that is not mounted
+ * now. A null [known] (the registry could not be read) vouches for nothing: every volume that is away counts.
  */
-internal fun storageMayBeMissing(volumeStates: List<String?>): Boolean =
-    volumeStates.any { state ->
-        state != android.os.Environment.MEDIA_MOUNTED && state != android.os.Environment.MEDIA_MOUNTED_READ_ONLY
-    }
+internal fun storageMayBeMissing(volumes: List<VolumeState>, known: Set<String>?): Boolean {
+    val away = volumes.filterNot { it.mounted }
+    if (away.isEmpty()) return false
+    if (known == null) return true
+    val here = volumes.filter { it.mounted }.mapNotNullTo(HashSet()) { it.id }
+    val unaccounted = known.any { it !in here }
+    return away.any { volume -> if (volume.id == null) unaccounted else volume.id in known }
+}
 
 /** Pure MediaStore path projection, shared with host regressions for removable-volume paths. */
 internal fun mediaStoreFolderPath(rawPath: String?, relativePath: Boolean): String? {

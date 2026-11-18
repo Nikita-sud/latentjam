@@ -239,6 +239,10 @@ internal class AndroidTrackIdentities(
     @Synchronized
     fun sourceId(id: TrackId): String = load()[id.value]?.source ?: id.value
 
+    /** The storage volumes the registered tracks are on, as a scan names them (lower case). */
+    @Synchronized
+    fun volumes(): Set<String> = load().values.mapNotNullTo(HashSet()) { it.volume.takeIf(String::isNotEmpty) }
+
     private fun safelyRead(track: TrackDescriptor): TrackIdentityTags? = try {
         readTags(track)
     } catch (cancelled: CancellationException) {
