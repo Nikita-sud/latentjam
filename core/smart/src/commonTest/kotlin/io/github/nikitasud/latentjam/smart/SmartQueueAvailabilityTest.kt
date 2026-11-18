@@ -150,7 +150,7 @@ internal class SmartQueueAvailabilityTest {
         var exhausted = true
         val clock = object : SmartClock {
             override fun timeFeatures(): FloatArray {
-                if (exhausted) throw HeapExhausted()
+                if (exhausted) throw OutOfMemoryError()
                 return SmartClock.timeFeatures()
             }
         }
@@ -162,6 +162,18 @@ internal class SmartQueueAvailabilityTest {
 
         exhausted = false
         assertEquals(expected, harness.engine.smartQueue(library.first(), library.drop(1), 12))
+    }
+
+    @Test
+    fun `an error in a plan that is not memory reaches the caller and is no metadata queue`() = runTest {
+        // A VerifyError or NoClassDefFoundError from a shrunk build, an AssertionError, a StackOverflowError: a bug to
+        // be seen, not a text-only SMART with a log line about memory.
+        val library = tracks(64)
+        val clock = object : SmartClock {
+            override fun timeFeatures(): FloatArray = throw HeapExhausted()
+        }
+        val harness = harness(library, clock = clock)
+        assertFailsWith<HeapExhausted> { harness.engine.smartQueue(library.first(), library.drop(1), 12) }
     }
 
     @Test
@@ -222,6 +234,9 @@ internal class SmartQueueAvailabilityTest {
 
     /** What OutOfMemoryError is to common code, which cannot name it: an [Error]. */
     private class HeapExhausted : Error("test heap exhausted")
+
+    /** The platform's own error, by the name the engine tells it by. */
+    private class OutOfMemoryError : Error("out of memory")
 
     private class TestTextEncoder : TextEncoder {
         override suspend fun load() = Result.success(Unit)

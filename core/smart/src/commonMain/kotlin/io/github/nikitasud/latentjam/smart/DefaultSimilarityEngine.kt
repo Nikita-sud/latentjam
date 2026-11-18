@@ -1075,6 +1075,9 @@ internal class DefaultSimilarityEngine(
     ): List<TrackId> = try {
         planAudioQueue(seed, library, length, history, companionGroups, continueWalk, precedingTrackIds, personal)
     } catch (exhausted: Error) {
+        // Only the heap running out (which common Kotlin cannot name). Any other Error is a bug, and goes on to the
+        // caller: as a metadata queue it would be a silent text-only SMART with a log line about memory.
+        if (exhausted::class.simpleName != "OutOfMemoryError") throw exhausted
         withContext(dispatcher) {
             mutex.withLock {
                 // No cached snapshot is left to hold memory the fallback needs.
