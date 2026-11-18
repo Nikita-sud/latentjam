@@ -54,6 +54,14 @@ internal fun QueueSourceKind.fallbackLabelRes(): StringResource? = when (this) {
     QueueSourceKind.COLLECTION, QueueSourceKind.SEARCH, QueueSourceKind.LIBRARY_GROUP -> null
 }
 
+/**
+ * The name kept with the saved session. A search query is the listener's own words: with "Remember searches" off
+ * it is not written to storage, here no more than in the recent searches, and the restored player shows no source
+ * line for that queue. Every other name is a title from the library.
+ */
+internal fun QueueSource.savedName(rememberSearches: Boolean): String? =
+    name.takeUnless { kind == QueueSourceKind.SEARCH && !rememberSearches }
+
 /** What a saved session's queue was started from; a kind from another build reads as unknown. */
 internal fun ResumePlayback.savedQueueSource(): QueueSource? = sourceKind
     ?.let { kind -> QueueSourceKind.entries.firstOrNull { it.name == kind } }

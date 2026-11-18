@@ -27,6 +27,27 @@ class FavoriteTimesTest {
     }
 
     @Test
+    fun clearingForgetsEveryTimeInMemoryAndInTheFile() = runTest {
+        val store = Memory()
+        val times = FavoriteTimes(store)
+        times.update(listOf(TrackId("a"), TrackId("b")), emptyList(), 10)
+        times.clear()
+        assertEquals(emptyMap(), times.all())
+        assertEquals(emptyList(), store.lines)
+        assertEquals(emptyMap(), FavoriteTimes(store).all())
+        // A heart given after the clear is timed again.
+        times.update(listOf(TrackId("c")), emptyList(), 30)
+        assertEquals(mapOf(TrackId("c") to 30L), FavoriteTimes(store).all())
+        // A file that could not be read is cleared all the same.
+        val unread = FavoriteTimes(object : FavoriteTimeStore {
+            override suspend fun read(): List<String> = error("unreadable")
+            override suspend fun write(lines: List<String>) { store.lines = lines }
+        })
+        unread.clear()
+        assertEquals(emptyList(), store.lines)
+    }
+
+    @Test
     fun aReadThatThrowsNeverWritesOverTheStoredTimes() = runTest {
         val good = Memory()
         FavoriteTimes(good).update(listOf(TrackId("a")), emptyList(), 10)

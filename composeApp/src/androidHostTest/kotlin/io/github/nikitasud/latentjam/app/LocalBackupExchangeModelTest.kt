@@ -186,27 +186,62 @@ internal class LocalBackupExchangeModelTest {
     }
 
     @Test
-    fun processDeathCancelsLostWorkAndIgnoresTheOldPickerResult() = runTest {
+    fun processDeathCancelsLostWorkAndALateDestinationIsAFailedExport() = runTest {
         for (kind in listOf("export", "import")) {
+            val discarded = mutableListOf<String>()
             val exchange = model(
                 handle = SavedStateHandle(mapOf("operation" to kind)),
                 write = { _, _ -> error("A lost export must not write an empty document") },
                 read = { error("An abandoned request must not restart") },
+                discard = { discarded += it },
             )
-            val expected = if (kind == "export") {
+            val cancelled = if (kind == "export") {
                 LocalBackupExchangeResult.Export(LocalBackupFileResult.Cancelled)
             } else {
                 LocalBackupExchangeResult.Import(LocalBackupFileResult.Cancelled)
             }
-            assertEquals(expected, exchange.completed.value)
-            exchange.exportDestination("late-destination")
+            assertEquals(cancelled, exchange.completed.value)
             exchange.importSource("late-source")
+            // The picker closed without a document: nothing was created, so nothing is said.
+            exchange.exportDestination(null)
             runCurrent()
-            assertEquals(expected, exchange.completed.value)
+            assertEquals(cancelled, exchange.completed.value)
+            exchange.exportDestination("late-destination")
+            runCurrent()
+            if (kind == "export") {
+                // The picker did create the document, and it stays empty: that is a failed export, said as one.
+                val late = assertIs<LocalBackupExchangeResult.Export>(exchange.completed.value)
+                assertIs<LocalBackupFileResult.Failure>(late.result)
+                assertTrue(exchange.inProgress.value)
+                assertEquals(listOf("late-destination"), discarded)
+            } else {
+                assertEquals(cancelled, exchange.completed.value)
+                assertTrue(discarded.isEmpty())
+            }
             exchange.acknowledge()
+            assertFalse(exchange.inProgress.value)
             assertTrue(exchange.beginImport())
             exchange.abandon()
         }
+    }
+
+    @Test
+    fun aLateDestinationAfterTheCancellationWasShownIsStillAFailedExport() = runTest {
+        val exchange = model(handle = SavedStateHandle(mapOf("operation" to "export")))
+        // The screen showed the cancelled export before the picker's result reached it.
+        exchange.acknowledge()
+        assertNull(exchange.completed.value)
+
+        exchange.exportDestination("late-destination")
+        runCurrent()
+
+        val late = assertIs<LocalBackupExchangeResult.Export>(exchange.completed.value)
+        assertIs<LocalBackupFileResult.Failure>(late.result)
+        // Said once: the same destination again, or after a new request began, changes nothing.
+        exchange.acknowledge()
+        exchange.exportDestination("late-destination")
+        assertNull(exchange.completed.value)
+        assertFalse(exchange.inProgress.value)
     }
 
     @Test
@@ -321,10 +356,41 @@ internal class LocalBackupExchangeModelTest {
         assertFalse(exchange.inProgress.value)
     }
 
+    @Test
+    fun anExportThatFailsOrIsLeftBeforeItWritesDoesNotLeaveTheEmptyDocument() = runTest {
+        val discarded = mutableListOf<String>()
+        val failing = model(write = { _, _ -> error("The provider refused the write") }, discard = { discarded += it })
+        assertTrue(failing.beginExport("payload"))
+        failing.exportDestination("refused-document")
+        runCurrent()
+        assertIs<LocalBackupFileResult.Failure>(
+            assertIs<LocalBackupExchangeResult.Export>(failing.completed.value).result,
+        )
+        assertEquals(listOf("refused-document"), discarded)
+
+        val neverWritten = CompletableDeferred<Unit>()
+        val left = model(write = { _, _ -> neverWritten.await() }, discard = { discarded += it })
+        assertTrue(left.beginExport("payload"))
+        left.exportDestination("left-document")
+        runCurrent()
+        left.abandon()
+        runCurrent()
+        assertEquals(listOf("refused-document", "left-document"), discarded)
+        assertNull(left.completed.value)
+
+        // A document that was filled is asked about too; the platform side removes only an empty one.
+        val written = model(discard = { discarded += it })
+        assertTrue(written.beginExport("payload"))
+        written.exportDestination("written-document")
+        runCurrent()
+        assertEquals(listOf("refused-document", "left-document"), discarded)
+    }
+
     private fun model(
         handle: SavedStateHandle = SavedStateHandle(),
         write: suspend (() -> String, String) -> Unit = { _, _ -> },
         read: suspend (String) -> ImportedLocalDocument = { ImportedLocalDocument("document") },
         directory: (String) -> String? = { null },
-    ) = LocalBackupExchangeModel(handle, write, { source, _ -> read(source) }, directory).also(models::add)
+        discard: suspend (String) -> Unit = {},
+    ) = LocalBackupExchangeModel(handle, write, { source, _ -> read(source) }, directory, discard).also(models::add)
 }

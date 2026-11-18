@@ -52,8 +52,10 @@ import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSData
+import platform.Foundation.NSDate
 import platform.Foundation.NSFileHandle
 import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileModificationDate
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
@@ -64,6 +66,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.Foundation.closeFile
 import platform.Foundation.fileHandleForReadingAtPath
 import platform.Foundation.readDataOfLength
+import platform.Foundation.timeIntervalSince1970
 import platform.Foundation.writeToFile
 import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithURL
@@ -216,6 +219,17 @@ internal actual fun playlistCoverUri(reference: String?): String? {
 
 internal actual suspend fun deletePlaylistCover(reference: String): Boolean =
     withContext(Dispatchers.Default) { removeCoverFile(reference) }
+
+@OptIn(ExperimentalForeignApi::class)
+internal actual suspend fun storedPlaylistCovers(): List<StoredPlaylistCover> = withContext(Dispatchers.Default) {
+    val directory = coverDirectory ?: return@withContext emptyList()
+    val manager = NSFileManager.defaultManager
+    manager.contentsOfDirectoryAtPath(directory, null).orEmpty().mapNotNull { name ->
+        val reference = name as? String ?: return@mapNotNull null
+        val modified = manager.attributesOfItemAtPath("$directory/$reference", null)?.get(NSFileModificationDate) as? NSDate
+        StoredPlaylistCover(reference, modified?.let { (it.timeIntervalSince1970 * 1000).toLong() } ?: 0L)
+    }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 private fun removeCoverFile(reference: String): Boolean {

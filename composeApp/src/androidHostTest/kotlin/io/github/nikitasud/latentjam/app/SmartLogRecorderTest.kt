@@ -4,6 +4,10 @@
  */
 package io.github.nikitasud.latentjam.app
 
+import io.github.nikitasud.latentjam.history.DefaultFavorites
+import io.github.nikitasud.latentjam.history.FavoriteTimeStore
+import io.github.nikitasud.latentjam.history.FavoriteTimes
+import io.github.nikitasud.latentjam.history.FavoritesStore
 import io.github.nikitasud.latentjam.history.ListenEvent
 import io.github.nikitasud.latentjam.history.SmartImpression
 import io.github.nikitasud.latentjam.history.SmartImpressionLog
@@ -104,6 +108,41 @@ class SmartLogRecorderTest {
         recorder.onNowPlaying(NowPlaying(track = t("a"), queue = listOf(t("a"))))
         runCurrent()
         assertTrue(store.text.isEmpty())
+    }
+
+    @Test
+    fun heartTimesAreKeptOnlyWhileHistoryIsOnAndAHeartTakenBackAlwaysLosesIts() = runTest {
+        val favorites = DefaultFavorites(object : FavoritesStore {
+            var ids = emptyList<String>()
+            override suspend fun read() = ids
+            override suspend fun write(ids: List<String>) { this.ids = ids }
+        })
+        val times = FavoriteTimes(object : FavoriteTimeStore {
+            var lines = emptyList<String>()
+            override suspend fun read() = lines
+            override suspend fun write(lines: List<String>) { this.lines = lines }
+        })
+        var historyOn = true
+        var now = 100L
+        backgroundScope.launchFavoriteRecorder(favorites, times, log = null, logEnabled = { historyOn }, trackKey = { emptyMap() }, clock = { now })
+        runCurrent()
+
+        favorites.toggle(TrackId("a"))
+        runCurrent()
+        assertEquals(mapOf(TrackId("a") to 100L), times.all())
+
+        // "Save listening history" off: a heart is still a heart, but when it was given is not kept.
+        historyOn = false
+        now = 200L
+        favorites.toggle(TrackId("b"))
+        runCurrent()
+        assertEquals(listOf(TrackId("b"), TrackId("a")), favorites.all())
+        assertEquals(mapOf(TrackId("a") to 100L), times.all())
+
+        // Taking a heart back removes its time whatever the setting says.
+        favorites.toggle(TrackId("a"))
+        runCurrent()
+        assertEquals(emptyMap(), times.all())
     }
 
     @Test

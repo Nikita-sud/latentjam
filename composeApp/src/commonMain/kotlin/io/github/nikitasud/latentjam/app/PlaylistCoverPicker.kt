@@ -5,6 +5,11 @@
 package io.github.nikitasud.latentjam.app
 
 import androidx.compose.runtime.Composable
+import io.github.nikitasud.latentjam.library.Playlists
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /** Only [Selected.reference] is persisted; absolute sandbox paths may change on iOS. */
 internal sealed interface PlaylistCoverPickResult {
@@ -24,6 +29,49 @@ internal expect fun playlistCoverUri(reference: String?): String?
 
 /** Delete only after the playlist's replacement/reset/deletion has been durably saved. */
 internal expect suspend fun deletePlaylistCover(reference: String): Boolean
+
+/** One file of the playlist cover folder: its name and when it was written (0 or less when unknown). */
+internal class StoredPlaylistCover(val reference: String, val modifiedAtMs: Long)
+
+/** Every file in the playlist cover folder; empty when there is no folder yet. */
+internal expect suspend fun storedPlaylistCovers(): List<StoredPlaylistCover>
+
+/** A cover no playlist names is left alone this long: a pick being saved, or a delete that Undo can still take back. */
+internal const val PLAYLIST_COVER_ORPHAN_AGE_MS = 24 * 60 * 60 * 1000L
+
+/**
+ * The covers among [stored] that are left over: named by none of the playlists ([referenced]) and written at least
+ * [PLAYLIST_COVER_ORPHAN_AGE_MS] before [nowMs]. A file that is not a cover, or whose age is unknown, is never one.
+ */
+internal fun orphanPlaylistCovers(
+    stored: List<StoredPlaylistCover>,
+    referenced: Set<String>,
+    nowMs: Long,
+): List<String> = stored.filter { cover ->
+    isPlaylistCoverReference(cover.reference) && cover.reference !in referenced &&
+        cover.modifiedAtMs > 0 && nowMs - cover.modifiedAtMs >= PLAYLIST_COVER_ORPHAN_AGE_MS
+}.map { it.reference }
+
+/**
+ * Removes the cover files no playlist names any more: a process that ended while a delete could still be undone, or
+ * a restore that left a playlist out, leaves its image behind. Once per start, after the playlists were read: a read
+ * that fails throws here, so nothing is removed against a list that is not the store's.
+ */
+internal suspend fun sweepOrphanPlaylistCovers(playlists: Playlists, nowMs: Long) {
+    val referenced = playlists.all().mapNotNullTo(HashSet()) { it.customArtworkRef }
+    orphanPlaylistCovers(storedPlaylistCovers(), referenced, nowMs).forEach { deletePlaylistCover(it) }
+}
+
+/** [sweepOrphanPlaylistCovers] as the app starts: a failure costs the clean-up, never the start. */
+internal fun CoroutineScope.launchPlaylistCoverSweep(playlists: () -> Playlists, now: () -> Long): Job = launch {
+    try {
+        sweepOrphanPlaylistCovers(playlists(), now())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        println("Playlists: could not clear left-over covers: $failure")
+    }
+}
 
 internal const val PLAYLIST_COVER_MAX_EDGE = 768
 internal const val PLAYLIST_COVER_DIRECTORY = "playlist-covers"

@@ -227,6 +227,37 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun theSmartSwitchAndLearnFromHabitsSurviveBackupRestore() = runTest {
+        val source = fixture(emptyList())
+        source.settings.setSmartEnabled(false)
+        source.settings.setLearnFromHabits(false)
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(emptyList())
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertFalse(destination.settings.smartEnabled.value)
+        assertFalse(destination.settings.learnFromHabits.value)
+
+        // They travel as two more keys of the look record, which 0.9.5 reads key by key: its reader
+        // (decodeAppearance, unchanged) gives the same look and the record keeps its three fields.
+        val record = encoded.lineSequence().single { it.startsWith("K\t") }.split('\t')
+        assertEquals(3, record.size)
+        val look = record[1].drop(1).chunked(2).map { it.toInt(16).toByte() }.toByteArray().decodeToString()
+        assertContains(look, ";smart=false")
+        assertContains(look, ";habits=false")
+        assertEquals(source.settings.appearance.value, decodeAppearance(look))
+
+        // A file that says nothing of them (0.9.5 and older) leaves both as they are.
+        val older = encoded.lineSequence().joinToString("\n") { line ->
+            if (line.startsWith("K\t")) "K\ts${encodeAppearance(Appearance()).hex()}\tdots" else line
+        }
+        destination.settings.setSmartEnabled(true)
+        destination.service.importEncoded(older, LocalBackupRestoreMode.REPLACE)
+        assertTrue(destination.settings.smartEnabled.value)
+        assertFalse(destination.settings.learnFromHabits.value)
+    }
+
+    @Test
     fun appearanceRoundTripsInTheCodecAndRejectsInvalidDuplicateAndPrematureRecords() {
         val snapshot = emptySnapshot().copy(
             settings = emptySnapshot().settings.copy(
@@ -923,6 +954,62 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun mergingItsOwnBackupLeavesTwoPlaylistsOfOneNameAsTheyWere() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val c = track("c", "C", "Artist", "Album", 140_000)
+        val fixture = fixture(listOf(a, b, c))
+        val first = fixture.playlists.create("Workout", listOf(a.id))
+        // Created second, so it leads the list: the one a match by name alone takes for both.
+        val second = fixture.playlists.create("workout", listOf(b.id, c.id))
+
+        val encoded = fixture.service.exportEncoded()
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        val merged = fixture.playlists.all().associateBy { it.id }
+        assertEquals(2, merged.size)
+        assertContentEquals(listOf("a"), merged.getValue(first.id).trackIds)
+        assertContentEquals(listOf("b", "c"), merged.getValue(second.id).trackIds)
+    }
+
+    @Test
+    fun mergingIntoAnEmptyDeviceKeepsTwoPlaylistsOfOneNameApart() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val source = fixture(listOf(a, b))
+        source.playlists.create("Workout", listOf(a.id))
+        source.playlists.create("Workout", listOf(b.id))
+        val encoded = source.service.exportEncoded()
+
+        val target = fixture(listOf(a, b))
+        target.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+        target.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        assertEquals(
+            listOf(listOf("a"), listOf("b")),
+            target.playlists.all().map { it.trackIds }.sortedBy { it.first() },
+        )
+    }
+
+    @Test
+    fun aPlaylistRenamedSinceTheBackupIsMergedByItsIdNotAddedAgain() = runTest {
+        val a = track("a", "A", "Artist", "Album", 120_000)
+        val b = track("b", "B", "Artist", "Album", 130_000)
+        val fixture = fixture(listOf(a, b))
+        val playlist = fixture.playlists.create("Old name", listOf(a.id))
+        val encoded = fixture.service.exportEncoded()
+        fixture.playlists.rename(playlist.id, "New name")
+        fixture.playlists.addTracks(playlist.id, listOf(b.id))
+
+        fixture.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
+
+        val merged = fixture.playlists.all().single()
+        assertEquals("New name", merged.name)
+        assertContentEquals(listOf("a", "b"), merged.trackIds)
+    }
+
+    @Test
     fun mergingABackupBackInKeepsOneCopyOfEachListenWithItsOrigin() = runTest {
         val song = track("song", "Song", "Artist", "Album", 120_000)
         val fixture = fixture(listOf(song))
@@ -978,13 +1065,19 @@ internal class LocalBackupTest {
             (it.toInt() and 0xff).toString(16).padStart(2, '0')
         }))
 
+        // Another device has no such playlist: its restored copy shows automatic artwork.
+        val other = fixture(listOf(member))
+        other.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertNull(other.playlists.all().single().customArtworkRef)
+
         fixture.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
         val restored = fixture.playlists.all().single()
         assertEquals(playlist.id, restored.id)
         assertEquals(playlist.name, restored.name)
         assertEquals(playlist.trackIds, restored.trackIds)
-        assertNull(restored.customArtworkRef)
+        // The backup carries no cover, so a replace on the device that made it keeps the playlist's own.
+        assertEquals(coverReference, restored.customArtworkRef)
     }
 
     @Test
@@ -1240,8 +1333,11 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
 
         val destination = fixture(emptyList())
-        val kept = destination.playlists.create("Kept")
-        destination.playlists.addTracks(kept.id, listOf(TrackId("kept")))
+        // An id of its own: two stores that create a playlist in the same millisecond give both the same id, and a
+        // merge takes two playlists with one id for one playlist.
+        destination.playlists.replaceAll(
+            listOf(io.github.nikitasud.latentjam.library.Playlist("kept-id", "Kept", listOf("kept"))),
+        )
         destination.history.record(event(TrackId("kept"), 50))
 
         val report = destination.service.importEncoded(encoded, LocalBackupRestoreMode.MERGE)
@@ -1907,6 +2003,10 @@ internal class LocalBackupTest {
         override fun setArtistVariety(level: Int) { artistVariety.value = sanitizeArtistVariety(level) }
         override val includeNoveltyMixes: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setIncludeNoveltyMixes(enabled: Boolean) { includeNoveltyMixes.value = enabled }
+        override val smartEnabled: MutableStateFlow<Boolean> = MutableStateFlow(DEFAULT_SMART_ENABLED)
+        override fun setSmartEnabled(enabled: Boolean) { smartEnabled.value = enabled }
+        override val learnFromHabits: MutableStateFlow<Boolean> = MutableStateFlow(DEFAULT_LEARN_FROM_HABITS)
+        override fun setLearnFromHabits(enabled: Boolean) { learnFromHabits.value = enabled }
         override val normalizeVolume: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)

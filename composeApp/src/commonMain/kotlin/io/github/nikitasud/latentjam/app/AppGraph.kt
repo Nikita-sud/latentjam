@@ -366,6 +366,8 @@ object AppGraph {
                     },
                 )
             }
+            // Cover images no playlist names any more (a delete whose Undo the process did not outlive, a restore).
+            appScope.launchPlaylistCoverSweep({ playlists }, ::nowMillis)
             // The master SMART switch: the play modes know before a saved session is restored, so a session saved in
             // SMART comes back in plain order while SMART is off.
             playback.setSmartAvailable(settings.smartEnabled.value)
@@ -436,7 +438,7 @@ object AppGraph {
                             shuffleMode = now.shuffleMode.name,
                             positionMs = resumePositionMs(now.positionMs, now.isPlaying),
                             sourceKind = source?.kind?.name,
-                            sourceName = source?.name,
+                            sourceName = source?.savedName(settings.rememberSearches.value),
                             sourceReference = source?.reference,
                             // The queue itself, so a restart resumes the playlist that was
                             // actually playing. A whole-library queue is exactly what the
@@ -457,7 +459,7 @@ object AppGraph {
                         )
                     }
                 }
-                    .resumePlaybackWrites()
+                    .resumePlaybackWrites(resumeQueueHold)
                     .collect(settings::setResumePlayback)
             }
         }
@@ -572,6 +574,11 @@ object AppGraph {
         koin.getOrNull<SmartLogRecorder>()?.forgetAll()
         // The per-seed press counts name every SMART seed's file; they go with the history.
         koin.getOrNull<SmartPresses>()?.clear()
+    }
+
+    /** Clear listening history: when each heart was given goes with it; the hearts themselves stay. */
+    internal suspend fun forgetFavoriteTimes() {
+        koin.getOrNull<FavoriteTimes>()?.clear()
     }
 
     /** SMART's impression log, for the debug export (null when the platform binds none). */

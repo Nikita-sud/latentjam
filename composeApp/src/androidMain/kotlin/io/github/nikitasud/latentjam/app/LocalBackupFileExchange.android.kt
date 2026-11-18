@@ -6,6 +6,7 @@ package io.github.nikitasud.latentjam.app
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
@@ -76,6 +77,7 @@ internal actual fun rememberLocalBackupFileExchange(
                     },
                     readDocument = { source, budget -> readDocument(resolver, Uri.parse(source), budget) },
                     documentDirectory = { destination -> createdDocumentDirectory(Uri.parse(destination)) },
+                    discardEmptyDocument = { destination -> discardEmptyDocument(resolver, Uri.parse(destination)) },
                 )
             }
         }
@@ -161,8 +163,19 @@ internal class LocalBackupExchangeModel(
     private val readDocument: suspend (source: String, budget: ImportReadBudget) -> ImportedLocalDocument,
     /** The folder a created destination sits in, as an absolute path; null when unknown. */
     private val documentDirectory: (destination: String) -> String? = { null },
+    /**
+     * Removes the destination if it still holds nothing. The picker creates the document before the app
+     * writes a byte, so an export that never reaches it would leave an empty file that looks like a backup.
+     */
+    private val discardEmptyDocument: suspend (destination: String) -> Unit = {},
 ) : ViewModel() {
     private var operation: String? = handle["operation"]
+
+    /**
+     * An export whose payload ended with the activity or the process while the picker was open. The picker's
+     * answer can still arrive, before or after the screen was told of the cancellation.
+     */
+    private var exportLost = operation == "export"
     private var picking = false
     private var pendingExport: ((destinationDirectory: String?) -> String)? = null
     private var work: Job? = null
@@ -191,6 +204,7 @@ internal class LocalBackupExchangeModel(
 
     private fun begin(kind: String): Boolean {
         if (inProgress.value) return false
+        exportLost = false
         generation++
         operation = kind
         handle["operation"] = kind
@@ -212,6 +226,10 @@ internal class LocalBackupExchangeModel(
     }
 
     fun exportDestination(destination: String?) {
+        if (!picking && exportLost && destination != null) {
+            lostExportDestination(destination)
+            return
+        }
         if (!picking || operation != "export") return
         picking = false
         val encode = pendingExport
@@ -228,13 +246,43 @@ internal class LocalBackupExchangeModel(
                 writeDocument({ encode(documentDirectory(destination)) }, destination)
                 LocalBackupFileResult.Success(Unit)
             } catch (cancelled: CancellationException) {
+                // The screen left before the document was filled: an untouched one is not left behind.
+                withContext(NonCancellable) { discardQuietly(destination) }
                 throw cancelled
             } catch (failure: Exception) {
+                discardQuietly(destination)
                 LocalBackupFileResult.Failure(failure.message ?: "Could not export backup")
             } catch (_: OutOfMemoryError) {
+                discardQuietly(destination)
                 LocalBackupFileResult.Failure("Backup exceeds available memory")
             }
             if (request == generation) complete(LocalBackupExchangeResult.Export(result))
+        }
+    }
+
+    /**
+     * The picker answered an export this model no longer has the payload for. The document it created is
+     * empty and nothing will fill it: the export failed, and the screen says so instead of staying silent
+     * beside a file that looks like a backup. Said once, whether or not the cancellation was already shown.
+     */
+    private fun lostExportDestination(destination: String) {
+        exportLost = false
+        operation = "export"
+        handle["operation"] = "export"
+        inProgress.value = true
+        completed.value = LocalBackupExchangeResult.Export(
+            LocalBackupFileResult.Failure("The backup was not written: the app was restarted while the picker was open"),
+        )
+        viewModelScope.launch { discardQuietly(destination) }
+    }
+
+    private suspend fun discardQuietly(destination: String) {
+        try {
+            discardEmptyDocument(destination)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            // Best effort: the failure itself is still reported.
         }
     }
 
@@ -353,6 +401,15 @@ private suspend fun stageDocument(encoded: String, scratchDir: File): File {
     return staged
 }
 
+/**
+ * Deletes the document at [uri] when it holds no byte. Only then: the picker also returns a document that
+ * was there before (the listener chose to overwrite an older backup), and that one must stay as it is.
+ */
+private suspend fun discardEmptyDocument(resolver: ContentResolver, uri: Uri) = withContext(Dispatchers.IO) {
+    val empty = resolver.openInputStream(uri)?.use { it.read() < 0 } ?: return@withContext
+    if (empty) DocumentsContract.deleteDocument(resolver, uri)
+}
+
 private fun copyToDocument(resolver: ContentResolver, uri: Uri, staged: File) {
     val output = resolver.openOutputStream(uri, "wt")
         ?: error("The selected document cannot be opened")
@@ -380,7 +437,7 @@ private suspend fun readDocument(
         val input = resolver.openInputStream(uri) ?: error("The selected document cannot be opened")
         val bytes = input.use { it.readBounded(budget) }
         budget.accept(bytes)
-        val text = decodeImportedText(bytes)
+        val text = readImportedText(bytes)
         // Document IDs and URI path segments need not be file names. Ask the provider for its
         // display name; missing metadata must never prevent importing readable contents.
         val displayName = try {
@@ -393,7 +450,7 @@ private suspend fun readDocument(
         } catch (_: Exception) {
             null
         }
-        ImportedLocalDocument(text, displayName)
+        ImportedLocalDocument(text.text, displayName, text.ansi)
     }
 
 /**

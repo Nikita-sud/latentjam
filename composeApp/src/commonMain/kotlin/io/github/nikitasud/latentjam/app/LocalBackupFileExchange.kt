@@ -13,6 +13,8 @@ internal const val MAX_LOCAL_BACKUP_DOCUMENT_CHARS: Int = 64 * 1024 * 1024
 internal data class ImportedLocalDocument(
     val text: String,
     val displayName: String? = null,
+    /** [text] is a Windows-1252 reading of bytes that are neither UTF-8 nor UTF-16 ([ImportedText.ansi]). */
+    val ansi: Boolean = false,
 )
 
 /**

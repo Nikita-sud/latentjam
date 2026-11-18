@@ -31,6 +31,17 @@ internal class QueueSourceTest {
     ).queueSource()
 
     @Test
+    fun aSearchQueryIsSavedWithTheSessionOnlyWhileSearchesAreRemembered() {
+        val search = QueueSource(QueueSourceKind.SEARCH, "late night jazz")
+        assertEquals("late night jazz", search.savedName(rememberSearches = true))
+        assertNull(search.savedName(rememberSearches = false))
+        // A title from the library is no search: it is kept either way.
+        val playlist = QueueSource(QueueSourceKind.COLLECTION, "Road trip", "pl-1")
+        assertEquals("Road trip", playlist.savedName(rememberSearches = false))
+        assertNull(QueueSource(QueueSourceKind.TRACKS).savedName(rememberSearches = true))
+    }
+
+    @Test
     fun sameNamedAlbumsAndFoldersOpenTheOriginalIdentity() {
         assertEquals(QueueSourceGroup.Album(secondAlbum), source("album:second").resolveGroup(catalog))
         assertEquals(

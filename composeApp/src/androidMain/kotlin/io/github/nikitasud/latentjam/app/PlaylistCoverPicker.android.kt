@@ -38,5 +38,11 @@ internal actual suspend fun deletePlaylistCover(reference: String): Boolean = wi
     !file.exists() || (file.isFile && file.delete())
 }
 
+internal actual suspend fun storedPlaylistCovers(): List<StoredPlaylistCover> = withContext(Dispatchers.IO) {
+    File(AndroidAppContext.value.filesDir, PLAYLIST_COVER_DIRECTORY).listFiles().orEmpty()
+        .filter { it.isFile }
+        .map { StoredPlaylistCover(it.name, it.lastModified()) }
+}
+
 private fun coverFile(reference: String): File =
     File(File(AndroidAppContext.value.filesDir, PLAYLIST_COVER_DIRECTORY), reference)

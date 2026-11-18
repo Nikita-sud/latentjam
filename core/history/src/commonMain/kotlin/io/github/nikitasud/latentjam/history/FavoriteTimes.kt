@@ -18,7 +18,8 @@ public interface FavoriteTimeStore {
 /**
  * When each current favourite was hearted, for the FULL ranker's `favourited_days_ago` (behind "Learn from my
  * habits"). One line per favourite; a heart removed drops its line. Favourites from before this file existed have no
- * time (unknown), and a restore from a backup dates its hearts to the restore. A damaged file reads as no times.
+ * time (unknown), as have hearts given while the listening history is off or before it was last cleared; a restore
+ * from a backup dates its hearts to the restore. A damaged file reads as no times.
  */
 public class FavoriteTimes(private val store: FavoriteTimeStore) {
     private val mutex = Mutex()
@@ -35,6 +36,15 @@ public class FavoriteTimes(private val store: FavoriteTimeStore) {
         for (id in removed) map.remove(id)
         for (id in added) map[id] = atMs
         runCatching { store.write(map.entries.map { (id, at) -> "$FORMAT|${id.value.encodeHex()}|$at" }) }
+    }
+
+    /**
+     * Forgets every heart time, here and in the file; the hearts themselves are not touched. Part of clearing the
+     * listening history. Like every write here it is best effort: a write that fails leaves the file for the next one.
+     */
+    public suspend fun clear(): Unit = mutex.withLock {
+        times = LinkedHashMap()
+        runCatching { store.write(emptyList()) }
     }
 
     /** The times, read once; null (and not remembered) when the read failed or was cancelled. */
