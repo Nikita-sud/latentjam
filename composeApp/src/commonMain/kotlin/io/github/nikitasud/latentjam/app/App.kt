@@ -2036,9 +2036,9 @@ private fun AppShell(
                                 is QueueSourceGroup.Genre -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.Folder -> { { target.group.toSelection() } }
                                 is QueueSourceGroup.FolderBranch -> {
-                                    { target.node.toTreeSelection(settings.groupSortOrders.value.folders) }
+                                    { folderNode(target.key, catalog).toTreeSelection(settings.groupSortOrders.value.folders) }
                                 }
-                                is QueueSourceGroup.FolderTracks -> { { target.node.toTracksSelection() } }
+                                is QueueSourceGroup.FolderTracks -> { { folderNode(target.key, catalog).toTracksSelection() } }
                                 null -> return false
                             }
                         }

@@ -9,6 +9,7 @@ import io.github.nikitasud.latentjam.library.LibraryCatalog
 import io.github.nikitasud.latentjam.library.SongSortDirection
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -70,7 +71,7 @@ internal class FoldersPageTest {
         val source = QueueSource(QueueSourceKind.LIBRARY_GROUP, "Music", FOLDER_TREE_ROUTE_PREFIX + music.key)
 
         val resolved = source.resolveGroup(catalog)
-        assertEquals(music.key, (resolved as QueueSourceGroup.FolderBranch).node.key)
+        assertEquals(music.key, (resolved as QueueSourceGroup.FolderBranch).key)
         assertEquals("foldertree:external_primary:Music", source.parentCollectionId())
         assertNull(
             QueueSource(QueueSourceKind.LIBRARY_GROUP, "Gone", "${FOLDER_TREE_ROUTE_PREFIX}external_primary:Gone")
@@ -93,23 +94,23 @@ internal class FoldersPageTest {
         track("sd-root", "", sdCard),
     )
 
-    /** The tracks "Playing from" opens for a resolved source. */
-    private fun QueueSourceGroup.tracks(): List<TrackDescriptor>? = when (this) {
+    /** The tracks "Playing from" opens for a source resolved in [catalog]; a tree folder is built with its page. */
+    private suspend fun QueueSourceGroup.tracks(catalog: LibraryCatalog): List<TrackDescriptor>? = when (this) {
         is QueueSourceGroup.Folder -> group.tracks
-        is QueueSourceGroup.FolderBranch -> node.allTracks()
-        is QueueSourceGroup.FolderTracks -> node.tracks
+        is QueueSourceGroup.FolderBranch -> folderNode(key, catalog).allTracks()
+        is QueueSourceGroup.FolderTracks -> folderNode(key, catalog).tracks
         else -> null
     }
 
     @Test
-    fun `a track played in a folder of the tree reopens that folder on its own volume and only its own tracks`() {
+    fun `a track played in a folder of the tree reopens that folder on its own volume and only its own tracks`() = runTest {
         val catalog = LibraryCatalog.build(twoVolumes)
         val sdMusic = FolderTree.build(twoVolumes).node(FolderTree.keyOf(sdCard, "Music"))!!
 
         val source = folderTrackSource(sdMusic, "Music")
 
         // Not the internal storage's Music beside it, and not the Live folder below it.
-        assertEquals(listOf("sd-1", "sd-2"), source.resolveGroup(catalog)?.tracks()?.ids())
+        assertEquals(listOf("sd-1", "sd-2"), source.resolveGroup(catalog)?.tracks(catalog)?.ids())
         // The page that source opens plays from the same source again.
         val page = CollectionSelection("Music", null, null, emptyList(), routeId = source.reference!!)
         assertEquals(source, page.queueSource())
@@ -119,23 +120,24 @@ internal class FoldersPageTest {
     }
 
     @Test
-    fun `a track played at the root of a volume has a source`() {
+    fun `a track played at the root of a volume has a source`() = runTest {
+        val catalog = LibraryCatalog.build(twoVolumes)
         val sdRoot = FolderTree.build(twoVolumes).node(FolderTree.keyOf(sdCard, ""))!!
 
         val source = folderTrackSource(sdRoot, "SD card")
 
-        assertEquals(listOf("sd-root"), source.resolveGroup(LibraryCatalog.build(twoVolumes))?.tracks()?.ids())
+        assertEquals(listOf("sd-root"), source.resolveGroup(catalog)?.tracks(catalog)?.ids())
     }
 
     @Test
-    fun `a folder source saved by an earlier build still opens the folder list's folder`() {
+    fun `a folder source saved by an earlier build still opens the folder list's folder`() = runTest {
         val catalog = LibraryCatalog.build(twoVolumes)
         val saved = QueueSource(QueueSourceKind.LIBRARY_GROUP, "Music", "folder:Music")
 
         val resolved = saved.resolveGroup(catalog)
 
         assertEquals("Music", (resolved as QueueSourceGroup.Folder).group.path)
-        assertEquals(listOf("int-1", "int-2", "sd-1", "sd-2"), resolved.tracks()?.ids())
+        assertEquals(listOf("int-1", "int-2", "sd-1", "sd-2"), resolved.tracks(catalog)?.ids())
         assertEquals("folder:Music", saved.parentCollectionId())
     }
 
