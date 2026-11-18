@@ -142,10 +142,13 @@ public class SleepTimerController(
             val movedAway = snapshot.track?.id != trackId ||
                 (ambiguousRow && ordinal != rowOrdinal)
             if (!ambiguousRow) rowOrdinal = ordinal
-            val naturallyEnded = hasPlayed &&
-                !snapshot.isPlaying &&
-                snapshot.durationMs > 0L &&
+            // The position within reach of the known length, or the player's own word that it stopped at the
+            // end of the row: held to its last track it stops there by itself, also in a file whose length nobody
+            // knows or whose stated length is longer than its audio. Waiting on, the timer would stay set and
+            // pause the next track the moment the listener pressed Play.
+            val atKnownEnd = snapshot.durationMs > 0L &&
                 snapshot.positionMs >= (snapshot.durationMs - END_TOLERANCE_MS).coerceAtLeast(0L)
+            val naturallyEnded = hasPlayed && !snapshot.isPlaying && (atKnownEnd || snapshot.pausedAtItemEnd)
             // Repeat-one can jump directly from the end back to zero without ever publishing
             // a paused state or changing queue identity. Remember the previous ticker sample
             // so "end of track" still means one play, not an infinite loop. That jump is also

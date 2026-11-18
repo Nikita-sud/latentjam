@@ -6,7 +6,9 @@ package io.github.nikitasud.latentjam.playback
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class ExpandedPickTest {
 
@@ -61,11 +63,25 @@ internal class ExpandedPickTest {
     }
 
     @Test
-    fun inSmartTheTrackPlaysAloneAndSmartBuildsOnIt() {
-        assertNull(pick(listOf(row("b")), mode = ShuffleMode.SMART))
-        assertNull(pick(listOf(RequestedRow("", "some artist")), mode = ShuffleMode.SMART, search = { listOf("e", "a") }))
-        // Shuffled, the list is the queue: the player starts on the pick and shuffles the rest.
-        assertEquals(playlist, checkNotNull(pick(listOf(row("b")), mode = ShuffleMode.ON)).rows)
+    fun inSmartTheTrackPlaysAloneAndItsListIsOnlyTheSource() {
+        // SMART builds the queue from the pick; the list is what the queue goes back to when SMART is left.
+        val tapped = checkNotNull(pick(listOf(row("b")), mode = ShuffleMode.SMART))
+        assertTrue(tapped.sourceOnly)
+        assertEquals(playlist, tapped.rows)
+        assertEquals("b", tapped.rows[tapped.startIndex])
+
+        val spoken = checkNotNull(
+            pick(listOf(RequestedRow("", "some artist")), mode = ShuffleMode.SMART, search = { listOf("e", "a") }),
+        )
+        assertTrue(spoken.sourceOnly)
+        assertEquals(listOf("e", "a"), spoken.rows)
+
+        // In order or shuffled, the list is the queue itself: shuffled, the player starts on the pick.
+        for (mode in listOf(ShuffleMode.OFF, ShuffleMode.ON)) {
+            val queue = checkNotNull(pick(listOf(row("b")), mode = mode))
+            assertFalse(queue.sourceOnly)
+            assertEquals(playlist, queue.rows)
+        }
     }
 
     @Test
@@ -88,5 +104,24 @@ internal class ExpandedPickTest {
         val queue = checkNotNull(pick(listOf(RequestedRow("stale-id", "some artist")), search = { listOf("e", "a") }))
 
         assertEquals(listOf("e", "a"), queue.rows)
+    }
+
+    @Test
+    fun theFirstPickOfAProcessIsPlayedInTheModeTheListenerLeft() {
+        val saved = PlaybackWidgetSnapshot(mediaId = "last-track", shuffleMode = ShuffleMode.SMART)
+
+        // The car started the service; the app's controller has not connected and nothing is loaded.
+        assertEquals(ShuffleMode.SMART, coldPickMode(appControllerConnected = false, playerEmpty = true, saved = saved))
+        assertEquals(ShuffleMode.ON, coldPickMode(false, true, saved.copy(shuffleMode = ShuffleMode.ON)))
+    }
+
+    @Test
+    fun theModeInForceStandsOnceTheAppIsConnectedOrSomethingIsLoaded() {
+        val saved = PlaybackWidgetSnapshot(mediaId = "last-track", shuffleMode = ShuffleMode.SMART)
+
+        assertNull(coldPickMode(appControllerConnected = true, playerEmpty = true, saved = saved))
+        assertNull(coldPickMode(appControllerConnected = false, playerEmpty = false, saved = saved))
+        // Nothing was ever played, or the queue was emptied: there is no mode to bring back.
+        assertNull(coldPickMode(false, true, PlaybackWidgetSnapshot(shuffleMode = ShuffleMode.SMART)))
     }
 }

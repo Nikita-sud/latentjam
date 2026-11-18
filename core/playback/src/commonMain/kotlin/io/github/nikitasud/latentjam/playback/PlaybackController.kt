@@ -109,6 +109,10 @@ public const val PREVIOUS_RESTART_THRESHOLD_MS: Long = 3_000L
  *   was served from ([SmartChoice.planPosition]). Continuations and rows the listener supplied have
  *   none.
  * @property playbackStart How the playback instance at the playhead began; see [PlaybackStart].
+ * @property pausedAtItemEnd The player stopped by itself at the end of the current row and stays there, as it does
+ *   while the sleep timer waits for the end of the track ([PlaybackController.setFinishingCurrentTrack]). It says the
+ *   row was played out even where [durationMs] is unknown or longer than the audio. False on a player that moves on
+ *   to the next row instead.
  */
 public data class NowPlaying(
     public val track: TrackDescriptor? = null,
@@ -124,6 +128,7 @@ public data class NowPlaying(
     public val smartContinuationIds: Set<TrackId> = emptySet(),
     public val smartPlanPositions: Map<TrackId, Int> = emptyMap(),
     public val playbackStart: PlaybackStart? = null,
+    public val pausedAtItemEnd: Boolean = false,
 )
 
 /**

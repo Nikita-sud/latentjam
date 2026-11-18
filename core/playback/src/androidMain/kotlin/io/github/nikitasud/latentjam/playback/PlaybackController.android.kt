@@ -165,6 +165,13 @@ internal class AndroidPlaybackController(
 
     /** Main-thread only: an edit of several player commands is under way; see [retainQueue]. */
     private var bulkQueueEdit = false
+
+    /**
+     * Main-thread only: the row the player stopped at by itself, at its end ([NowPlaying.pausedAtItemEnd]); null once
+     * it plays again or the listener seeks. Kept by id: a new cover or tag for that row re-describes it and changes
+     * nothing about where it stands.
+     */
+    private var pausedAtEndOfId: String? = null
     private var tickerJob: Job? = null
     private var repeat: RepeatMode = RepeatMode.OFF
 
@@ -241,6 +248,7 @@ internal class AndroidPlaybackController(
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             pendingAdvance.invalidate()
+            pausedAtEndOfId = controller?.currentMediaItem?.mediaId?.takeIf { pausedAtEndOfItem(playWhenReady, reason) }
             pushState()
         }
 
@@ -306,7 +314,7 @@ internal class AndroidPlaybackController(
                     mediaId = failedId,
                     index = failedIndex,
                     positionMs = player.currentPosition.coerceAtLeast(0L),
-                    cause = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId }?.cause,
+                    start = AndroidPlaybackStarts.current.value?.takeIf { it.trackId.value == failedId },
                 )
             }
             failedRecoveryIds += failedId
@@ -351,7 +359,8 @@ internal class AndroidPlaybackController(
                 val origin = recoveryOrigin
                 recoveryOrigin = null
                 recoveryReturnRow(mediaIds, failedIndex, origin)?.let { row ->
-                    announceStart(player, origin?.cause ?: StartCause.AUTO_ADVANCE, row)
+                    // The interrupted play carries on; going back begins no new one.
+                    AndroidPlaybackStarts.announceReturn(TrackId(mediaIds[row]), origin?.start)
                     player.seekTo(row, origin?.positionMs ?: 0L)
                 }
                 rebuildQueueSnapshot()
@@ -388,6 +397,8 @@ internal class AndroidPlaybackController(
             newPosition: Player.PositionInfo,
             reason: Int,
         ) {
+            // A seek away from the end: the row is no longer played out.
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) pausedAtEndOfId = null
             pendingAdvance.invalidate()
             pushState()
         }
@@ -1593,13 +1604,15 @@ internal class AndroidPlaybackController(
     private fun adoptExternalQueue(player: Player) {
         if (!AndroidPlaybackStarts.awaitsExternalQueue) return
         val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
-        if (!AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId })) return
-        pool = adoptedQueueRows(
-            ids = items.map { it.mediaId },
+        val announced = AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId }) ?: return
+        val rows = adoptedQueueRows(
+            ids = announced.ids,
             named = ::trackById,
             provisional = { row -> items[row].toProvisionalTrack() },
         )
-        poolById = pool.associateByIdValue()
+        // The list the pick came from, when the service gave one: in SMART the queue is the pick alone.
+        pool = adoptedSource(rows, announced.source)
+        poolById = if (pool === rows) rows.associateByIdValue() else (rows + pool).associateByIdValue()
         smartContinuationIds.clear()
         smartPlanPositions.clear()
         curatedTailId = null
@@ -1661,6 +1674,8 @@ internal class AndroidPlaybackController(
             smartContinuationIds = continuationSnapshot.get(visibleQueue, smartContinuationIds),
             smartPlanPositions = planPositionSnapshot.get(visibleQueue, smartPlanPositions),
             playbackStart = AndroidPlaybackStarts.current.value,
+            pausedAtItemEnd = pausedAtEndOfId != null && player?.playWhenReady == false &&
+                player.currentMediaItem?.mediaId == pausedAtEndOfId,
         )
     }
 

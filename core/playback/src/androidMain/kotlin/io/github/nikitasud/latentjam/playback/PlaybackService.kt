@@ -394,8 +394,11 @@ public class PlaybackService : MediaLibraryService() {
             if (asksForAnything(mediaItems.map(::requestedRow))) return playAnything(controller)
             // One track picked in a car or asked for by voice becomes the list it was picked from; see [expandedPick].
             var expanded = false
+            var source: List<TrackDescriptor>? = null
             val resolved = browseFuture {
-                expandedPickFrom(controller, mediaItems)?.also { expanded = true } ?: run {
+                val pick = expandedPickFrom(controller, mediaItems)
+                source = pick?.source
+                pick?.queue?.also { expanded = true } ?: run {
                     val request = playableRequestFrom(
                         controller,
                         mediaItems,
@@ -418,6 +421,7 @@ public class PlaybackService : MediaLibraryService() {
                         queue.mediaItems,
                         queue.startIndex,
                         shuffled = playbackPlayer?.shuffleModeEnabled == true,
+                        source = source,
                     )
                     queue
                 },
@@ -454,20 +458,26 @@ public class PlaybackService : MediaLibraryService() {
     private var expandedQueueSize: Int? = null
 
     /**
-     * The queue for a single track [controller] picked, when [expandedPick] gives one. Nothing is read or built for the
-     * app's own controller, nor in SMART: both play the request as it came.
+     * The list a single pick belongs to ([expandedPick]): its [source], and the [queue] to install when that list is
+     * what plays. A null queue leaves the request to play as it came: in SMART, the pick alone.
+     */
+    private class PickedList(val queue: MediaSession.MediaItemsWithStartPosition?, val source: List<TrackDescriptor>)
+
+    /**
+     * The list around a single track [controller] picked, when [expandedPick] finds one. Nothing is read or built for
+     * the app's own controller, nor for a request that is not one bare row: those play as they came.
      */
     private suspend fun expandedPickFrom(
         controller: MediaSession.ControllerInfo,
         mediaItems: List<MediaItem>,
-    ): MediaSession.MediaItemsWithStartPosition? {
+    ): PickedList? {
         val fromApp = controller.packageName == packageName
-        val mode = AndroidShuffleModeRegistry.mode.value
         val requested = mediaItems.map(::requestedRow)
-        if (fromApp || mode == ShuffleMode.SMART || requested.singleOrNull()?.carriesAudio != false) return null
+        if (fromApp || requested.singleOrNull()?.carriesAudio != false) return null
+        val mode = pickShuffleMode()
         val listed = lastListedRows[controller.packageName]
         // The whole library and its playlists are read for this, and a long list becomes as many media items.
-        val queue = withContext(Dispatchers.IO) {
+        val picked = withContext(Dispatchers.IO) {
             val catalog = MediaBrowseRegistry.catalog?.invoke() ?: return@withContext null
             val pick = expandedPick(
                 fromApp = fromApp,
@@ -486,11 +496,45 @@ public class PlaybackService : MediaLibraryService() {
                 idOf = { it.id.value },
                 search = { words -> rankMediaSearch(catalog.tracks, words) },
             ) ?: return@withContext null
-            MediaSession.MediaItemsWithStartPosition(pick.rows.map(::playableItem), pick.startIndex, C.TIME_UNSET)
+            PickedList(
+                queue = if (pick.sourceOnly) {
+                    null
+                } else {
+                    MediaSession.MediaItemsWithStartPosition(pick.rows.map(::playableItem), pick.startIndex, C.TIME_UNSET)
+                },
+                source = pick.rows,
+            )
         } ?: return null
         // Back on the main thread, where the black box reads the player.
-        recordExternalMediaEvent(controller.packageName, "pick played with its list: ${queue.mediaItems.size} rows")
-        return queue
+        recordExternalMediaEvent(
+            controller.packageName,
+            if (picked.queue == null) {
+                "pick played alone, from a list of ${picked.source.size} rows"
+            } else {
+                "pick played with its list: ${picked.source.size} rows"
+            },
+        )
+        return picked
+    }
+
+    /**
+     * The shuffle mode a pick from outside is played in. In a process where the app's controller has not connected and
+     * nothing is loaded, the mode the listener left is put in force first ([coldPickMode]), on the player too, as the
+     * controller would have done had it connected before the pick.
+     */
+    private fun pickShuffleMode(): ShuffleMode {
+        val saved = coldPickMode(
+            appControllerConnected = mediaSession?.connectedControllers
+                ?.any { it.connectionHints.getBoolean(APP_CONTROLLER_HINT, false) } == true,
+            playerEmpty = (playbackPlayer?.mediaItemCount ?: 0) == 0,
+            saved = PlaybackWidgetStateStore.read(this),
+        )
+        if (saved != null) {
+            AndroidShuffleModeRegistry.set(saved)
+            // What the registry kept: SMART is not a mode while it is switched off.
+            playbackPlayer?.shuffleModeEnabled = AndroidShuffleModeRegistry.mode.value == ShuffleMode.ON
+        }
+        return AndroidShuffleModeRegistry.mode.value
     }
 
     /**
@@ -1055,6 +1099,8 @@ public class PlaybackService : MediaLibraryService() {
         requestTileRedraw()
         PlaybackWidgetStateStore.markPaused(this)
         MediaBrowseRegistry.clearActiveResumption()
+        // A queue announced to the app's controller and never installed is not waited for without a player.
+        AndroidPlaybackStarts.forgetExternalQueue()
         serviceScope.cancel()
         transportFades?.release()
         transportFades = null

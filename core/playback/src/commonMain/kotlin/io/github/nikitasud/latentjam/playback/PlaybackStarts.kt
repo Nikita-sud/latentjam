@@ -19,6 +19,7 @@ import io.github.nikitasud.latentjam.smart.TrackId
 internal class PlaybackStartLedger {
     private var sequence = 0L
     private var announced: Announcement? = null
+    private var returning: Return? = null
 
     /** The start of the instance at the playhead; null until the first one begins. */
     var current: PlaybackStart? = null
@@ -55,12 +56,32 @@ internal class PlaybackStartLedger {
     }
 
     /**
+     * The command about to run puts the playhead back on [target], which was playing before and did not finish:
+     * a chain of unreadable rows moved playback off it, found nothing to play, and returns. [earlier] is the
+     * start it had then, when known. See [begin].
+     */
+    fun announceReturn(target: TrackId, earlier: PlaybackStart?) {
+        returning = Return(target, earlier?.takeIf { it.trackId == target }?.sequence)
+    }
+
+    /**
      * A new playback instance of [trackId] began. An announcement naming this track wins over
      * [observed]; either way the announcement is spent, so one that never came true — Next pressed
      * just as the track ended on its own — cannot label a later transition. An automatic advance onto
      * a track the listener queued by hand is [StartCause.QUEUED]; any start spends that mark.
+     *
+     * A return ([announceReturn]) that names this track is no new instance: the play that was interrupted is
+     * re-described, under the number it had (a new one when that is not known) and with no cause, since nobody chose
+     * the track again. Its first half was already recorded with its cause; the rest, heard after the return, then
+     * counts as the same listen and not as a second one with a pick or an advance nobody made.
      */
     fun begin(trackId: TrackId, observed: StartCause?): PlaybackStart {
+        val back = returning
+        returning = null
+        if (back != null && back.target == trackId) {
+            announced = null
+            return PlaybackStart(back.sequence ?: ++sequence, trackId, cause = null).also { current = it }
+        }
         val queued = queuedByHand.remove(trackId)
         val cause = (announced?.takeIf { it.target == trackId }?.cause ?: observed)
             .let { if (queued && it == StartCause.AUTO_ADVANCE) StartCause.QUEUED else it }
@@ -86,6 +107,9 @@ internal class PlaybackStartLedger {
     }
 
     private data class Announcement(val cause: StartCause, val target: TrackId)
+
+    /** [sequence]: the number of the interrupted play, null when it is not known. */
+    private data class Return(val target: TrackId, val sequence: Long?)
 }
 
 /**

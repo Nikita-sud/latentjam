@@ -324,6 +324,65 @@ class SleepTimerTest {
         runCurrent()
         assertEquals(false, playback.finishing.last(), "a countdown holds nothing")
     }
+    @Test
+    fun `end of track ends where the player stopped itself when the length is unknown`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val second = TrackDescriptor(TrackId("two"))
+        val playback = FakePlayback(
+            initial = NowPlaying(
+                track = first,
+                isPlaying = true,
+                positionMs = 10_000,
+                durationMs = 0,
+                queue = listOf(first, second),
+                queueIndex = 0,
+            ),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        assertEquals(listOf(true), playback.finishing)
+
+        // Held to its last track, the player paused itself at the end of the row. Nobody knows the file's length.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            isPlaying = false,
+            positionMs = 187_000,
+            pausedAtItemEnd = true,
+        )
+        runCurrent()
+        assertEquals(SleepTimerState.Off, timer.state.value)
+        assertEquals(listOf(true, false), playback.finishing)
+        assertEquals(1, playback.pauseCalls)
+
+        // The next Play goes on to the next track, and nothing pauses it again.
+        playback.mutableState.value = playback.mutableState.value.copy(
+            track = second,
+            queueIndex = 1,
+            isPlaying = true,
+            positionMs = 0,
+            pausedAtItemEnd = false,
+        )
+        runCurrent()
+        assertEquals(1, playback.pauseCalls)
+    }
+
+    @Test
+    fun `a pause by hand in a track of unknown length keeps the end of track timer waiting`() = runTest {
+        val first = TrackDescriptor(TrackId("one"))
+        val playback = FakePlayback(
+            initial = NowPlaying(track = first, isPlaying = true, positionMs = 10_000, durationMs = 0, queue = listOf(first), queueIndex = 0),
+        )
+        val timer = SleepTimerController(playback, backgroundScope) { testScheduler.currentTime }
+
+        timer.startAtEndOfTrack()
+        runCurrent()
+        playback.mutableState.value = playback.mutableState.value.copy(isPlaying = false, positionMs = 60_000)
+        runCurrent()
+
+        assertEquals(SleepTimerState.EndOfTrack, timer.state.value)
+        assertEquals(0, playback.pauseCalls)
+    }
 }
 
 private class FakePlayback(initial: NowPlaying = NowPlaying()) : PlaybackController {

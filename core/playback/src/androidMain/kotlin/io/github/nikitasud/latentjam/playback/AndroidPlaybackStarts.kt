@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.playback
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,26 +51,31 @@ internal object AndroidPlaybackStarts {
      * rows as its own source ([takeExternalQueue]). The announcement comes before Media3 installs the queue, so the
      * controller compares it with what the player holds each time the player's queue changes.
      */
-    private var externalQueueIds: List<String>? = null
+    private var externalQueue: ExternalQueue? = null
 
     /** An announced queue has not been taken yet; asked before the player's rows are read for [takeExternalQueue]. */
-    val awaitsExternalQueue: Boolean get() = externalQueueIds != null
+    val awaitsExternalQueue: Boolean get() = externalQueue != null
 
-    /** True, once, when the player holds exactly the announced queue ([playerIds], in the player's order). */
-    fun takeExternalQueue(playerIds: List<String>): Boolean {
-        if (externalQueueIds != playerIds) return false
-        externalQueueIds = null
-        return true
+    /** The announced queue, once, when the player holds exactly it ([playerIds], in the player's order); else null. */
+    fun takeExternalQueue(playerIds: List<String>): ExternalQueue? {
+        val announced = externalQueue?.takeIf { it.ids == playerIds } ?: return null
+        externalQueue = null
+        return announced
     }
 
     /** The app's controller installed a queue of its own: an announced one that never arrived is not waited for. */
     fun forgetExternalQueue() {
-        externalQueueIds = null
+        externalQueue = null
     }
 
     /** The command about to run will make [target] current because of [cause]. */
     fun announce(cause: StartCause, target: TrackId) {
         ledger.announce(cause, target)
+    }
+
+    /** See [PlaybackStartLedger.announceReturn]. */
+    fun announceReturn(target: TrackId, earlier: PlaybackStart?) {
+        ledger.announceReturn(target, earlier)
     }
 
     /** See [PlaybackStartLedger.queuedByHand]. */
@@ -91,13 +97,19 @@ internal object AndroidPlaybackStarts {
      * From the service's session, before it installs [mediaItems]: a controller outside the app set
      * this queue, so the row it starts on — see [externalQueueStart] — is the listener's pick. The
      * [startIndex] is Media3's, where [C.INDEX_UNSET] leaves the row to the player; [shuffled] is the
-     * player's own shuffle.
+     * player's own shuffle. [source] is the list the queue was picked from when that is more than the
+     * queue itself; see [ExternalQueue.source].
      */
-    fun announceExternalQueue(mediaItems: List<MediaItem>, startIndex: Int, shuffled: Boolean) {
+    fun announceExternalQueue(
+        mediaItems: List<MediaItem>,
+        startIndex: Int,
+        shuffled: Boolean,
+        source: List<TrackDescriptor>? = null,
+    ) {
         // Even when no start can be named, the queue now belongs to whoever sent it.
         MediaBrowseRegistry.onExternalQueue?.invoke()
         mutableExternalQueues.value++
-        externalQueueIds = mediaItems.map { it.mediaId }
+        externalQueue = ExternalQueue(mediaItems.map { it.mediaId }, source)
         ledger.forgetQueued()
         val start = externalQueueStart(
             mediaItems,
@@ -157,3 +169,12 @@ internal object AndroidPlaybackStarts {
 
     private data class SeekBetweenRows(val fromRow: Int, val toRow: Int)
 }
+
+/**
+ * A queue a controller outside the app announced: the media [ids] of its rows, in order, and its [source], the list
+ * it was picked from, when the service knows one that is not the queue itself. In SMART a track picked in the car
+ * plays alone and SMART builds on it, exactly as a track tapped in the app does; and as there, the list it was
+ * tapped in stays the source the queue returns to when the listener leaves SMART.
+ */
+internal class ExternalQueue(val ids: List<String>, val source: List<TrackDescriptor>?)
+
