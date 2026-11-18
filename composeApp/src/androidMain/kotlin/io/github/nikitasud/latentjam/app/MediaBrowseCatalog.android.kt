@@ -64,10 +64,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
         AppGraph.queueSource.value = null
         // A car or a voice request can start playback in a process no screen ever opened. As for a resumed queue
         // below, the app's controller connects, so the queue has history, a saved session and SMART's library.
-        AppGraph.appScope.launch {
-            AppGraph.playback.synchronizeWithPlatformSession()
-            supplySmartLibraryQuietly()
-        }
+        AppGraph.appScope.launch { connectWithoutScreens() }
     }
     // Settings load their saved queue eagerly from preferences, so this answers without waiting.
     // Without music access the queue cannot be read: the tile then opens the app, which asks again.
@@ -92,10 +89,7 @@ internal fun installMediaBrowseCatalog(context: Context) {
                 // A widget/tile/Auto controller can start playback without ever opening the UI.
                 // Connect the app controller too, so it owns queue/source transitions and its
                 // state is hydrated if the Activity is opened later.
-                AppGraph.appScope.launch {
-                    AppGraph.playback.synchronizeWithPlatformSession()
-                    supplySmartLibraryQuietly()
-                }
+                AppGraph.appScope.launch { connectWithoutScreens() }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -109,6 +103,27 @@ internal fun installMediaBrowseCatalog(context: Context) {
  * [AppGraph.supplySmartLibraryWithoutScreens] for a resume no screen started. A failure costs SMART's wider
  * choice until the app is opened, never the playback that is already under way.
  */
+/**
+ * Connects the app's controller to the session a car, a headset or the widget started with no screen open, then gives
+ * SMART its library. It runs in the app's own scope, which has no handler: a connection that fails (the service going
+ * away under it, no memory for it) would otherwise end the process in the middle of the music. Without the
+ * controller there is nothing to supply the library to; the next screen connects again.
+ */
+internal suspend fun connectWithoutScreens(
+    connect: suspend () -> Unit = { AppGraph.playback.synchronizeWithPlatformSession() },
+    supply: suspend () -> Unit = ::supplySmartLibraryQuietly,
+) {
+    try {
+        connect()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Throwable) {
+        println("Playback: no controller for a session without screens: $failure")
+        return
+    }
+    supply()
+}
+
 internal suspend fun supplySmartLibraryQuietly() {
     try {
         AppGraph.supplySmartLibraryWithoutScreens()

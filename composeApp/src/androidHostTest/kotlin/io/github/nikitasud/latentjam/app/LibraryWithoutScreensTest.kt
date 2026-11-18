@@ -45,4 +45,22 @@ class LibraryWithoutScreensTest {
         assertNull(MediaStoreArtwork.albumFallback(resumed.artworkUri!!))
         assertEquals("content://media/external/audio/media/42", MediaStoreArtwork.audioFallback(resumed.artworkUri!!))
     }
+
+    @Test
+    fun aControllerThatCannotConnectLeavesTheProcessAliveAndSuppliesNothing() = runTest {
+        var supplied = 0
+        // The scope this runs in has no handler: anything thrown from it would end the process.
+        connectWithoutScreens(connect = { throw IllegalStateException("the service went away") }, supply = { supplied++ })
+        connectWithoutScreens(connect = { throw OutOfMemoryError("no room for the controller") }, supply = { supplied++ })
+        assertEquals(0, supplied)
+        connectWithoutScreens(connect = {}, supply = { supplied++ })
+        assertEquals(1, supplied)
+    }
+
+    @Test
+    fun aCancelledConnectionStaysACancellation() = runTest {
+        kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> {
+            connectWithoutScreens(connect = { throw kotlinx.coroutines.CancellationException("left") }, supply = {})
+        }
+    }
 }
