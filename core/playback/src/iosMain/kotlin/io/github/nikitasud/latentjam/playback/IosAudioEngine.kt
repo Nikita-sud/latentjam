@@ -529,12 +529,43 @@ internal class IosAudioEngine : EqualizerController {
 
     fun seekTo(positionMs: Long) {
         val file = currentFile ?: return
-        val wasPlaying = player.playing
+        cueAt(file, millisToFrame(positionMs, file), resume = player.playing)
+    }
+
+    /** Whether a file is cued, playing or not. */
+    val cued: Boolean get() = currentFile != null
+
+    /** Whether the engine renders. False while paused here, and after the system stopped it under a playing track. */
+    val running: Boolean get() = engine.running
+
+    /**
+     * Whether the output has a format the engine can start on. Between two routes it can have none (no channels, no
+     * rate), and an engine started then fails or raises; the caller waits, or pauses, instead.
+     */
+    val outputReady: Boolean
+        get() = engine.outputNode.outputFormatForBus(0u).let { it.channelCount > 0u && it.sampleRate > 0.0 }
+
+    /**
+     * Cues the current file again where it stands, without starting it, after the system stopped the engine (a
+     * change of route, or of the output's format). A stopped engine is uninitialized and what its player node still
+     * holds is not known; a fresh segment from the last frame that sounded is. The position is the one
+     * [lastRenderedFrame] kept, so at most the ticker's interval is heard twice. False when no file is cued.
+     */
+    fun recueAfterSystemStop(): Boolean {
+        val file = currentFile ?: return false
+        val frame = currentFrame()
+        // A segment that played out needs no cue: [play] schedules it afresh by itself.
+        if (!player.playing && shouldRestartConsumedSegment(frame, file.length)) return true
+        cueAt(file, frame, resume = false)
+        return true
+    }
+
+    private fun cueAt(file: AVAudioFile, requestedFrame: Long, resume: Boolean) {
         // A segment must not start at file.length: it would contain no frames at all. Lyric taps
         // and the seek bar can ask for a position at or past the end, so the target stays on the
         // last frame and the item then ends through the scheduled segment's completion.
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
-        val frame = millisToFrame(positionMs, file).coerceIn(0L, lastFrame)
+        val frame = requestedFrame.coerceIn(0L, lastFrame)
         invalidateCompletion()
         cancelOverlap()
         engine.stop()
@@ -544,7 +575,7 @@ internal class IosAudioEngine : EqualizerController {
         segmentStartFrame = frame
         pausedFrame = frame
         scheduleSegment(file, frame)
-        if (wasPlaying && ensureEngineRunning()) player.play()
+        if (resume && ensureEngineRunning()) player.play()
     }
 
     val playing: Boolean

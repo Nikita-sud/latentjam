@@ -64,6 +64,29 @@ class IosAudioResetTest {
     }
 
     @Test
+    fun aGraphTheSystemStoppedIsCuedAgainWhereItStoodWithoutStarting() = withWave { url ->
+        val engine = IosAudioEngine()
+        try {
+            // Nothing cued: nothing to mend, and no harm in asking.
+            assertFalse(engine.cued)
+            assertFalse(engine.recueAfterSystemStop())
+            assertTrue(engine.load(url, autoPlay = false) {})
+            engine.seekTo(250L)
+            assertTrue(engine.cued)
+            assertFalse(engine.running)
+            // Asked twice, as two notices of one stop would: the same place, still paused.
+            assertTrue(engine.recueAfterSystemStop())
+            assertTrue(engine.recueAfterSystemStop())
+            assertEquals(250L, engine.positionMs())
+            assertFalse(engine.playing)
+            assertFalse(engine.running)
+            // A seek after it still lands where it was asked to.
+            engine.seekTo(600L)
+            assertEquals(600L, engine.positionMs())
+        } finally { engine.stop() }
+    }
+
+    @Test
     fun aFileRemovedBeforeTheResetDoesNotSurviveThroughItsOldHandle() = withWave { url ->
         val engine = IosAudioEngine()
         try {

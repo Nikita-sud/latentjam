@@ -29,6 +29,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import platform.AVFAudio.AVAudioEngineConfigurationChangeNotification
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVAudioSessionInterruptionNotification
@@ -37,10 +38,15 @@ import platform.AVFAudio.AVAudioSessionInterruptionOptionShouldResume
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
 import platform.AVFAudio.AVAudioSessionMediaServicesWereResetNotification
+import platform.AVFAudio.AVAudioSessionPortBuiltInReceiver
+import platform.AVFAudio.AVAudioSessionPortBuiltInSpeaker
+import platform.AVFAudio.AVAudioSessionPortDescription
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonKey
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
 import platform.AVFAudio.AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+import platform.AVFAudio.currentRoute
+import platform.AVFAudio.otherAudioPlaying
 import platform.AVFAudio.setActive
 import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
@@ -598,6 +604,18 @@ internal class IosPlaybackController(
      * on purpose — matching Media3's `handleAudioFocus = true` on Android.
      */
     private var pausedByInterruption: Boolean = false
+
+    /**
+     * A recovery of the file player between its re-cue and its restart ([recoverFileOutput]); while it waits, the
+     * playing-state check leaves the stopped graph alone.
+     */
+    private var outputRecoveryJob: Job? = null
+
+    /** When the last recoveries were (transport clock), for [outputRecoveryAllowed]. */
+    private val outputRecoveryTimes = ArrayDeque<Long>()
+
+    /** The route the file player was last known to sound on; see [privateOutputLost]. */
+    private var playingRoute: Set<OutputPort> = emptySet()
 
     /** The playback category and activation are both lazy: browsing must not interrupt other audio. */
     private var audioSessionConfigured: Boolean = false
@@ -1784,7 +1802,88 @@ internal class IosPlaybackController(
             null,
             NSOperationQueue.mainQueue,
         ) { _ -> onMediaServicesReset() }
+        // The engine stops itself when the output's format changes (another route, another sample rate) and says
+        // so here; nothing but the app starts it again. Launched, never run inside the notification itself.
+        center.addObserverForName(
+            AVAudioEngineConfigurationChangeNotification,
+            null,
+            NSOperationQueue.mainQueue,
+        ) { _ -> mainScope.launch { recoverFileOutput() } }
     }
+
+    /**
+     * Gets the file player going again after the system stopped its graph under it. The track is cued again where it
+     * stood, paused; if the app still means to play, it starts again a moment later, unless by then a pause has come
+     * (a device that went away, an interruption, the listener), another item was loaded, or the output cannot or must
+     * not be taken ([resumeAfterOutputChange]). Whatever fails ends as before this existed: paused, position kept.
+     *
+     * Safe to call again and from several places (the engine's notice, the playing-state check): one recovery waits
+     * at a time, a graph that runs again is left alone, and an output that keeps stopping is given up on
+     * ([outputRecoveryAllowed]).
+     */
+    private fun recoverFileOutput() {
+        if (activeBackend != PlaybackBackend.FILE || !audioEngine.cued) return
+        if (outputRecoveryJob?.isActive == true) return
+        // A load, a seek or a Play since the stop has the graph running again: nothing to mend.
+        if (audioEngine.running) return
+        val itemGeneration = playbackItemGeneration
+        cancelOverlap()
+        audioEngine.recueAfterSystemStop()
+        invalidateNowPlayingInfo()
+        if (!playing) {
+            pushState()
+            return
+        }
+        val now = transportTimeMs()
+        if (!outputRecoveryAllowed(outputRecoveryTimes, now)) {
+            pauseFromSystem()
+            return
+        }
+        outputRecoveryTimes.addLast(now)
+        while (outputRecoveryTimes.size > OUTPUT_RECOVERY_MAX) outputRecoveryTimes.removeFirst()
+        outputRecoveryJob = mainScope.launch {
+            delay(OUTPUT_RECOVERY_SETTLE_MS)
+            outputRecoveryJob = null
+            val decision = resumeAfterOutputChange(
+                playing = playing,
+                sameItem = playbackItemGeneration == itemGeneration,
+                fileBackend = activeBackend == PlaybackBackend.FILE,
+                interrupted = pausedByInterruption,
+                otherAudioPlaying = AVAudioSession.sharedInstance().otherAudioPlaying,
+                outputReady = audioEngine.outputReady,
+                privateOutputLost = privateOutputLost(playingRoute, currentOutputPorts()),
+            )
+            when (decision) {
+                OutputResume.LEAVE -> Unit
+                OutputResume.PAUSE -> pauseFromSystem()
+                OutputResume.RESUME -> {
+                    // A Play in the meantime has it sounding already.
+                    if (!audioEngine.running || !audioEngine.playing) {
+                        playing = playActiveBackend(fadeIn = true)
+                        if (!playing) {
+                            pauseFromSystem()
+                            return@launch
+                        }
+                    }
+                    playingRoute = currentOutputPorts()
+                    updateTicker()
+                    invalidateNowPlayingInfo()
+                    pushState()
+                }
+            }
+        }
+    }
+
+    /** The outputs of the route right now. */
+    private fun currentOutputPorts(): Set<OutputPort> =
+        AVAudioSession.sharedInstance().currentRoute.outputs.mapNotNullTo(HashSet()) { port ->
+            (port as? AVAudioSessionPortDescription)?.let {
+                OutputPort(
+                    uid = it.UID,
+                    builtIn = it.portType == AVAudioSessionPortBuiltInSpeaker || it.portType == AVAudioSessionPortBuiltInReceiver,
+                )
+            }
+        }
 
     /**
      * Recreates the file graph even while Music.app owns playback: the inactive graph is also
@@ -1801,6 +1900,9 @@ internal class IosPlaybackController(
             audioSessionConfigured = false
             audioSessionActive = false
             pausedByInterruption = false
+            // The rebuild below is the whole recovery, and it ends paused.
+            outputRecoveryJob?.cancel()
+            outputRecoveryJob = null
             transportFadeJob?.cancel()
             transportFadeJob = null
             transportFade.reset()
@@ -1894,7 +1996,14 @@ internal class IosPlaybackController(
         // or pulling an AirPod. Everything else (new device, category change) is
         // none of our business and would pause on innocuous route reshuffles.
         val oldDeviceGone = reason == AVAudioSessionRouteChangeReasonOldDeviceUnavailable.toLong()
-        if (!oldDeviceGone) return
+        if (!oldDeviceGone) {
+            // The music moves to the new route (a device that joined): it is where it sounds from now on. Not noted
+            // for a device that went away, so that [recoverFileOutput] still sees what was lost.
+            mainScope.launch {
+                if (activeBackend == PlaybackBackend.FILE && playing) playingRoute = currentOutputPorts()
+            }
+            return
+        }
         mainScope.launch {
             if (activeBackend == PlaybackBackend.FILE && (playing || transportFade.pausePending)) {
                 pauseFromSystem()
@@ -2155,6 +2264,8 @@ internal class IosPlaybackController(
         updateCrossfadeLoop()
         if (playing) {
             if (tickerJob == null) {
+                // Playback begins: this is the route it sounds on.
+                if (activeBackend == PlaybackBackend.FILE) playingRoute = currentOutputPorts()
                 tickerJob = mainScope.launch {
                     while (isActive) {
                         reconcilePlayingState()
@@ -2184,7 +2295,22 @@ internal class IosPlaybackController(
      */
     private fun reconcilePlayingState() {
         val backendPaused = when (activeBackend) {
-            PlaybackBackend.FILE -> !audioEngine.playing
+            PlaybackBackend.FILE -> {
+                val check = fileOutputCheck(
+                    playing = playing,
+                    nodePlaying = audioEngine.playing,
+                    engineRunning = audioEngine.running,
+                    recoveryPending = outputRecoveryJob?.isActive == true,
+                    recoveryAllowed = outputRecoveryAllowed(outputRecoveryTimes, transportTimeMs()),
+                )
+                if (check == FileOutputCheck.RECOVER) {
+                    // A graph the system stopped is started again, not reported as a pause: the engine's own notice
+                    // may come later than this look, or not at all.
+                    recoverFileOutput()
+                    return
+                }
+                check == FileOutputCheck.PAUSE
+            }
             PlaybackBackend.MEDIA_LIBRARY ->
                 mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStatePaused ||
                     mediaPlayer.playbackState == MPMusicPlaybackState.MPMusicPlaybackStateInterrupted
