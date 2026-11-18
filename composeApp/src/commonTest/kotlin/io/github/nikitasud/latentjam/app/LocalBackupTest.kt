@@ -1034,13 +1034,19 @@ internal class LocalBackupTest {
             (it.toInt() and 0xff).toString(16).padStart(2, '0')
         }))
 
+        // Another device has no such playlist: its restored copy shows automatic artwork.
+        val other = fixture(listOf(member))
+        other.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertNull(other.playlists.all().single().customArtworkRef)
+
         fixture.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
         val restored = fixture.playlists.all().single()
         assertEquals(playlist.id, restored.id)
         assertEquals(playlist.name, restored.name)
         assertEquals(playlist.trackIds, restored.trackIds)
-        assertNull(restored.customArtworkRef)
+        // The backup carries no cover, so a replace on the device that made it keeps the playlist's own.
+        assertEquals(coverReference, restored.customArtworkRef)
     }
 
     @Test

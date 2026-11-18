@@ -367,6 +367,8 @@ object AppGraph {
                     },
                 )
             }
+            // Cover images no playlist names any more (a delete whose Undo the process did not outlive, a restore).
+            appScope.launchPlaylistCoverSweep({ playlists }, ::nowMillis)
             // The master SMART switch: the play modes know before a saved session is restored, so a session saved in
             // SMART comes back in plain order while SMART is off.
             playback.setSmartAvailable(settings.smartEnabled.value)

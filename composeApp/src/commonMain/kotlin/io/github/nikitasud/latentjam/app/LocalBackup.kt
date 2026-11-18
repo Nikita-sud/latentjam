@@ -1203,9 +1203,13 @@ internal class LocalBackupService(
                         addedTrackIds = backup.addedTrackReferenceIds.mapNotNull { resolved[it]?.value },
                     )
                 }
+                val stored = playlists.all()
                 val target = when (mode) {
-                    LocalBackupRestoreMode.REPLACE -> imported
-                    LocalBackupRestoreMode.MERGE -> mergePlaylists(playlists.all(), imported)
+                    // A backup carries no cover: a playlist that is on this device keeps the one it has.
+                    LocalBackupRestoreMode.REPLACE -> stored.associate { it.id to it.customArtworkRef }.let { covers ->
+                        imported.map { it.copy(customArtworkRef = covers[it.id]) }
+                    }
+                    LocalBackupRestoreMode.MERGE -> mergePlaylists(stored, imported)
                 }
                 playlists.replaceAll(target)
                 settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
