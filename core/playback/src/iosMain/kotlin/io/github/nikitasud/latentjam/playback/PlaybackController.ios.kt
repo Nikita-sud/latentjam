@@ -252,7 +252,121 @@ internal class IosPlaybackController(
      * curve — equal-power across an overlap, the plain fades where a seam cannot overlap. Samples
      * every [GAIN_RAMP_TICK_MS] near a seam and sleeps through the middle of a track.
      */
+    /**
+     * The row queued on the player node behind the current one, for a seam without a gap ([gaplessTick]).
+     * [generation] is the item it will be once it has begun; [seamsBefore] the engine's count of seams when it was
+     * queued, which tells "it has begun" from "the engine let it go".
+     */
+    private class GaplessJoin(val outgoingId: TrackId, val incomingId: TrackId, val generation: Long, val seamsBefore: Long)
+
+    private var gaplessJoin: GaplessJoin? = null
+    private var gaplessJob: Job? = null
+
+    /**
+     * Watches for the moment the next track of an album that runs on can be queued behind the current one, and for
+     * anything that takes that back. Only while the file player plays with smooth transitions off; paused, the node
+     * keeps what is queued and the first look after the next Play checks it again.
+     */
+    private fun updateGaplessLoop() {
+        gaplessJob?.cancel()
+        gaplessJob = null
+        if (crossfadeMs > 0L) {
+            dropGaplessJoin()
+            return
+        }
+        if (!playing || activeBackend != PlaybackBackend.FILE) return
+        gaplessJob = mainScope.launch {
+            while (isActive) delay(gaplessTick())
+        }
+    }
+
+    /** Queues, keeps or takes back the join at the current seam ([gaplessJoinWanted]); returns when to look again. */
+    private fun gaplessTick(): Long {
+        val current = queue.getOrNull(queueIndex) ?: return GAPLESS_IDLE_TICK_MS
+        // Asking for the position is also what lets the engine see that its clock has passed a seam.
+        val positionMs = audioEngine.positionMs()
+        val durationMs = audioEngine.durationMs() ?: 0L
+        val next = overlapNextIndex()?.let(queue::getOrNull)
+        val url = next?.audioUri?.let { NSURL.URLWithString(it) }?.takeIf { it.isFileURL() }
+        val wanted = next != null && gaplessJoinWanted(
+            crossfadeMs = crossfadeMs,
+            repeatOne = repeat == RepeatMode.ONE,
+            finishingTrack = finishingTrack,
+            fileBackend = activeBackend == PlaybackBackend.FILE,
+            nextIsLocalFile = url != null,
+            nextIsSameTrack = next.id == current.id,
+            continuesAlbum = continuesAlbum(current, next),
+        )
+        gaplessJoin?.let { join ->
+            when {
+                // The queued track has begun: the engine's notice of the seam is on its way ([onGaplessSeam]).
+                audioEngine.seamsCrossed != join.seamsBefore -> Unit
+                // The engine let it go by itself (cued again after the system stopped it): the join may be made again.
+                !audioEngine.hasChained -> gaplessJoin = null
+                !wanted || next?.id != join.incomingId || current.id != join.outgoingId -> dropGaplessJoin()
+            }
+        }
+        if (gaplessJoin == null && wanted && next != null && url != null && withinGaplessLead(positionMs, durationMs)) {
+            val key = "gapless:${current.id.value}>${next.id.value}"
+            if (key !in failedOverlaps) {
+                val join = GaplessJoin(current.id, next.id, playbackItemGeneration + 1, audioEngine.seamsCrossed)
+                val queued = audioEngine.chainNext(
+                    url,
+                    onSeam = { onGaplessSeam(join) },
+                    onEnded = { mainScope.launch { onItemEnded(join.generation) } },
+                )
+                // A file of another format, or one that will not open: this seam is the plain one.
+                if (queued) gaplessJoin = join else failedOverlaps += key
+            }
+        }
+        return gaplessTickMs(positionMs, durationMs)
+    }
+
+    /** Takes the queued track back before it has begun; the current one goes on alone to its own end. */
+    private fun dropGaplessJoin() {
+        if (gaplessJoin == null) return
+        gaplessJoin = null
+        audioEngine.dropChained()
+    }
+
+    /**
+     * The queued track has begun, sample after sample behind the row that was playing: it is the current row now,
+     * with everything a track change brings, and no load. Should the queue have changed in the last moment before
+     * the seam, the row that ought to follow is loaded the plain way instead.
+     */
+    private fun onGaplessSeam(join: GaplessJoin) {
+        val known = gaplessJoin === join
+        if (known) gaplessJoin = null
+        // A load since then owns the player; it also stopped what was queued, so this is only for safety.
+        if (playbackItemGeneration != join.generation - 1) return
+        val incomingIndex = overlapNextIndex()?.takeIf {
+            queue.getOrNull(it)?.id == join.incomingId && queue.getOrNull(queueIndex)?.id == join.outgoingId
+        }
+        when (seamAdoption(known, incomingIndex != null, generationAsExpected = true)) {
+            SeamAdoption.RELOAD -> advance(StartCause.AUTO_ADVANCE)
+            SeamAdoption.ADOPT -> {
+                // Next, Previous and a seek that wait for their fade were asked of the track that has now ended.
+                if (changeFades.pending && repeat != RepeatMode.ONE) autoAdvancedDuringChange = true
+                playbackItemGeneration = join.generation
+                pendingAdvance.invalidate()
+                queueIndex = checkNotNull(incomingIndex)
+                incomingRiseMs = 0L
+                incomingRiseFromMs = 0L
+                joinedByOverlap = false
+                failedOverlaps.clear()
+                beginStart(StartCause.AUTO_ADVANCE)
+                // Already sounding: its own level is reached over the usual short ramp, not in a step.
+                updateNormalizationGain(snap = false)
+                updateTicker()
+                invalidateNowPlayingInfo()
+                pushState()
+                mainScope.launch { appendSmartNextIfNeeded() }
+            }
+        }
+    }
+
     private fun updateCrossfadeLoop() {
+        updateGaplessLoop()
         crossfadeJob?.cancel()
         crossfadeJob = null
         applyDeckGains()
@@ -1536,6 +1650,8 @@ internal class IosPlaybackController(
      */
     private fun loadCurrentItem(autoPlay: Boolean): RowLoad {
         pendingAdvance.invalidate()
+        // Whatever loads next stops the node, and what was queued on it with it.
+        gaplessJoin = null
         cancelOverlap()
         incomingRiseMs = 0L
         incomingRiseFromMs = 0L
@@ -1683,6 +1799,7 @@ internal class IosPlaybackController(
     /** Stops both native players while a bounded scan considers another candidate. */
     private fun stopBackendsAfterLoadFailure() {
         pendingAdvance.invalidate()
+        gaplessJoin = null
         ++playbackItemGeneration
         mediaItemStarted = false
         mediaPlayerStartRequestedAt = null
@@ -1848,6 +1965,7 @@ internal class IosPlaybackController(
         if (audioEngine.running) return
         val itemGeneration = playbackItemGeneration
         cancelOverlap()
+        gaplessJoin = null
         audioEngine.recueAfterSystemStop()
         invalidateNowPlayingInfo()
         if (!playing) {
@@ -1923,6 +2041,7 @@ internal class IosPlaybackController(
             // The rebuild below is the whole recovery, and it ends paused.
             outputRecoveryJob?.cancel()
             outputRecoveryJob = null
+            gaplessJoin = null
             transportFadeJob?.cancel()
             transportFadeJob = null
             transportFade.reset()
@@ -2149,6 +2268,7 @@ internal class IosPlaybackController(
                     // Its last frame is played once more: the end it then reports takes the usual way on, instead
                     // of the finished track starting over.
                     cancelOverlap()
+                    gaplessJoin = null
                     audioEngine.seekTo(audioEngine.durationMs() ?: 0L, resume = false)
                 }
                 audioEngine.play()
@@ -2171,6 +2291,8 @@ internal class IosPlaybackController(
     private fun seekActiveBackend(positionMs: Long) {
         // Wherever it lands, the row is no longer one that has just played out.
         endedItemGeneration = NO_ENDED_ITEM
+        // The engine's cue drops what was queued behind the track; the join is made again if it still applies.
+        gaplessJoin = null
         cancelOverlap()
         // A seek — back to 0, a repeat-one wrap — starts the track over: no rise is still going on.
         incomingRiseMs = 0L

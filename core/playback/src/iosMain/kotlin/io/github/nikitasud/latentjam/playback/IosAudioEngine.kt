@@ -23,7 +23,11 @@ import platform.AVFAudio.AVAudioFormat
 import platform.AVFAudio.AVAudioMixerNode
 import platform.AVFAudio.AVAudioPCMBuffer
 import platform.AVFAudio.AVAudioPlayerNode
+import platform.AVFAudio.AVAudioEngineManualRenderingModeOffline
+import platform.AVFAudio.AVAudioEngineManualRenderingStatusSuccess
+import platform.AVFAudio.AVAudioPlayerNodeCompletionCallbackType
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
+import platform.AVFAudio.AVAudioPlayerNodeCompletionDataRendered
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
@@ -48,7 +52,13 @@ import platform.darwin.dispatch_get_main_queue
  * holds — see [rebuildAfterMediaServicesReset].
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class IosAudioEngine : EqualizerController {
+internal class IosAudioEngine(
+    /**
+     * Tests only: with a format the graph renders offline into buffers the test pulls ([renderOffline]) instead of
+     * to a device. No sound and no device, and the nodes, their queues and their clocks are the framework's own.
+     */
+    private val offlineFormat: AVAudioFormat? = null,
+) : EqualizerController {
 
     private var engine = AVAudioEngine()
     private var player = AVAudioPlayerNode()
@@ -124,11 +134,24 @@ internal class IosAudioEngine : EqualizerController {
      * it any more, so before it plays again its segment is cued again from where it stood ([play]).
      */
     private var needsCue = false
+
+    /**
+     * The next track queued on the current deck right behind the current segment ([chainNext]): the node plays the
+     * two sample after sample. [token] is its segment's, [onEnded] what its own end will call once it is current.
+     */
+    private class Chained(val file: AVAudioFile, val token: Long, val onSeam: () -> Unit, val onEnded: () -> Unit)
+
+    private var chained: Chained? = null
     private var completionGeneration: Long = 0L
     private var completion: (() -> Unit)? = null
     private var outputSupportsEqualizer: Boolean = true
 
     init {
+        offlineFormat?.let { format ->
+            check(engine.enableManualRenderingMode(AVAudioEngineManualRenderingModeOffline, format, OFFLINE_QUANTUM, null)) {
+                "Could not enter offline rendering"
+            }
+        }
         buildGraph()
         restoreCurve()
         publishEqualizerState()
@@ -181,6 +204,7 @@ internal class IosAudioEngine : EqualizerController {
         // while building it cannot leave the engine scheduling segments on dead nodes.
         currentFile = null
         completion = null
+        chained = null
         segmentStartFrame = 0L
         pausedFrame = 0L
         invalidateCompletion()
@@ -241,6 +265,7 @@ internal class IosAudioEngine : EqualizerController {
         cancelOverlap()
         engine.stop()
         player.stop()
+        chained = null
         currentFile = file
         segmentStartFrame = 0L
         pausedFrame = 0L
@@ -267,6 +292,7 @@ internal class IosAudioEngine : EqualizerController {
 
     fun play(): Boolean {
         val file = currentFile ?: return false
+        noteSystemStop()
         // A completed AVAudioPlayerNode segment is consumed. Calling play() again changes the
         // node's flag but emits no samples, so a transport press after natural end must schedule a
         // fresh segment just like an explicit seek to zero.
@@ -275,6 +301,7 @@ internal class IosAudioEngine : EqualizerController {
             cancelOverlap()
             engine.stop()
             player.stop()
+            chained = null
             lj_eq_ios_reset(equalizer)
             segmentStartFrame = 0L
             pausedFrame = 0L
@@ -291,6 +318,19 @@ internal class IosAudioEngine : EqualizerController {
         return true
     }
 
+    /**
+     * A node that says it plays on an engine that does not run: the system stopped the engine (this class pauses the
+     * node before it pauses the engine). A stopped engine empties its nodes, and started again they stay silent while
+     * still saying they play (IosPlayerNodeFactsTest), so the deck is cued again before it next sounds. The notice of
+     * the emptied segment says the same ([SegmentEnd.FLUSHED]) but is not waited for: on a device it may not come.
+     */
+    private fun noteSystemStop() {
+        if (currentFile != null && player.playing && !engine.running) {
+            needsCue = true
+            chained = null
+        }
+    }
+
     /** Music-library DRM playback bypasses this graph; reflect that honestly in Settings. */
     fun setOutputSupportsEqualizer(supported: Boolean) {
         if (outputSupportsEqualizer == supported) return
@@ -299,6 +339,7 @@ internal class IosAudioEngine : EqualizerController {
     }
 
     fun pause() {
+        noteSystemStop()
         pausedFrame = currentFrame()
         player.pause()
         if (standbyStarted) {
@@ -344,6 +385,8 @@ internal class IosAudioEngine : EqualizerController {
         cancelOverlap()
         val current = currentFile ?: return null
         if (!engine.running) return null
+        // A track queued behind the current one is this seam already; the caller takes it back first.
+        if (chained != null) return null
         val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
             ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return null
         // The graph after the submixer runs in the current file's format and stays so after the
@@ -377,7 +420,7 @@ internal class IosAudioEngine : EqualizerController {
             startingFrame = segmentStart,
             frameCount = (file.length - segmentStart).coerceIn(1L, UInt.MAX_VALUE.toLong()).toUInt(),
             atTime = null,
-            completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
+            completionCallbackType = segmentNotice,
             completionHandler = { _ ->
                 dispatch_async(dispatch_get_main_queue()) {
                     // Only once promoted is this the playing track whose end moves the queue on.
@@ -463,9 +506,20 @@ internal class IosAudioEngine : EqualizerController {
     private fun standbyPlayedFrame(file: AVAudioFile): Long {
         // A paused graph has no render time: the frame it reached was kept when it paused.
         if (!standby.playing && standbyPausedFrame >= 0L) return standbyPausedFrame
-        val rendered = standby.lastRenderTime ?: return standbyStartFrame
-        val played = standby.playerTimeForNodeTime(rendered) ?: return standbyStartFrame
-        return (standbyStartFrame + played.sampleTime).coerceIn(0L, file.length)
+        val played = playedFrames(standby) ?: return standbyStartFrame
+        return (standbyStartFrame + played).coerceIn(0L, file.length)
+    }
+
+    /**
+     * The frames [node] has played since it was started, or null when it cannot say: not playing, an engine that is
+     * stopped (no render time), or one that has started and not rendered yet. That last render time exists and is
+     * not valid, and the node raises when asked about it, which would end the app (IosPlayerNodeFactsTest).
+     */
+    private fun playedFrames(node: AVAudioPlayerNode): Long? {
+        if (!node.playing) return null
+        val rendered = node.lastRenderTime ?: return null
+        if (!rendered.sampleTimeValid && !rendered.hostTimeValid) return null
+        return node.playerTimeForNodeTime(rendered)?.sampleTime
     }
 
     /** Drops the standby deck's track, sounding or not. */
@@ -537,6 +591,7 @@ internal class IosAudioEngine : EqualizerController {
         currentFile = null
         completion = null
         needsCue = false
+        chained = null
         segmentStartFrame = 0L
         pausedFrame = 0L
     }
@@ -580,6 +635,8 @@ internal class IosAudioEngine : EqualizerController {
         // last frame and the item then ends through the scheduled segment's completion.
         val lastFrame = (file.length - 1L).coerceAtLeast(0L)
         val frame = requestedFrame.coerceIn(0L, lastFrame)
+        // Stopping the node drops whatever is queued on it.
+        chained = null
         invalidateCompletion()
         cancelOverlap()
         engine.stop()
@@ -607,10 +664,11 @@ internal class IosAudioEngine : EqualizerController {
 
     private fun currentFrame(): Long {
         val file = currentFile ?: return 0L
-        val played = if (player.playing) {
-            player.lastRenderTime?.let { player.playerTimeForNodeTime(it) }?.sampleTime
-        } else {
-            null
+        val played = playedFrames(player)
+        if (played != null && chained != null && segmentStartFrame + played >= file.length) {
+            // The clock is past the current file's last frame: the queued track is what sounds.
+            crossSeam()
+            return currentFrame()
         }
         val frame = playheadFrame(played, segmentStartFrame, pausedFrame, lastRenderedFrame, file.length)
         if (played != null) lastRenderedFrame = frame
@@ -640,7 +698,7 @@ internal class IosAudioEngine : EqualizerController {
             startingFrame = startFrame,
             frameCount = framesLeft.coerceAtMost(UInt.MAX_VALUE.toLong()).toUInt(),
             atTime = null,
-            completionCallbackType = AVAudioPlayerNodeCompletionDataPlayedBack,
+            completionCallbackType = segmentNotice,
             completionHandler = { _ ->
                 dispatch_async(dispatch_get_main_queue()) { segmentFinished(file, token) }
             },
@@ -653,15 +711,95 @@ internal class IosAudioEngine : EqualizerController {
      * again before it can sound.
      */
     private fun segmentFinished(file: AVAudioFile, token: Long) {
+        // The clock first: if the node is past a seam, the queued track is the current one before this notice is read
+        // (the notice of a queued track that has itself played out is then the current track's).
+        val frame = currentFrame()
         val current = token == completionGeneration && currentFile === file
-        when (segmentEnd(current, engine.running, currentFrame(), file.length, endToleranceFrames(file))) {
+        when (segmentEnd(current, engine.running, frame, file.length, endToleranceFrames(file))) {
             SegmentEnd.STALE -> Unit
-            SegmentEnd.PLAYED_OUT -> {
+            SegmentEnd.PLAYED_OUT -> if (chained == null) {
                 pausedFrame = file.length
                 completion?.invoke()
             }
-            SegmentEnd.FLUSHED -> needsCue = true
+            // Else a track is queued behind this one and the clock has not reached the seam: the clock decides when
+            // the queued track is the current one, never this notice, whose timing on a device is not known here.
+            SegmentEnd.FLUSHED -> {
+                needsCue = true
+                // Whatever was queued behind went with it.
+                chained = null
+            }
         }
+    }
+
+    /**
+     * Queues [url] on the current deck right behind the track that is playing, for a seam without a gap. Only a
+     * readable file of the same sample rate and channel count as the current one, only while the current one sounds
+     * and nothing else is under way (an overlap, a deck that has to be cued again); false otherwise, and then the
+     * plain seam applies. When the node's clock passes the current file's last frame the queued one becomes the
+     * current file ([crossSeam]): [onSeam] is called once, and [onEnded] when the queued track itself has played out.
+     */
+    fun chainNext(url: NSURL, onSeam: () -> Unit, onEnded: () -> Unit): Boolean {
+        val current = currentFile ?: return false
+        if (chained != null || standbyFile != null || needsCue) return false
+        if (!engine.running || !player.playing) return false
+        val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
+            ?.takeIf { it.length > 0L && supportsFormat(it) } ?: return false
+        val playing = current.processingFormat
+        val next = file.processingFormat
+        // The node would convert another rate (with its converter's ringing) and raises on another layout.
+        if (playing.channelCount != next.channelCount || playing.sampleRate != next.sampleRate) return false
+        // Behind a segment that has already played out the file would simply start: that is no seam to adopt.
+        if (currentFrame() >= current.length) return false
+        val token = ++tokens
+        chained = Chained(file, token, onSeam, onEnded)
+        player.scheduleSegment(
+            file = file,
+            startingFrame = 0L,
+            frameCount = file.length.coerceAtMost(UInt.MAX_VALUE.toLong()).toUInt(),
+            atTime = null,
+            completionCallbackType = segmentNotice,
+            completionHandler = { _ ->
+                dispatch_async(dispatch_get_main_queue()) { segmentFinished(file, token) }
+            },
+        )
+        return true
+    }
+
+    /** Whether a track is queued behind the current one and has not begun yet. */
+    val hasChained: Boolean get() = chained != null
+
+    /** How many seams this engine has taken: tells a queued track that began from one that was dropped. */
+    var seamsCrossed: Long = 0L
+        private set
+
+    /**
+     * Takes the queued track back before it has begun (the queue changed, the sleep timer holds, repeat-one). A node
+     * gives up one queued segment only with everything else, so the current track is cued again at the exact frame
+     * it is at, which costs a moment of silence. If the seam has in fact been passed, the current track's last frame
+     * is cued and its end takes the plain way.
+     */
+    fun dropChained() {
+        if (chained == null) return
+        val file = currentFile ?: return
+        val resume = player.playing && engine.running
+        chained = null
+        cueAt(file, currentFrame(), resume)
+    }
+
+    /** The node has gone from the current file into the queued one: the queued one is the current file now. */
+    private fun crossSeam() {
+        val next = chained ?: return
+        val previous = currentFile ?: return
+        chained = null
+        seamsCrossed++
+        val start = seamSegmentStart(segmentStartFrame, previous.length)
+        currentFile = next.file
+        completion = next.onEnded
+        completionGeneration = next.token
+        segmentStartFrame = start
+        pausedFrame = (start + (playedFrames(player) ?: -start)).coerceIn(0L, next.file.length)
+        // Not from inside whatever asked for the position: the controller takes the row over on its own turn.
+        dispatch_async(dispatch_get_main_queue()) { next.onSeam() }
     }
 
     /** How near its end a stopped engine's last known frame must be for a finished segment to count as played: a second. */
@@ -755,8 +893,40 @@ internal class IosAudioEngine : EqualizerController {
         mutableState.value = settings.asState().copy(available = outputSupportsEqualizer)
     }
 
+    /**
+     * When a segment reports itself finished: once it has been heard. Offline nothing is heard and that notice never
+     * comes (IosPlayerNodeFactsTest), so there it is the notice that the segment was rendered.
+     */
+    private val segmentNotice: AVAudioPlayerNodeCompletionCallbackType =
+        if (offlineFormat != null) AVAudioPlayerNodeCompletionDataRendered else AVAudioPlayerNodeCompletionDataPlayedBack
+
+    /** Tests only ([offlineFormat]): renders [frames] and returns the first channel of what came out. */
+    internal fun renderOffline(frames: Int): FloatArray {
+        val format = checkNotNull(offlineFormat) { "Not an offline engine" }
+        val buffer = checkNotNull(AVAudioPCMBuffer(pCMFormat = format, frameCapacity = OFFLINE_QUANTUM))
+        val out = FloatArray(frames)
+        var done = 0
+        while (done < frames) {
+            val count = minOf(OFFLINE_QUANTUM.toInt(), frames - done)
+            check(engine.renderOffline(count.toUInt(), buffer, null) == AVAudioEngineManualRenderingStatusSuccess) { "Offline render failed" }
+            val samples = checkNotNull(buffer.floatChannelData)[0]!!
+            for (i in 0 until count) out[done + i] = samples[i]
+            done += count
+        }
+        return out
+    }
+
+    /**
+     * Tests only: stops the engine under whatever plays, without this class being told, which is what the system does
+     * at a change of route or of the output's format.
+     */
+    internal fun stopEngineAsTheSystemDoes() {
+        engine.stop()
+    }
+
     private companion object {
         const val NO_TOKEN = -1L
+        const val OFFLINE_QUANTUM = 512u
 
         /** The fade a late-started next track opens with, against a click. */
         const val RAMP_IN_MS = 20L
