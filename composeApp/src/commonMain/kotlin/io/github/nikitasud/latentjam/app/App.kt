@@ -887,9 +887,7 @@ private fun AppShell(
             onFailure: () -> Unit = {},
         ) {
             scope.launch {
-                if (!runBulkFavoriteEdit(AppGraph.favorites, action, ids, snackbar) { favoriteIds = it }) {
-                    onFailure()
-                }
+                runBulkFavoriteEdit(AppGraph.favorites, action, ids, snackbar, onFailed = onFailure) { favoriteIds = it }
             }
         }
         LaunchedEffect(Unit) {
@@ -1676,6 +1674,7 @@ private fun AppShell(
         suspend fun savePlaylistCover(id: String, reference: String?) {
             var saved = false
             var interrupted = false
+            var failed = false
             try {
                 val previous = AppGraph.playlists.all().firstOrNull { it.id == id }
                 if (previous == null) return
@@ -1694,11 +1693,13 @@ private fun AppShell(
                 interrupted = true
                 throw cancelled
             } catch (_: Throwable) {
-                snackbar.showSnackbar(getString(Res.string.playlist_cover_error))
+                failed = true
             } finally {
                 coverSaveInProgress = false
                 if (!saved && !interrupted) discardUnusedPlaylistCover(reference)
             }
+            // After the flag is down: the snackbar stays for seconds, and the cover controls must not wait for it.
+            if (failed) snackbar.showSnackbar(getString(Res.string.playlist_cover_error))
         }
         val pickPlaylistCover = rememberPlaylistCoverPicker { result ->
             val target = coverEditTargetId
