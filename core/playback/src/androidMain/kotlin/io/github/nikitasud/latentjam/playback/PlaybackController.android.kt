@@ -1604,13 +1604,15 @@ internal class AndroidPlaybackController(
     private fun adoptExternalQueue(player: Player) {
         if (!AndroidPlaybackStarts.awaitsExternalQueue) return
         val items = List(player.mediaItemCount) { player.getMediaItemAt(it) }
-        if (!AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId })) return
-        pool = adoptedQueueRows(
-            ids = items.map { it.mediaId },
+        val announced = AndroidPlaybackStarts.takeExternalQueue(items.map { it.mediaId }) ?: return
+        val rows = adoptedQueueRows(
+            ids = announced.ids,
             named = ::trackById,
             provisional = { row -> items[row].toProvisionalTrack() },
         )
-        poolById = pool.associateByIdValue()
+        // The list the pick came from, when the service gave one: in SMART the queue is the pick alone.
+        pool = adoptedSource(rows, announced.source)
+        poolById = if (pool === rows) rows.associateByIdValue() else (rows + pool).associateByIdValue()
         smartContinuationIds.clear()
         smartPlanPositions.clear()
         curatedTailId = null

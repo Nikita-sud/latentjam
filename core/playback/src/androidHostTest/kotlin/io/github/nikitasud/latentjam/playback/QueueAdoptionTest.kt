@@ -6,9 +6,12 @@ package io.github.nikitasud.latentjam.playback
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -41,11 +44,43 @@ internal class QueueAdoptionTest {
 
         // The announcement comes before Media3 installs the queue: the player still holds the queue before it.
         assertTrue(AndroidPlaybackStarts.awaitsExternalQueue)
-        assertFalse(AndroidPlaybackStarts.takeExternalQueue(listOf("the", "app's", "own")))
-        assertTrue(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a", "car-b")))
+        assertNull(AndroidPlaybackStarts.takeExternalQueue(listOf("the", "app's", "own")))
+        assertNotNull(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a", "car-b")))
         // Taken: a later look at the same rows is the controller's own queue by now.
         assertFalse(AndroidPlaybackStarts.awaitsExternalQueue)
-        assertFalse(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a", "car-b")))
+        assertNull(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a", "car-b")))
+    }
+
+    private fun track(id: String) = TrackDescriptor(id = TrackId(id), title = id)
+
+    @Test
+    fun aCarPickInSmartKeepsTheListItWasPickedFromAsTheSource() {
+        // The car showed a playlist of five; "c" was tapped. In SMART the service installs that one row.
+        val playlist = listOf("a", "b", "c", "d", "e").map(::track)
+        val picked = MediaItem.Builder().setMediaId("c").build()
+        AndroidPlaybackStarts.announceExternalQueue(listOf(picked), C.INDEX_UNSET, shuffled = false, source = playlist)
+
+        val taken = checkNotNull(AndroidPlaybackStarts.takeExternalQueue(listOf("c")))
+        val rows = adoptedQueueRows(taken.ids, named = { id -> playlist.firstOrNull { it.id.value == id } }, provisional = { null })
+        val pool = adoptedSource(rows, taken.source)
+
+        // The mode button's next step, SMART to OFF, and Shuffle from the menu: the whole playlist around the pick.
+        val inOrder = checkNotNull(sourceOrderForShuffleTransition(ShuffleMode.SMART, ShuffleMode.OFF, pool, current = rows.single()))
+        assertEquals(playlist, inOrder.tracks)
+        assertEquals(2, inOrder.currentIndex)
+        assertEquals(playlist, checkNotNull(shuffleSourceLeavingSmart(ShuffleMode.SMART, pool, current = rows.single())).tracks)
+    }
+
+    @Test
+    fun aQueueAnnouncedWithoutASourceIsItsOwnSource() {
+        val rows = listOf(track("a"), track("b"))
+        AndroidPlaybackStarts.announceExternalQueue(rows.map { MediaItem.Builder().setMediaId(it.id.value).build() }, 0, shuffled = false)
+
+        val taken = checkNotNull(AndroidPlaybackStarts.takeExternalQueue(listOf("a", "b")))
+        assertNull(taken.source)
+        assertEquals(rows, adoptedSource(rows, taken.source))
+        // A source that names nothing is no source.
+        assertEquals(rows, adoptedSource(rows, emptyList()))
     }
 
     @Test
@@ -55,7 +90,7 @@ internal class QueueAdoptionTest {
 
         AndroidPlaybackStarts.forgetExternalQueue()
 
-        assertFalse(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a")))
+        assertNull(AndroidPlaybackStarts.takeExternalQueue(listOf("car-a")))
     }
 
     @Test

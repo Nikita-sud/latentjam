@@ -20,6 +20,13 @@ internal fun <T : Any> adoptedQueueRows(
 ): List<T> = ids.indices.mapNotNull { row -> named(ids[row]) ?: provisional(row) }
 
 /**
+ * The source a queue adopted from outside the app goes back to when the listener leaves shuffle or SMART: the list
+ * the service [announced] with it, or else the queue's own [rows].
+ */
+internal fun <T : Any> adoptedSource(rows: List<T>, announced: List<T>?): List<T> =
+    announced?.takeIf { it.isNotEmpty() } ?: rows
+
+/**
  * A move between two rows of the visible queue as a move in the player: [mediaIndices] holds the player's index of
  * each visible row. The two differ whenever the player holds a row the queue cannot show (one nothing names), so a
  * visible row number handed to the player as it is would move another row. Null when either row is not there or
