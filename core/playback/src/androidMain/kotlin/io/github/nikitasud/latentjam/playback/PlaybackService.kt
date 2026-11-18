@@ -907,7 +907,9 @@ public class PlaybackService : MediaLibraryService() {
         appLaunchPendingIntent()?.let(sessionBuilder::setSessionActivity)
         mediaSession = sessionBuilder.build()
         player.addListener(playerListener)
-        crossfade = CrossfadeCoordinator(this, player).also { it.start() }
+        // While the sleep timer waits for the end of the track, the player itself stops there.
+        crossfade = CrossfadeCoordinator(this, player, pauseAtItemEnd = { player.pauseAtEndOfMediaItems = it })
+            .also { it.start() }
         serviceScope.launch {
             NotificationFavoritesRegistry.state.collectLatest { refreshMediaButtons() }
         }
