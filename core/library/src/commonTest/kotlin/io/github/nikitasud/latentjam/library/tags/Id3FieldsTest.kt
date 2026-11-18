@@ -72,7 +72,9 @@ internal class Id3FieldsTest {
         assertEquals("4/12", fields(edit(base, TagEdits(trackNumber = "4"))).track)
         assertEquals("3/10", fields(edit(base, TagEdits(trackTotal = "10"))).track)
         assertEquals("3", fields(edit(base, TagEdits(trackTotal = ""))).track)
-        assertNull(fields(edit(base, TagEdits(trackNumber = ""))).track)
+        // Clearing the number keeps the total: zero is no number to any reader.
+        assertEquals("0/12", fields(edit(base, TagEdits(trackNumber = ""))).track)
+        assertNull(fields(edit(base, TagEdits(trackNumber = "", trackTotal = ""))).track)
     }
 
     @Test
@@ -105,7 +107,7 @@ internal class Id3FieldsTest {
             assertEquals("5/12", fields(edit(base, TagEdits(trackNumber = "5", trackTotal = "12"))).track)
         }
         // Zero is no number at all: a total may join it.
-        assertEquals(null, fields(edit(file(3, TestFrame("TRCK", latin1Body("0"))), TagEdits(trackTotal = "12"))).track)
+        assertEquals("0/12", fields(edit(file(3, TestFrame("TRCK", latin1Body("0"))), TagEdits(trackTotal = "12"))).track)
     }
 
     @Test

@@ -471,8 +471,10 @@ public object Id3Tags {
 
     /**
      * The "n/total" text for TRCK/TPOS: null leaves the frame alone, "" removes it. Each half can
-     * change alone; without a number there is nothing for a total to belong to, so the frame goes.
-     * A pair that already reads as the requested numbers ("03/09" for 3 and 9) is kept as written.
+     * change alone. A total without a number is kept as "0/total": zero is no number to any reader,
+     * and the total is not lost with it. With neither half the frame goes.
+     * A pair that already reads as the requested numbers ("03/09" for 3 and 9, "/12" for a total
+     * alone) is kept as written.
      * Callers refuse first when a total alone would erase an unreadable number (see
      * [erasesUnreadableNumber]).
      */
@@ -483,8 +485,8 @@ public object Id3Tags {
         val n = if (number == null) currentNumber else TagNumbers.strict(number)
         val t = if (total == null) currentTotal else TagNumbers.strict(total)
         return when {
-            current != null && n != null && n == currentNumber && t == currentTotal -> current
-            n == null -> ""
+            current != null && (n != null || t != null) && n == currentNumber && t == currentTotal -> current
+            n == null -> if (t == null) "" else "0/$t"
             t == null -> "$n"
             else -> "$n/$t"
         }
