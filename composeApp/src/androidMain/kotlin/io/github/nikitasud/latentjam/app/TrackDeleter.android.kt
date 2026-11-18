@@ -41,11 +41,36 @@ import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 internal fun trackDeleteStrategy(sdkInt: Int): TrackDeleteStrategy = when {
     sdkInt >= Build.VERSION_CODES.R -> TrackDeleteStrategy.SYSTEM_DELETE_REQUEST
     sdkInt >= Build.VERSION_CODES.Q -> TrackDeleteStrategy.RECOVERABLE_CONSENT
     else -> TrackDeleteStrategy.WRITE_PERMISSION
+}
+
+/**
+ * Deletes a song on Android 9 and older. There the media provider removes only the row of an audio file and leaves
+ * the file, so the song came back at the next media scan. [path] is the row's file path, read before anything is
+ * deleted; [deleteFile] says whether no file is left at it; [deleteRow] removes the row and says how many went.
+ *
+ * The file goes first. Where it cannot be removed (a card the app may not write to) the row stays too, the song is
+ * still in the library and the delete is reported as failed, instead of a song that leaves the list and returns.
+ * With the file gone, a row that could not be removed is one the next media scan drops.
+ */
+internal fun deleteLegacyAudio(
+    path: String?,
+    deleteFile: (String) -> Boolean,
+    deleteRow: () -> Int,
+): DeleteAttempt<Nothing> {
+    if (path != null && !deleteFile(path)) return DeleteAttempt.Failed
+    val rows = try {
+        deleteRow()
+    } catch (failure: Exception) {
+        if (path == null) throw failure
+        0
+    }
+    return if (rows > 0 || path != null) DeleteAttempt.Deleted else DeleteAttempt.Missing
 }
 
 /** Holds only application context; an Activity supplies launchers while its UI is resumed. */
@@ -145,6 +170,13 @@ private class AndroidTrackDeleteBackend(private val context: Context) : TrackDel
 
     override suspend fun delete(uri: String): DeleteAttempt<IntentSender> = withContext(Dispatchers.IO) {
         try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                return@withContext deleteLegacyAudio(
+                    path = filePathOf(uri),
+                    deleteFile = { path -> File(path).let { file -> !file.exists() || file.delete() || !file.exists() } },
+                    deleteRow = { context.contentResolver.delete(Uri.parse(uri), null, null) },
+                )
+            }
             if (context.contentResolver.delete(Uri.parse(uri), null, null) > 0) DeleteAttempt.Deleted
             else DeleteAttempt.Missing
         } catch (cancelled: CancellationException) {
@@ -155,6 +187,14 @@ private class AndroidTrackDeleteBackend(private val context: Context) : TrackDel
             } else DeleteAttempt.Denied
         } catch (_: Exception) {
             DeleteAttempt.Failed
+        }
+    }
+
+    /** The file behind a MediaStore row, where the row still names it (Android 9 and older); null without a row. */
+    private fun filePathOf(uri: String): String? {
+        @Suppress("DEPRECATION") val data = MediaStore.MediaColumns.DATA
+        return context.contentResolver.query(Uri.parse(uri), arrayOf(data), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0)?.takeIf(String::isNotBlank) else null
         }
     }
 

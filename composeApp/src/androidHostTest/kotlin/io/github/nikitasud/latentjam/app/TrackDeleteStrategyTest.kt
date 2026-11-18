@@ -40,4 +40,40 @@ class TrackDeleteStrategyTest {
         // minSdk: the oldest system that can install LatentJam at all.
         assertEquals(TrackDeleteStrategy.WRITE_PERMISSION, trackDeleteStrategy(24))
     }
+
+    @Test
+    fun `Android 9 and older delete the file as well as its row`() {
+        val steps = mutableListOf<String>()
+        val attempt = deleteLegacyAudio(
+            path = "/storage/emulated/0/Music/song.mp3",
+            deleteFile = { steps += "file $it"; true },
+            deleteRow = { steps += "row"; 1 },
+        )
+        assertEquals(DeleteAttempt.Deleted, attempt)
+        assertEquals(listOf("file /storage/emulated/0/Music/song.mp3", "row"), steps)
+    }
+
+    @Test
+    fun `a file that cannot be removed keeps its row and the delete is reported as failed`() {
+        var rowDeleted = false
+        val attempt = deleteLegacyAudio(
+            path = "/storage/1A2B-3C4D/Music/song.mp3",
+            deleteFile = { false },
+            deleteRow = { rowDeleted = true; 1 },
+        )
+        assertEquals(DeleteAttempt.Failed, attempt)
+        assertEquals(false, rowDeleted)
+    }
+
+    @Test
+    fun `a removed file counts as deleted whatever becomes of its row`() {
+        assertEquals(DeleteAttempt.Deleted, deleteLegacyAudio("/music/song.mp3", { true }, { 0 }))
+        assertEquals(DeleteAttempt.Deleted, deleteLegacyAudio("/music/song.mp3", { true }, { error("provider") }))
+    }
+
+    @Test
+    fun `a row that names no file is deleted as before and a missing row is missing`() {
+        assertEquals(DeleteAttempt.Deleted, deleteLegacyAudio(null, { error("no file to delete") }, { 1 }))
+        assertEquals(DeleteAttempt.Missing, deleteLegacyAudio(null, { error("no file to delete") }, { 0 }))
+    }
 }
