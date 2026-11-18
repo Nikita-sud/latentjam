@@ -25,6 +25,7 @@ internal fun PlaybackRestoreEffect(
     onUnavailable: () -> Unit,
 ) {
     val tracks = request?.tracks
+    val authoritative = request?.librarySnapshotAuthoritative == true
     var resumeAttempted by remember { mutableStateOf(false) }
     // The lock player's LatentJam button, after the unlock.
     val openRequested by PlayerOpenRequest.pending.collectAsState()
@@ -55,14 +56,14 @@ internal fun PlaybackRestoreEffect(
         if (!shouldApplySavedPlaybackAfterPlatformSync(playback.state.value)) {
             return@LaunchedEffect
         }
-        restoreSavedQueue(playback, saved, loaded, request?.librarySnapshotAuthoritative == true, playlistsState)
+        restoreSavedQueue(playback, saved, loaded, authoritative, playlistsState)
     }
 
     // A restore from a scan that could not see every song gave the player the rows it found and kept the stored
     // queue ([HeldResumeQueue]). The first scan that can vouch for itself settles it.
     val held by resumeQueueHold.collectAsState()
     val latestRequest by rememberUpdatedState(request)
-    LaunchedEffect(request?.librarySnapshotAuthoritative == true, held, playlistsState.playlistsLoaded) {
+    LaunchedEffect(authoritative, held, playlistsState.playlistsLoaded) {
         val hold = held ?: return@LaunchedEffect
         if (latestRequest?.librarySnapshotAuthoritative != true || !playlistsState.playlistsLoaded) return@LaunchedEffect
         settleHeldResumeQueue(playback, hold, { latestRequest }, playlistsState)
