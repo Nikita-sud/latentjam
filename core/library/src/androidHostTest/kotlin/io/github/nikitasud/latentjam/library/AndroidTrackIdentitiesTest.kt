@@ -367,6 +367,34 @@ internal class AndroidTrackIdentitiesTest {
         assertTrue(swapped.none { it.id == TrackId("10") || it.id == TrackId("11") })
     }
 
+    @Test fun aFileOfTheSameSizeIsTheSameFileUnderANewProviderVersion() {
+        // A provider update: the version changes with its schema, the rows keep their numbers, and it reads every
+        // file again. This one's length came out three seconds longer, with a new modified time and generation.
+        val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
+        val f = Fixture(tags)
+        f.scan(original); f.remember()
+        f.rowIds = RowIds.NEW_DATABASE
+        val reread = row("10", "song.mp3", seconds = 203, size = 4_800_000, modified = 1_700_009_000, generation = 40)
+        assertEquals(reread, f.scan(reread).single())
+        // Another size and another length is another file, as before.
+        val g = Fixture(tags)
+        g.scan(original); g.remember()
+        g.rowIds = RowIds.NEW_DATABASE
+        val other = row("10", "other.mp3", seconds = 203, size = 4_870_000, modified = 1_700_009_000, generation = 40)
+        assertTrue(g.scan(other).single().id != TrackId("10"))
+        // And the size says nothing across formats, or where the provider gave none.
+        val h = Fixture(tags)
+        h.scan(original); h.remember()
+        h.rowIds = RowIds.NEW_DATABASE
+        assertTrue(h.scan(row("10", "song.flac", seconds = 203, size = 4_800_000, generation = 40)).single().id != TrackId("10"))
+        val unsized = track("10", "android-mediastore-v1:-:1700000000:7").copy(fileName = "song.mp3", durationMs = 200_000)
+        val i = Fixture(tags)
+        i.scan(unsized); i.remember()
+        i.rowIds = RowIds.NEW_DATABASE
+        val unsizedLater = track("10", "android-mediastore-v1:-:1700009000:40").copy(fileName = "song.mp3", durationMs = 203_000)
+        assertTrue(i.scan(unsizedLater).single().id != TrackId("10"))
+    }
+
     @Test fun anEditInPlaceKeepsTheAppId() {
         val original = row("10", "song.mp3", seconds = 200, size = 4_800_000)
         // Retagged: a new revision, the length read a little differently. With a cover: twice the size, the same length.

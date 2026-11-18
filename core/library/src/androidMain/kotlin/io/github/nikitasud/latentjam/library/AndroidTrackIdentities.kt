@@ -150,8 +150,13 @@ internal class AndroidTrackIdentities(
      *
      * - [RowIds.SAME_DATABASE]: the row is believed, as it always was. An edit in place may change anything.
      * - [RowIds.NEW_DATABASE]: it is the same file when its revision (size, modified, generation) is the one
-     *   registered, or when the format is and the length is within a second. A retag in place changes the revision
-     *   and may move the length a little; a file re-encoded to another format is another file.
+     *   registered, or when the format is and either the size in bytes is the same or the length is within a second.
+     *   A retag in place changes the revision and may move the length a little; a file re-encoded to another format
+     *   is another file. The size is there for a provider update, which changes the version with its schema while
+     *   every row keeps its number: it reads the files again, and a length it now measures more than a second
+     *   off, with the new generation it stamps, would cost that song its id. A rebuilt database handing the number
+     *   to another file of the same format and exactly the same number of bytes is not a realistic collision (two
+     *   constant-bitrate files that long to the byte are also the same length, which passed already).
      * - [RowIds.UNVERSIONED] (before Android 10 the provider cannot say which database it is): the test runs at
      *   every scan, so it must spare a file trimmed in place, which keeps its row and changes its length. The
      *   length is therefore believed only when the size also changed by more than half: a trim seldom takes that
@@ -166,6 +171,7 @@ internal class AndroidTrackIdentities(
         if (!revision.isEmpty() && old.revision == revision) return true
         val extension = extension(track)
         if (old.extension.isNotEmpty() && extension.isNotEmpty() && old.extension != extension) return false
+        if (rowIds == RowIds.NEW_DATABASE && old.revision.sameSizeAs(revision)) return true
         if (rowIds == RowIds.UNVERSIONED && !old.revision.sizeChangedByMoreThanHalf(revision)) return true
         val before = old.duration
         val now = track.durationMs
@@ -613,6 +619,9 @@ internal class Revision private constructor(
     private val text: String?,
 ) {
     fun isEmpty(): Boolean = text != null && text.isEmpty()
+
+    /** Whether both name the same size in bytes, of a file that has any; false when either has none. */
+    fun sameSizeAs(other: Revision): Boolean = text == null && other.text == null && size > 0 && size == other.size
 
     /** Whether both name a size and one is more than twice the other; false when either has none. */
     fun sizeChangedByMoreThanHalf(other: Revision): Boolean {
