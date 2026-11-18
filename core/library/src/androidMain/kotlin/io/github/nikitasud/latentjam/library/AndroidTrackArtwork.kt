@@ -284,6 +284,9 @@ private fun readArtworkTransform(bytes: ByteArray): ArtworkTransform {
     } catch (_: IOException) {
         // Malformed/unsupported optional EXIF must not hide an otherwise decodable picture.
         ExifInterface.ORIENTATION_NORMAL
+    } catch (_: RuntimeException) {
+        // The platform reader of Android 7 answers some damaged EXIF blocks with an unchecked exception.
+        ExifInterface.ORIENTATION_NORMAL
     }
     return artworkTransform(orientation)
 }

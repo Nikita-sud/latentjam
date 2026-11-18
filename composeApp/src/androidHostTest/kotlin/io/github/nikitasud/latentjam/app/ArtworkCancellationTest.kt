@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import java.io.InterruptedIOException
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
@@ -31,6 +33,23 @@ class ArtworkCancellationTest {
         read.cancelAndJoin()
         assertTrue(read.isCancelled)
         assertTrue(!published)
+    }
+
+    @Test fun aCoverNoReaderCanHandleHasNoColourAndEndsNothing() {
+        assertNull(colourOrNone<String> { throw IllegalStateException("damaged EXIF") })
+        assertNull(colourOrNone<String> { throw ArrayIndexOutOfBoundsException(7) })
+        assertNull(colourOrNone<String> { throw OutOfMemoryError("a 16 MiB cover on a 48 MB heap") })
+        assertNull(colourOrNone<String> { throw java.io.IOException("volume away") })
+        assertNull(colourOrNone<String> { throw SecurityException("grant revoked") })
+        assertEquals("teal", colourOrNone { "teal" })
+    }
+
+    @Test fun anInterruptedCoverReadStaysACancellation() {
+        assertFailsWith<InterruptedIOException> { colourOrNone<String> { throw InterruptedIOException("left") } }
+        assertFailsWith<InterruptedException> { colourOrNone<String> { throw InterruptedException("left") } }
+        assertFailsWith<kotlinx.coroutines.CancellationException> {
+            colourOrNone<String> { throw kotlinx.coroutines.CancellationException("left") }
+        }
     }
 
     @Test fun anIoTimeoutWithoutCoroutineCancellationIsMissingArtwork() = runTest {

@@ -66,7 +66,7 @@ actual fun rememberArtworkColor(uri: String?): ArtworkColorState {
     return state
 }
 
-private fun sampleArtwork(context: Context, uri: String): Color? = try {
+private fun sampleArtwork(context: Context, uri: String): Color? = colourOrNone {
     val parsed = Uri.parse(uri)
     AndroidTrackArtwork.loadBitmap(context.contentResolver, parsed, ARTWORK_SAMPLE_SIDE * 2)?.let { bitmap ->
         try {
@@ -75,12 +75,26 @@ private fun sampleArtwork(context: Context, uri: String): Color? = try {
             bitmap.recycle()
         }
     }
+}
+
+/**
+ * [sample]'s colour, or none when the cover cannot be read at all. The sampler runs in a composition's own
+ * coroutine, where anything thrown ends the process; and the track that threw is the one the next launch restores
+ * as current. So a cover no reader can handle (a damaged picture, damaged EXIF on an old system, one too large for
+ * the heap) means the default accent, as a missing cover does. A revoked grant shows the default accent too; it
+ * does not trigger another cover source. Only an interrupted read is passed on: that is cancellation.
+ */
+internal inline fun <T> colourOrNone(sample: () -> T?): T? = try {
+    sample()
 } catch (interrupted: InterruptedIOException) {
     throw interrupted
-} catch (_: IOException) {
+} catch (interrupted: InterruptedException) {
+    throw interrupted
+} catch (cancelled: kotlin.coroutines.cancellation.CancellationException) {
+    throw cancelled
+} catch (_: Exception) {
     null
-} catch (_: SecurityException) {
-    // A revoked grant shows the default accent; it does not trigger another cover source.
+} catch (_: OutOfMemoryError) {
     null
 }
 

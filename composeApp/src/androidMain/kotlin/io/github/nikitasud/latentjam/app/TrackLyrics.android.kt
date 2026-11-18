@@ -41,6 +41,10 @@ internal actual fun rememberLyricsReader(reportReadFailures: Boolean): suspend (
                 } catch (failure: Exception) {
                     if (reportReadFailures) throw failure
                     null
+                } catch (tooLarge: OutOfMemoryError) {
+                    // The tag is read whole, an embedded cover included: on a small heap a large one does not fit.
+                    if (reportReadFailures) throw java.io.IOException("the tag does not fit in memory", tooLarge)
+                    null
                 }
                 SidecarLyrics.choose(embedded, readSidecarLyrics(context, track))
             }
