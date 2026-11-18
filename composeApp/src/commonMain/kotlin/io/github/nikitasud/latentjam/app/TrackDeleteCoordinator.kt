@@ -92,7 +92,9 @@ internal class TrackDeleteCoordinator<C>(
         if (first.id != restoredWait) return
         restoredWait = null
         when (first.stage) {
-            DeleteStage.WAIT_BATCH -> update(first.copy(stage = DeleteStage.RECOVER_BATCH))
+            // Nothing says what became of a batch restored without its URIs: none of it is claimed deleted.
+            DeleteStage.WAIT_BATCH -> if (first.uris.isEmpty()) finishUnnamedBatch(first, cancelled = first.batchSize)
+                else update(first.copy(stage = DeleteStage.RECOVER_BATCH))
             DeleteStage.WAIT_FILE -> {
                 interruptedWrite = true
                 update(first.copy(stage = DeleteStage.DELETING, consented = false))
@@ -133,6 +135,11 @@ internal class TrackDeleteCoordinator<C>(
         if (first.stage !in setOf(DeleteStage.WAIT_PERMISSION, DeleteStage.WAIT_FILE, DeleteStage.WAIT_BATCH)) return
         restoredWait = null
         when {
+            first.stage == DeleteStage.WAIT_BATCH && first.uris.isEmpty() -> when (answer) {
+                DeleteAnswer.APPROVED -> finishUnnamedBatch(first, deleted = first.batchSize)
+                DeleteAnswer.FAILED -> finishUnnamedBatch(first, failed = first.batchSize)
+                DeleteAnswer.CANCELLED -> finishUnnamedBatch(first, cancelled = first.batchSize)
+            }
             answer == DeleteAnswer.FAILED -> finishRemaining(first, failed = first.remaining)
             answer == DeleteAnswer.CANCELLED && first.stage == DeleteStage.WAIT_PERMISSION ->
                 finishRemaining(first, denied = first.remaining)
@@ -169,6 +176,16 @@ internal class TrackDeleteCoordinator<C>(
     private fun finishRemaining(first: DeleteRequest, denied: Int = 0, failed: Int = 0, cancelled: Int = 0) {
         update(first.copy(position = first.uris.size, stage = DeleteStage.COMPLETE, batchSize = 0,
             report = first.report.copy(denied = first.report.denied + denied,
+                failed = first.report.failed + failed, cancelled = first.report.cancelled + cancelled)))
+    }
+
+    /**
+     * Ends a request restored with a system batch out whose URIs were too long to save (see [encodeDeleteRequests]):
+     * only the system's answer says what became of those [DeleteRequest.batchSize] files.
+     */
+    private fun finishUnnamedBatch(first: DeleteRequest, deleted: Int = 0, failed: Int = 0, cancelled: Int = 0) {
+        update(first.copy(stage = DeleteStage.COMPLETE, batchSize = 0,
+            report = first.report.copy(deleted = first.report.deleted + deleted,
                 failed = first.report.failed + failed, cancelled = first.report.cancelled + cancelled)))
     }
 
@@ -276,7 +293,11 @@ internal class TrackDeleteCoordinator<C>(
     }
 }
 
-/** The most characters of URIs that the queued deletions put into saved state: about a thousand MediaStore URIs. */
+/**
+ * The most characters of URIs that the queued deletions put into saved state. Whole requests: about a thousand
+ * MediaStore URIs. A larger request saves only the batch out at the system dialog, at most 2,000 URIs with their
+ * shared beginning written once: for MediaStore URIs that is the row numbers, 40,000 characters at their longest.
+ */
 internal const val MAX_SAVED_DELETE_URI_CHARS = 50_000
 
 /**
@@ -285,8 +306,9 @@ internal const val MAX_SAVED_DELETE_URI_CHARS = 50_000
  * (10,000 URIs are about that megabyte) is not written into it.
  */
 private fun deleteRequestsFitSavedState(requests: List<DeleteRequest>): Boolean {
-    // A request restored without its URIs has none to save; it stays in the short form.
-    if (requests.any { it.uris.isEmpty() }) return false
+    // A request restored from the short form no longer names all its files (its counts are ahead of its cursor, or
+    // it has no URIs left): it stays in the short form.
+    if (requests.any { it.uris.isEmpty() || it.report.total != it.position }) return false
     // No URI is empty, so more of them than the bound cannot fit: a long list is not summed at every checkpoint.
     if (requests.sumOf { it.uris.size } > MAX_SAVED_DELETE_URI_CHARS) return false
     return requests.sumOf { request -> request.uris.sumOf { it.length } } <= MAX_SAVED_DELETE_URI_CHARS
@@ -295,19 +317,52 @@ private fun deleteRequestsFitSavedState(requests: List<DeleteRequest>): Boolean 
 /**
  * String-only saved state works with SavedStateHandle without retaining a Context or IntentSender.
  *
- * Deletions too large for saved state (see [deleteRequestsFitSavedState]) are saved as their counts alone. The owner
- * keeps the URIs across a recreated Activity; after a restarted process such a request cannot go on, and is restored
- * finished, with what was done counted and the rest as cancelled.
+ * Deletions too large for saved state (see [deleteRequestsFitSavedState]) are saved in a short form: their counts,
+ * and the batch that is out at the system dialog. The owner keeps every URI across a recreated Activity. After a
+ * restarted process such a request cannot go on: what was done stays counted, the batch that was out is settled by
+ * the dialog's answer or checked against what still exists (as a whole request's batch is), and the rest is
+ * restored as cancelled. A batch too long even with its shared beginning written once is saved as its size alone:
+ * the dialog's answer still counts it, and without an answer it is counted as cancelled.
  */
 internal fun encodeDeleteRequests(requests: List<DeleteRequest>): List<String> =
     if (deleteRequestsFitSavedState(requests)) encodeWholeDeleteRequests(requests) else buildList {
         add("2")
         add(requests.size.toString())
         for (request in requests) {
+            val out = request.stage == DeleteStage.WAIT_BATCH || request.stage == DeleteStage.RECOVER_BATCH
+            val batchSize = if (out) request.batchSize else 0
+            val batch = if (!out || request.uris.isEmpty()) emptyList() else {
+                request.uris.subList(request.position, minOf(request.position + batchSize, request.uris.size))
+            }
+            val shared = sharedBeginning(batch)
+            val named = batch.isNotEmpty() &&
+                shared.length + batch.sumOf { it.length - shared.length } <= MAX_SAVED_DELETE_URI_CHARS
+            val stage = when {
+                batchSize == 0 -> DeleteStage.COMPLETE
+                named -> request.stage
+                else -> DeleteStage.WAIT_BATCH
+            }
+            // What lies beyond the batch is never asked for again; a request restored without URIs has none left.
+            val beyond = (request.remaining - batchSize).coerceAtLeast(0)
             addAll(listOf(request.id.toString(), request.report.deleted.toString(), request.report.denied.toString(),
-                request.report.failed.toString(), (request.report.cancelled + request.remaining).toString()))
+                request.report.failed.toString(), (request.report.cancelled + beyond).toString(),
+                stage.name, batchSize.toString(), (if (named) batch.size else 0).toString()))
+            if (named) {
+                add(shared)
+                batch.forEach { add(it.substring(shared.length)) }
+            }
         }
     }
+
+/** What every one of [values] begins with: MediaStore URIs differ only in the row number at their end. */
+private fun sharedBeginning(values: List<String>): String {
+    var shared = values.firstOrNull() ?: return ""
+    for (value in values) {
+        shared = shared.commonPrefixWith(value)
+        if (shared.isEmpty()) break
+    }
+    return shared
+}
 
 private fun encodeWholeDeleteRequests(requests: List<DeleteRequest>): List<String> = buildList {
     add("1")
@@ -346,12 +401,26 @@ internal fun decodeDeleteRequests(saved: List<String>?): List<DeleteRequest> {
     }.getOrDefault(emptyList())
 }
 
-/** The short form of [encodeDeleteRequests]: each request finished, its report as it stood with the rest cancelled. */
+/**
+ * The short form of [encodeDeleteRequests]: each request with its report as it stood and the files beyond its batch
+ * counted as cancelled. A request with no batch out is finished; one with a batch out waits for the system's answer,
+ * with that batch's URIs as all it still names, or with none when they were too long to save.
+ */
 private fun decodeFinishedDeleteRequests(values: Iterator<String>): List<DeleteRequest> =
     List(values.next().toInt()) {
         val id = values.next().toLong()
         val report = TrackDeleteReport(values.next().toInt(), values.next().toInt(),
             values.next().toInt(), values.next().toInt())
         check(listOf(report.deleted, report.denied, report.failed, report.cancelled).all { it >= 0 })
-        DeleteRequest(id, uris = emptyList(), stage = DeleteStage.COMPLETE, report = report)
+        val stage = DeleteStage.valueOf(values.next())
+        val batchSize = values.next().toInt()
+        val named = values.next().toInt()
+        check(batchSize >= 0 && (named == 0 || named == batchSize))
+        val uris = if (named == 0) emptyList() else values.next().let { shared -> List(named) { shared + values.next() } }
+        if (batchSize == 0) {
+            DeleteRequest(id, uris = emptyList(), stage = DeleteStage.COMPLETE, report = report)
+        } else {
+            check(stage == DeleteStage.WAIT_BATCH || (stage == DeleteStage.RECOVER_BATCH && named > 0))
+            DeleteRequest(id, uris, stage = stage, batchSize = batchSize, report = report)
+        }
     }.also { check(!values.hasNext()) }
