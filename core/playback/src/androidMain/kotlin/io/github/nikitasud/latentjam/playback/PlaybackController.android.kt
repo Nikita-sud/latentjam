@@ -1161,6 +1161,20 @@ internal class AndroidPlaybackController(
                     }
                 }
                 ShuffleMode.ON -> {
+                    // Straight from SMART (the mode menu): the player holds what SMART left in it,
+                    // not the list the queue came from. Exchange the rows around the playing one
+                    // as OFF does, then shuffle those; SMART's marks go with its rows.
+                    val smartSource = shuffleSourceLeavingSmart(
+                        previousMode = previousMode,
+                        source = pool,
+                        current = player.currentMediaItem?.mediaId?.let(::trackById),
+                    )
+                    if (smartSource != null && replaceQueueAroundCurrent(player, smartSource)) {
+                        val current = smartSource.tracks[smartSource.currentIndex]
+                        smartContinuationIds.retainAll(setOf(current.id))
+                        smartPlanPositions.keys.retainAll(setOf(current.id))
+                        poolById = poolById.plusTracks(listOf(current))
+                    }
                     player.shuffleModeEnabled = true
                     enqueueShuffleAnchor(player)
                 }

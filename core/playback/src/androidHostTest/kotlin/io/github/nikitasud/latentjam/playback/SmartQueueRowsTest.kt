@@ -4,8 +4,11 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+import io.github.nikitasud.latentjam.smart.TrackId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 internal class SmartQueueRowsTest {
 
@@ -76,5 +79,44 @@ internal class SmartQueueRowsTest {
         )
         // A row nothing ever named has no descriptor to keep.
         assertEquals(emptyList(), descriptorsLeavingLibrary(listOf("unknown"), inLibrary = { false }, known = { null as String? }))
+    }
+
+    private fun track(id: String) = TrackDescriptor(id = TrackId(id), title = id)
+
+    /** The player's rows after [order] is spliced around its current row, as the controller applies it. */
+    private fun splicedIds(order: PlaybackQueueOrder): List<String> {
+        val splice = checkNotNull(playbackQueueSplice(order))
+        return (splice.beforeCurrent + splice.current + splice.afterCurrent).map { it.id.value }
+    }
+
+    @Test
+    fun shuffleChosenFromSmartPlaysTheSourceListAroundTheCurrentTrack() {
+        // SMART queue [a, x, y] started from the list [a, b, c]; x, a SMART pick, is playing.
+        val source = listOf(track("a"), track("b"), track("c"))
+
+        val order = checkNotNull(shuffleSourceLeavingSmart(ShuffleMode.SMART, source, current = track("x")))
+
+        assertEquals(listOf("x", "a", "b", "c"), splicedIds(order))
+        assertEquals("x", order.tracks[order.currentIndex].id.value)
+    }
+
+    @Test
+    fun aCurrentTrackOfTheSourceStaysWhereTheSourceHasIt() {
+        val source = listOf(track("a"), track("b"), track("c"))
+
+        val order = checkNotNull(shuffleSourceLeavingSmart(ShuffleMode.SMART, source, current = track("b")))
+
+        assertEquals(listOf("a", "b", "c"), splicedIds(order))
+        assertEquals(1, order.currentIndex)
+    }
+
+    @Test
+    fun onlyAQueueLeavingSmartWithASourceIsExchanged() {
+        val source = listOf(track("a"), track("b"))
+        assertNull(shuffleSourceLeavingSmart(ShuffleMode.OFF, source, current = track("a")))
+        assertNull(shuffleSourceLeavingSmart(ShuffleMode.ON, source, current = track("a")))
+        assertNull(shuffleSourceLeavingSmart(ShuffleMode.SMART, source, current = null))
+        // A session restored without its source keeps the rows it has rather than shrinking to one.
+        assertNull(shuffleSourceLeavingSmart(ShuffleMode.SMART, emptyList(), current = track("x")))
     }
 }

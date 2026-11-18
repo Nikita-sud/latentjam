@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.playback
 
+import io.github.nikitasud.latentjam.smart.TrackDescriptor
+
 /**
  * The rows of a SMART queue that a change of SMART's eligible library removes, as indices of [ids] from the last one
  * down, so each stays valid while the ones after it go.
@@ -35,3 +37,24 @@ internal fun <T : Any> descriptorsLeavingLibrary(
     inLibrary: (String) -> Boolean,
     known: (String) -> T?,
 ): List<T> = queueIds.distinct().filterNot(inLibrary).mapNotNull(known)
+
+/**
+ * The rows a queue plays when it goes from SMART straight to random shuffle (the mode menu; the button's cycle passes
+ * through OFF): the [source] list the queue was started from, around the [current] track, which stays at the playhead
+ * whether the source holds it or not. Null where there is nothing to exchange: any other transition, nothing playing,
+ * or no source at all, which leaves the queue as it stands.
+ *
+ * SMART replaces the source's rows with its own, so shuffling the player as it is would shuffle only what SMART had
+ * left in it, under SMART's marks, and end after those few rows. iOS builds the same queue: the current track, then
+ * the source in random order.
+ */
+internal fun shuffleSourceLeavingSmart(
+    previousMode: ShuffleMode,
+    source: List<TrackDescriptor>,
+    current: TrackDescriptor?,
+): PlaybackQueueOrder? =
+    if (previousMode == ShuffleMode.SMART && current != null && source.isNotEmpty()) {
+        sourceOrderKeepingCurrent(source, current)
+    } else {
+        null
+    }
