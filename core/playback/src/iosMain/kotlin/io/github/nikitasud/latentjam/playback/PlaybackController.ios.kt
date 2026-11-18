@@ -550,6 +550,12 @@ internal class IosPlaybackController(
      */
     private var playbackItemGeneration: Long = 0L
 
+    /**
+     * The item ([playbackItemGeneration]) whose track has played out without playback having moved on from it yet: it
+     * ended under a pause, or with the output stopped, or the move is still being planned. See [itemEnd].
+     */
+    private var endedItemGeneration: Long = NO_ENDED_ITEM
+
     private val mediaItemsById = mutableMapOf<String, platform.MediaPlayer.MPMediaItem>()
     private var mediaLibraryModifiedAt: Double? = null
 
@@ -1494,6 +1500,8 @@ internal class IosPlaybackController(
         val startIndex = queueIndex + 1
         val wrap = repeat == RepeatMode.ALL
         if (playbackQueueTraversal(queue.size, startIndex, direction = 1, wrap = wrap).isEmpty()) {
+            // The end was acted on and there is nothing after it: the next Play starts this track again.
+            endedItemGeneration = NO_ENDED_ITEM
             pauseActiveBackend()
             playing = false
             deactivateAudioSession()
@@ -1712,12 +1720,23 @@ internal class IosPlaybackController(
     }
 
     private fun onItemEnded(itemGeneration: Long) {
-        if (!isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration)) return
+        val fileBackend = activeBackend == PlaybackBackend.FILE
         // An overlap's outgoing track can end inside a pause's fade, while `playing` already says
         // no but the graph still renders: the next track is sounding, so it takes over all the
         // same, and a resume carries it on instead of restarting the ended one. Only then — an
         // interruption or a route change stops the graph at once, with no fade to finish in.
-        if (!playing && !transportFade.pausePending) return
+        val meaning = itemEnd(
+            currentItem = isCurrentPlaybackItemGeneration(itemGeneration, playbackItemGeneration),
+            playing = playing,
+            pauseFading = transportFade.pausePending,
+            outputRunning = !fileBackend || audioEngine.running,
+            overlapSounding = overlap?.started == true && audioEngine.overlapping,
+        )
+        if (meaning == ItemEnd.IGNORE) return
+        // The row has played out. Until playback has moved on from it (another item is then current), a Play must
+        // not start it over: see [playActiveBackend]. Only the file player can replay an end.
+        if (fileBackend) endedItemGeneration = itemGeneration
+        if (meaning == ItemEnd.REMEMBER) return
         // Repeat-one restarts the same track, which a waiting change still means.
         if (changeFades.pending && repeat != RepeatMode.ONE) autoAdvancedDuringChange = true
         if (promoteOverlap(if (repeat == RepeatMode.ONE) StartCause.REPEAT else StartCause.AUTO_ADVANCE)) return
@@ -2116,7 +2135,23 @@ internal class IosPlaybackController(
         }
         audioEngine.setTransportGain(transportFade.gainAt(transportTimeMs()))
         val started = when (activeBackend) {
-            PlaybackBackend.FILE -> audioEngine.play()
+            PlaybackBackend.FILE -> {
+                val playsOutEnd = playsOutRememberedEnd(
+                    endRemembered = endedItemGeneration == playbackItemGeneration,
+                    repeatOne = repeat == RepeatMode.ONE,
+                    smart = mode == ShuffleMode.SMART,
+                    rowsAhead = playbackQueueTraversal(queue.size, queueIndex + 1, direction = 1, wrap = repeat == RepeatMode.ALL).size,
+                )
+                endedItemGeneration = NO_ENDED_ITEM
+                if (playsOutEnd) {
+                    // The track ended while nothing could move on (a pause, an interruption, a stopped output).
+                    // Its last frame is played once more: the end it then reports takes the usual way on, instead
+                    // of the finished track starting over.
+                    cancelOverlap()
+                    audioEngine.seekTo(audioEngine.durationMs() ?: 0L, resume = false)
+                }
+                audioEngine.play()
+            }
             PlaybackBackend.MEDIA_LIBRARY -> {
                 // Confirmed by wireMediaPlayer's Playing state. Setting it before `play()` would
                 // let a queued stop from the previous item advance this replacement prematurely;
@@ -2133,6 +2168,8 @@ internal class IosPlaybackController(
     }
 
     private fun seekActiveBackend(positionMs: Long) {
+        // Wherever it lands, the row is no longer one that has just played out.
+        endedItemGeneration = NO_ENDED_ITEM
         cancelOverlap()
         // A seek — back to 0, a repeat-one wrap — starts the track over: no rise is still going on.
         incomingRiseMs = 0L
@@ -2570,6 +2607,7 @@ internal class IosPlaybackController(
 
     private companion object {
         const val MEDIA_ID_PREFIX = "ios-media:"
+        const val NO_ENDED_ITEM = -1L
         const val DEFAULT_SMART_LOOKAHEAD = 20
         const val MAX_SMART_LOOKAHEAD = 100
         const val MAX_ARTWORK_CACHE = 16
