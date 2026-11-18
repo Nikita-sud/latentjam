@@ -628,6 +628,78 @@ internal class PlaybackQueueTransitionsTest {
     }
 
     @Test
+    fun `an output that cannot start cues the picked row paused and tries no other row`() {
+        // On a call: every row would be refused the same way.
+        val attempts = mutableListOf<Pair<Int, Boolean>>()
+        val reported = mutableListOf<Int>()
+        val loaded = loadFirstPlayableRow(
+            candidates = IntArray(4_998) { it + 3 },
+            autoPlay = true,
+            load = { index, autoPlay ->
+                attempts += index to autoPlay
+                if (autoPlay) RowLoad.NO_OUTPUT else RowLoad.LOADED
+            },
+            unplayable = { index, _ -> reported += index },
+        )
+        assertTrue(loaded)
+        assertEquals(listOf(3 to true, 3 to false), attempts)
+        assertTrue(reported.isEmpty())
+    }
+
+    @Test
+    fun `after the output refused once later rows are not asked to start it again`() {
+        val attempts = mutableListOf<Pair<Int, Boolean>>()
+        val reported = mutableListOf<Pair<Int, Boolean>>()
+        val loaded = loadFirstPlayableRow(
+            candidates = intArrayOf(0, 1, 2),
+            autoPlay = true,
+            load = { index, autoPlay ->
+                attempts += index to autoPlay
+                when {
+                    autoPlay -> RowLoad.NO_OUTPUT
+                    index == 0 -> RowLoad.UNREADABLE
+                    else -> RowLoad.LOADED
+                }
+            },
+            unplayable = { index, unsupported -> reported += index to unsupported },
+        )
+        assertTrue(loaded)
+        assertEquals(listOf(0 to true, 0 to false, 1 to false), attempts)
+        assertEquals(listOf(0 to false), reported)
+    }
+
+    @Test
+    fun `rows whose file is at fault are passed over and named with the reason`() {
+        val reported = mutableListOf<Pair<Int, Boolean>>()
+        val results = mapOf(4 to RowLoad.UNREADABLE, 5 to RowLoad.UNSUPPORTED, 6 to RowLoad.LOADED)
+        val attempts = mutableListOf<Int>()
+        assertTrue(
+            loadFirstPlayableRow(
+                candidates = intArrayOf(4, 5, 6, 7),
+                autoPlay = true,
+                load = { index, _ -> attempts += index; results.getValue(index) },
+                unplayable = { index, unsupported -> reported += index to unsupported },
+            ),
+        )
+        assertEquals(listOf(4, 5, 6), attempts)
+        assertEquals(listOf(4 to false, 5 to true), reported)
+    }
+
+    @Test
+    fun `a queue with no row that opens loads nothing and an output dead even for a paused cue ends the walk`() {
+        val reported = mutableListOf<Int>()
+        assertFalse(
+            loadFirstPlayableRow(intArrayOf(0, 1), autoPlay = false, load = { _, _ -> RowLoad.UNREADABLE }) { index, _ -> reported += index },
+        )
+        assertEquals(listOf(0, 1), reported)
+        val attempts = mutableListOf<Int>()
+        assertFalse(
+            loadFirstPlayableRow(intArrayOf(0, 1), autoPlay = true, load = { index, _ -> attempts += index; RowLoad.NO_OUTPUT }) { _, _ -> },
+        )
+        assertEquals(listOf(0, 0), attempts)
+    }
+
+    @Test
     fun `only the current playback item generation may publish completion`() {
         assertTrue(isCurrentPlaybackItemGeneration(expected = 9L, current = 9L))
         assertFalse(isCurrentPlaybackItemGeneration(expected = 8L, current = 9L))

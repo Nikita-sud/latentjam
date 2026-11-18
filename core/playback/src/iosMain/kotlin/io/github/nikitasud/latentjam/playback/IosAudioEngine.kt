@@ -24,6 +24,7 @@ import platform.AVFAudio.AVAudioMixerNode
 import platform.AVFAudio.AVAudioPCMBuffer
 import platform.AVFAudio.AVAudioPlayerNode
 import platform.AVFAudio.AVAudioPlayerNodeCompletionDataPlayedBack
+import platform.Foundation.NSFileManager
 import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSProcessInfo
@@ -202,6 +203,10 @@ internal class IosAudioEngine : EqualizerController {
         return true
     }
 
+    /** Why the last [load] that returned false did: the file's fault, or the output's ([RowLoad.NO_OUTPUT]). */
+    var lastLoadFailure: RowLoad = RowLoad.UNREADABLE
+        private set
+
     /**
      * Cues a local file and optionally starts it.
      *
@@ -212,6 +217,9 @@ internal class IosAudioEngine : EqualizerController {
     fun load(url: NSURL, autoPlay: Boolean, onEnded: () -> Unit): Boolean {
         val file = runCatching { AVAudioFile(forReading = url, error = null) }.getOrNull()
             ?: run {
+                // A file that is there and readable, and still does not open, is one this device cannot decode.
+                val readable = url.isFileURL() && url.path?.let(NSFileManager.defaultManager::isReadableFileAtPath) == true
+                lastLoadFailure = if (readable) RowLoad.UNSUPPORTED else RowLoad.UNREADABLE
                 stop()
                 return false
             }
@@ -219,6 +227,7 @@ internal class IosAudioEngine : EqualizerController {
         // one, so such a file is unplayable here: fail the load like an unreadable URL and let
         // the controller walk on to the next candidate instead of cueing silence.
         if (file.length <= 0L || !supportsFormat(file)) {
+            lastLoadFailure = if (file.length <= 0L) RowLoad.UNREADABLE else RowLoad.UNSUPPORTED
             stop()
             return false
         }
@@ -230,10 +239,16 @@ internal class IosAudioEngine : EqualizerController {
         segmentStartFrame = 0L
         pausedFrame = 0L
         completion = onEnded
-        if (!configureFileGraph(file)) { stop(); return false }
+        if (!configureFileGraph(file)) {
+            lastLoadFailure = RowLoad.UNSUPPORTED
+            stop()
+            return false
+        }
         scheduleSegment(file, 0L)
         if (autoPlay) {
             if (!ensureEngineRunning()) {
+                // The output would not start; the file is sound.
+                lastLoadFailure = RowLoad.NO_OUTPUT
                 stop()
                 return false
             }

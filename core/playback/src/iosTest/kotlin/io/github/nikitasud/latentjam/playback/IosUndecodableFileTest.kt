@@ -57,6 +57,20 @@ class IosUndecodableFileTest {
         try {
             assertFalse(engine.load(url, autoPlay = false) {})
             assertFalse(engine.playing)
+            // The file is there and opens: its format is the reason, which the listener is told.
+            assertEquals(RowLoad.UNSUPPORTED, engine.lastLoadFailure)
+        } finally { engine.stop() }
+    }
+
+    @Test
+    fun aFileThatIsNotThereIsUnreadableAndGarbageThatIsThereIsUnsupported() = withFile(ByteArray(4096) { 7 }, "mp3") { url ->
+        val engine = IosAudioEngine()
+        try {
+            val missing = NSURL.fileURLWithPath(url.path!! + ".gone.mp3")
+            assertFalse(engine.load(missing, autoPlay = false) {})
+            assertEquals(RowLoad.UNREADABLE, engine.lastLoadFailure)
+            assertFalse(engine.load(url, autoPlay = false) {})
+            assertEquals(RowLoad.UNSUPPORTED, engine.lastLoadFailure)
         } finally { engine.stop() }
     }
 

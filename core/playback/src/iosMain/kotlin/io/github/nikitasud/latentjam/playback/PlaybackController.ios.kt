@@ -1499,9 +1499,9 @@ internal class IosPlaybackController(
 
     /**
      * Points the player at [queueIndex], re-scoping the end-of-item observer to
-     * the new item as it goes. Returns false when the entry cannot be opened.
+     * the new item as it goes. Anything but [RowLoad.LOADED] when the entry cannot be opened, with why.
      */
-    private fun loadCurrentItem(autoPlay: Boolean): Boolean {
+    private fun loadCurrentItem(autoPlay: Boolean): RowLoad {
         pendingAdvance.invalidate()
         cancelOverlap()
         incomingRiseMs = 0L
@@ -1512,7 +1512,7 @@ internal class IosPlaybackController(
         resetTransportFade()
         val track = queue.getOrNull(queueIndex) ?: run {
             stopBackendsAfterLoadFailure()
-            return false
+            return RowLoad.UNREADABLE
         }
         updateNormalizationGain(snap = true)
         // The new file starts at the level its own opening calls for — the fade-in's 0 with smooth
@@ -1523,41 +1523,44 @@ internal class IosPlaybackController(
             loadMediaLibraryItem(track, autoPlay)
         } else {
             val url = track.audioUri?.let { NSURL.URLWithString(it) }
-            val fileLoaded = url != null && loadFileItem(url, autoPlay)
-            fileLoaded || (isMediaLibraryItem && loadMediaLibraryItem(track, autoPlay))
+            val file = if (url != null) loadFileItem(url, autoPlay) else RowLoad.UNREADABLE
+            // A Music-library song the file graph cannot open plays through Apple's player instead; an output that
+            // would not start is no reason to try that one, which needs the same output.
+            if (file == RowLoad.LOADED || file == RowLoad.NO_OUTPUT || !isMediaLibraryItem) file
+            else loadMediaLibraryItem(track, autoPlay)
         }
-        if (!loaded) stopBackendsAfterLoadFailure()
+        if (loaded != RowLoad.LOADED) stopBackendsAfterLoadFailure()
         return loaded
     }
 
     /** Loads a file after silencing MediaPlayer; [IosAudioEngine] clears itself on failure. */
-    private fun loadFileItem(url: NSURL, autoPlay: Boolean): Boolean {
+    private fun loadFileItem(url: NSURL, autoPlay: Boolean): RowLoad {
         val itemGeneration = ++playbackItemGeneration
         mediaItemStarted = false
         mediaPlayerStartRequestedAt = null
         // Ignore the stop notification from the backend we are replacing.
         activeBackend = PlaybackBackend.FILE
         mediaPlayer.stop()
-        if (autoPlay && !activateAudioSession()) return false
+        if (autoPlay && !activateAudioSession()) return RowLoad.NO_OUTPUT
         val loaded = audioEngine.load(url, autoPlay) {
             mainScope.launch { onItemEnded(itemGeneration) }
         }
         if (!loaded) {
-            return false
+            return audioEngine.lastLoadFailure
         }
         audioEngine.setOutputSupportsEqualizer(true)
         playing = autoPlay
         if (!autoPlay) deactivateAudioSession()
         updateTicker()
         invalidateNowPlayingInfo()
-        return true
+        return RowLoad.LOADED
     }
 
     /** Resolves a persistent Music-library ID and cues it in Apple's local player. */
-    private fun loadMediaLibraryItem(track: TrackDescriptor, autoPlay: Boolean): Boolean {
+    private fun loadMediaLibraryItem(track: TrackDescriptor, autoPlay: Boolean): RowLoad {
         val persistentId = track.id.value.removePrefix(MEDIA_ID_PREFIX)
-        val item = resolveMediaItem(persistentId) ?: return false
-        if (autoPlay && !activateAudioSession()) return false
+        val item = resolveMediaItem(persistentId) ?: return RowLoad.UNREADABLE
+        if (autoPlay && !activateAudioSession()) return RowLoad.NO_OUTPUT
 
         ++playbackItemGeneration
         audioEngine.stop()
@@ -1586,20 +1589,29 @@ internal class IosPlaybackController(
         }
         updateTicker()
         invalidateNowPlayingInfo()
-        return true
+        return RowLoad.LOADED
     }
 
-    /** Tries each candidate once; unreadable rows are skipped without ever being published. */
+    /**
+     * Tries each candidate once; unreadable rows are skipped without ever being published. An audio output that will
+     * not start (a call in progress) is no row's fault: the row is cued paused instead ([loadFirstPlayableRow]).
+     */
     private fun loadPlayableFrom(
         startIndex: Int,
         direction: Int,
         autoPlay: Boolean,
         wrap: Boolean,
     ): Boolean {
-        for (candidate in playbackQueueTraversal(queue.size, startIndex, direction, wrap)) {
-            queueIndex = candidate
-            if (loadCurrentItem(autoPlay)) return true
-        }
+        val loaded = loadFirstPlayableRow(
+            candidates = playbackQueueTraversal(queue.size, startIndex, direction, wrap),
+            autoPlay = autoPlay,
+            load = { candidate, play ->
+                queueIndex = candidate
+                loadCurrentItem(play)
+            },
+            unplayable = { _, _ -> },
+        )
+        if (loaded) return true
         stopBackendsAndClearCurrent()
         return false
     }
