@@ -2903,14 +2903,16 @@ private fun AppShell(
                                             },
                                             onSmartFromRegion = { region ->
                                                 mapPage.mapRegions.getOrNull(region)?.let { world ->
-                                                    scope.launch {
+                                                    // One planned start at a time, as for the hero and a mix: of two
+                                                    // taps the later one plays.
+                                                    forYouPage.playbackLauncher.launch(scope) { isCurrent ->
                                                         val seed = tracksById[world.representative.id] ?: return@launch
                                                         playSmartFrom(
                                                             playback, engine, AppGraph.history, seed,
                                                             { eligibleFor(smartEligible, tracks, smartExclusionState) }, smartQueueLength,
                                                             AppGraph.smartCompanionGroups.value,
                                                             QueueSource(QueueSourceKind.MAP, shownRegionNames.getOrNull(region) ?: world.name),
-                                                            PickSurface.COLLECTION, songs = { tracksById },
+                                                            PickSurface.COLLECTION, songs = { tracksById }, isCurrent = isCurrent,
                                                         )
                                                     }
                                                 }

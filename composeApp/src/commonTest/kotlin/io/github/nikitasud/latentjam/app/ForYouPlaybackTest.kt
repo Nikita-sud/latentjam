@@ -237,6 +237,36 @@ internal class ForYouPlaybackTest {
     }
 
     @Test
+    fun ofTwoPlannedStartsTheLaterTapIsTheOneThatPlays() = runTest {
+        PersonalSignals.reset()
+        val playback = FakePlayback()
+        val launcher = ForYouPlaybackLauncher()
+        val firstPlan = CompletableDeferred<List<TrackId>>()
+        val secondPlan = CompletableDeferred<List<TrackId>>()
+        val second = track("second")
+        // "SMART from here" on one Map region, then, before anything sounds, on another (or on the hero, or a mix).
+        launcher.launch(this) { isCurrent ->
+            playPlannedFrom(playback, seed, { songs }, isCurrent, beforePlay = { PersonalSignals.pick(PickSurface.COLLECTION) }) {
+                firstPlan.await()
+            }
+        }
+        runCurrent()
+        launcher.launch(this) { isCurrent ->
+            playPlannedFrom(playback, second, { songs }, isCurrent, beforePlay = { PersonalSignals.pick(PickSurface.COLLECTION) }) {
+                secondPlan.await()
+            }
+        }
+        runCurrent()
+        // The first plan is ready first. Started bare, it played, marked its pick, and the later tap then took that
+        // mark for other music the listener had started and gave up.
+        firstPlan.complete(continuation.map { it.id })
+        runCurrent()
+        secondPlan.complete(emptyList())
+        runCurrent()
+        assertEquals(listOf(second), playback.state.value.queue)
+    }
+
+    @Test
     fun withSmartSwitchedOffAPlannedStartPlaysItsOtherWayAndResumes() = runTest {
         PersonalSignals.reset()
         val playback = FakePlayback()
