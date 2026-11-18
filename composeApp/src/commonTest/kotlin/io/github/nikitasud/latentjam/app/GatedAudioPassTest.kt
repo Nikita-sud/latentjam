@@ -183,6 +183,27 @@ class GatedAudioPassTest {
     }
 
     @Test
+    fun aStalledChunkLeavesItsCrashSuspectsToBeAnalysed() = runTest {
+        // Suspects are cleared when their chunk went through the engine; a stalled chunk was cut short before them.
+        val ends = ArrayList<Boolean>()
+        val marker = object : InFlightMarker {
+            override fun end(chunk: List<TrackDescriptor>, completed: Boolean) {
+                ends += completed
+            }
+        }
+        engine.stalledAt = 2
+        runCatching {
+            pass().run(
+                order = tracks, allIds = tracks.map { it.id }, total = tracks.size,
+                progress = AnalysisProgress(tracks.size).apply { started(tracks.size) },
+                failures = LinkedHashMap(), eta = IndexingEta(wall), gatedAtStart = true, shownAtStart = true,
+                inFlight = marker,
+            )
+        }
+        assertEquals(listOf(true, false), ends)
+    }
+
+    @Test
     fun aChunkWithNothingToAnalyseIsNotMarked() = runTest {
         val begun = ArrayList<Int>()
         var ended = 0

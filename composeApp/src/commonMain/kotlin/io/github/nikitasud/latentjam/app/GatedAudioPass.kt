@@ -173,11 +173,13 @@ internal class GatedAudioPass(
                     chunks.getOrNull(position + 1).orEmpty()
                 }
                 if (missingBefore > 0) inFlight.begin(chunk)
-                var staged = false
+                // Completed only when the engine went through the whole chunk: a stalled one was cut short, and the
+                // tracks it did not reach (crash suspects among them) are still to be analysed.
+                var completed = false
                 val report = try {
-                    engine.stage(chunk, upcoming).also { staged = true }
+                    engine.stage(chunk, upcoming).also { completed = !it.stalled }
                 } finally {
-                    inFlight.end(chunk, completed = staged)
+                    inFlight.end(chunk, completed)
                 }
                 failures.putAll(report.errors)
                 visited += chunk.size
