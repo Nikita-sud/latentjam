@@ -100,3 +100,17 @@ internal const val OUTPUT_RECOVERY_MAX: Int = 3
 
 /** How long a re-cued track waits before it starts again: a pause for a device that went away, or an interruption, lands first. */
 internal const val OUTPUT_RECOVERY_SETTLE_MS: Long = 150L
+
+/**
+ * The Music library's persistent id in a track id of the form `ios-media:<id>` (the id as unsigned decimal, as the
+ * library scan wrote it), or null for any other id. One song is then asked for by this number instead of the whole
+ * Music library being read to find it.
+ */
+internal fun mediaLibraryPersistentId(trackId: String): ULong? {
+    if (!trackId.startsWith(MEDIA_LIBRARY_ID_PREFIX)) return null
+    val digits = trackId.substring(MEDIA_LIBRARY_ID_PREFIX.length)
+    if (digits.isEmpty() || digits.any { it !in '0'..'9' }) return null
+    return digits.toULongOrNull()
+}
+
+private const val MEDIA_LIBRARY_ID_PREFIX = "ios-media:"

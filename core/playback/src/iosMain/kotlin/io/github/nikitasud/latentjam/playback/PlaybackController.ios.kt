@@ -54,7 +54,6 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSURL
-import platform.Foundation.timeIntervalSince1970
 import platform.CoreGraphics.CGContextAddLineToPoint
 import platform.CoreGraphics.CGContextBeginPath
 import platform.CoreGraphics.CGContextFillRect
@@ -74,10 +73,11 @@ import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyAlbumTitle
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyArtwork
+import platform.MediaPlayer.MPMediaItemPropertyPersistentID
 import platform.MediaPlayer.MPMediaItemPropertyPlaybackDuration
 import platform.MediaPlayer.MPMediaItemPropertyTitle
 import platform.MediaPlayer.MPMediaItemCollection
-import platform.MediaPlayer.MPMediaLibrary
+import platform.MediaPlayer.MPMediaPropertyPredicate
 import platform.MediaPlayer.MPMediaQuery
 import platform.MediaPlayer.MPMusicPlaybackState
 import platform.MediaPlayer.MPMusicPlayerController
@@ -556,8 +556,6 @@ internal class IosPlaybackController(
      */
     private var endedItemGeneration: Long = NO_ENDED_ITEM
 
-    private val mediaItemsById = mutableMapOf<String, platform.MediaPlayer.MPMediaItem>()
-    private var mediaLibraryModifiedAt: Double? = null
 
     /** Immutable snapshots: the UI holds these across ticker emissions. */
     private var queue: List<TrackDescriptor> = emptyList()
@@ -1593,8 +1591,7 @@ internal class IosPlaybackController(
 
     /** Resolves a persistent Music-library ID and cues it in Apple's local player. */
     private fun loadMediaLibraryItem(track: TrackDescriptor, autoPlay: Boolean): RowLoad {
-        val persistentId = track.id.value.removePrefix(MEDIA_ID_PREFIX)
-        val item = resolveMediaItem(persistentId) ?: return RowLoad.UNREADABLE
+        val item = resolveMediaItem(track.id.value) ?: return RowLoad.UNREADABLE
         if (autoPlay && !activateAudioSession()) return RowLoad.NO_OUTPUT
 
         ++playbackItemGeneration
@@ -1706,17 +1703,21 @@ internal class IosPlaybackController(
         queueIndex = -1
     }
 
-    /** Refreshes on a miss or Music-library change, so a removed cached item is never claimed. */
-    private fun resolveMediaItem(persistentId: String): platform.MediaPlayer.MPMediaItem? {
-        val modifiedAt = MPMediaLibrary.defaultMediaLibrary().lastModifiedDate.timeIntervalSince1970
-        if (mediaLibraryModifiedAt != modifiedAt || persistentId !in mediaItemsById) {
-            mediaItemsById.clear()
-            MPMediaQuery.songsQuery().items.orEmpty()
-                .mapNotNull { it as? platform.MediaPlayer.MPMediaItem }
-                .forEach { mediaItemsById[it.persistentID.toString()] = it }
-            mediaLibraryModifiedAt = modifiedAt
-        }
-        return mediaItemsById[persistentId]
+    /**
+     * The Music-library song behind [trackId], asked for by its persistent id: one small query, never the whole
+     * library read and mapped on the main thread for one row. Nothing is kept between calls, so a song removed from
+     * the library is simply not found.
+     */
+    private fun resolveMediaItem(trackId: String): platform.MediaPlayer.MPMediaItem? {
+        val persistentId = mediaLibraryPersistentId(trackId) ?: return null
+        val query = MPMediaQuery.songsQuery()
+        query.addFilterPredicate(
+            MPMediaPropertyPredicate.predicateWithValue(
+                NSNumber(unsignedLongLong = persistentId),
+                forProperty = MPMediaItemPropertyPersistentID,
+            ),
+        )
+        return query.items?.firstOrNull() as? platform.MediaPlayer.MPMediaItem
     }
 
     private fun onItemEnded(itemGeneration: Long) {
