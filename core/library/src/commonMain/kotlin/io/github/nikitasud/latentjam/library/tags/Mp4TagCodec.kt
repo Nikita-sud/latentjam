@@ -45,6 +45,29 @@ internal object Mp4TagCodec : TagCodec {
 
     private class Tags(val meta: Mp4Box, val ilst: Mp4Box)
 
+    /** A sink that keeps nothing: it only says whether what was written is exactly [expected]. */
+    private class SameBytes(private val expected: ByteArray) : ByteSink {
+        private var position = 0
+        private var same = true
+
+        val matched: Boolean get() = same && position == expected.size
+
+        override fun write(bytes: ByteArray, offset: Int, count: Int) {
+            if (!same) return
+            if (count > expected.size - position) {
+                same = false
+                return
+            }
+            for (i in 0 until count) {
+                if (bytes[offset + i] != expected[position + i]) {
+                    same = false
+                    return
+                }
+            }
+            position += count
+        }
+    }
+
     override fun recognizes(head: ByteArray): Boolean = head.size >= 8 && Mp4Boxes.typeOf(head, 4) == "ftyp"
 
     private fun parse(source: RandomAccessSource): Parsed {
@@ -60,8 +83,10 @@ internal object Mp4TagCodec : TagCodec {
         if (atom.size > MAX_MOOV) return Parsed.Bad(TagRefusal.MP4_TAGS_TOO_LARGE)
         val bytes = source.read(atom.offset, atom.size.toInt()) ?: return Parsed.Bad(TagRefusal.TRUNCATED)
         val tree = Mp4Boxes.parse(bytes) ?: return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
-        // Only a tree that reproduces its own bytes exactly is safe to edit and write back.
-        if (!tree.serialize().contentEquals(bytes)) return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
+        // Only a tree that reproduces its own bytes exactly is safe to edit and write back. Compared as
+        // it is written, never serialized whole: with a cover in it that copy, and the buffer growing
+        // under it, took three more times the atom's size.
+        if (!SameBytes(bytes).also(tree::write).matched) return Parsed.Bad(TagRefusal.MP4_MALFORMED_ATOMS)
         val boxes = Mp4Boxes.walk(tree).toList()
         for (stsd in boxes.filter { it.type == "stsd" }) {
             // Entries that do not add up could hide the one that marks the file protected.
