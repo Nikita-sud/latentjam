@@ -512,6 +512,68 @@ internal fun shuffleOrderMovingRow(
 internal fun shouldRestartConsumedSegment(pausedFrame: Long, fileLength: Long): Boolean =
     fileLength >= 0L && pausedFrame >= fileLength
 
+/**
+ * The iOS file player's playhead in frames. [playedFrames] is what its node reports since the segment began, or null
+ * when it reports nothing: the node is paused or not rendering yet, or the system stopped the graph under a playing
+ * track (an interruption, a route change), which takes the render clock away before this app hears of it.
+ * [lastRenderedFrame] is the last frame the node did report since it was cued or paused here, null when none: where a
+ * stopped graph really is, while [pausedFrame] is only where it was last cued or paused.
+ */
+internal fun playheadFrame(
+    playedFrames: Long?,
+    segmentStartFrame: Long,
+    pausedFrame: Long,
+    lastRenderedFrame: Long?,
+    fileLength: Long,
+): Long {
+    val frame = if (playedFrames != null) segmentStartFrame + playedFrames else lastRenderedFrame ?: pausedFrame
+    return frame.coerceIn(0L, fileLength.coerceAtLeast(0L))
+}
+
+/** What became of loading one queue row into the iOS players. */
+internal enum class RowLoad {
+    LOADED,
+
+    /** The file is not there or cannot be read (moved, deleted, damaged), or the Music library no longer has the song. */
+    UNREADABLE,
+
+    /** The file is there, and this device cannot decode it. */
+    UNSUPPORTED,
+
+    /** The row was never tried: the audio output could not be started (a call in progress, say). Not the row's fault. */
+    NO_OUTPUT,
+}
+
+/**
+ * Loads the first of [candidates] that will open, with [load], and says whether one did. A row whose file is at fault
+ * is passed over and handed to [unplayable] (with whether its format is the reason). An output that cannot start is
+ * no row's fault and every later row would meet it too: that row is loaded once more, paused, and so is any row after
+ * it, instead of the whole queue being tried and given up one row at a time.
+ */
+internal fun loadFirstPlayableRow(
+    candidates: IntArray,
+    autoPlay: Boolean,
+    load: (index: Int, autoPlay: Boolean) -> RowLoad,
+    unplayable: (index: Int, unsupportedFormat: Boolean) -> Unit,
+): Boolean {
+    var play = autoPlay
+    for (index in candidates) {
+        var result = load(index, play)
+        if (result == RowLoad.NO_OUTPUT && play) {
+            play = false
+            result = load(index, false)
+        }
+        when (result) {
+            RowLoad.LOADED -> return true
+            RowLoad.UNREADABLE -> unplayable(index, false)
+            RowLoad.UNSUPPORTED -> unplayable(index, true)
+            // Not even a paused cue: nothing a later row could change.
+            RowLoad.NO_OUTPUT -> return false
+        }
+    }
+    return false
+}
+
 /** True only for an end/notification callback issued by the still-current playback item. */
 internal fun isCurrentPlaybackItemGeneration(expected: Long, current: Long): Boolean =
     expected == current

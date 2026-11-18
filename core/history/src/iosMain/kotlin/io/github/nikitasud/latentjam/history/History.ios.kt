@@ -143,7 +143,10 @@ internal class FileHistoryStore : HistoryStore {
 
     override suspend fun append(line: String): Unit = withContext(Dispatchers.Default) {
         val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
-        durableAppend(path, line + "\n", what = "private history data")
+        // A write cut short leaves a torn tail with no line feed. Appending straight after it glues this listen to
+        // the fragment, and the parser refuses the whole glued record; closing the fragment first loses only it.
+        val separator = if (endsInsideALine(path)) "\n" else ""
+        durableAppend(path, separator + line + "\n", what = "private history data")
     }
 
     override suspend fun readAll(): List<String> = withContext(Dispatchers.Default) {
@@ -277,7 +280,9 @@ internal class FileForYouImpressionStore : ForYouImpressionStore {
     override suspend fun append(lines: List<String>): Unit = withContext(Dispatchers.Default) {
         if (lines.isEmpty()) return@withContext
         val path = appSupportFile(FILE_NAME) ?: error("Application Support is unavailable")
-        durableAppend(path, lines.joinToString(separator = "\n", postfix = "\n"), what = "For You offers")
+        // As for the listening log: a torn tail is closed first, so the new lines start on a line of their own.
+        val separator = if (endsInsideALine(path)) "\n" else ""
+        durableAppend(path, separator + lines.joinToString(separator = "\n", postfix = "\n"), what = "For You offers")
     }
 
     private companion object {

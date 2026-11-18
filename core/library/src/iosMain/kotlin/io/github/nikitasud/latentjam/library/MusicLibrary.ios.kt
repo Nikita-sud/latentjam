@@ -10,7 +10,9 @@ import io.github.nikitasud.latentjam.library.tags.cleanGenre
 import io.github.nikitasud.latentjam.library.tags.parseYear
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import io.github.nikitasud.latentjam.smart.TrackId
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.autoreleasepool
 import kotlinx.cinterop.readBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -470,8 +472,9 @@ internal class IosMusicLibrary : MusicLibrary {
             }
     }
 
-    @OptIn(ExperimentalForeignApi::class)
-    private fun scan(documents: String): List<TrackDescriptor> {
+    /** The music under [documents], files unchanged since the last walk taken from [cache]. Internal for its test. */
+    @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+    internal fun scan(documents: String): List<TrackDescriptor> {
         val manager = NSFileManager.defaultManager
         // enumeratorAtPath recurses and yields paths RELATIVE to the root, which is
         // exactly the identity we want — no string surgery on absolute paths.
@@ -506,13 +509,18 @@ internal class IosMusicLibrary : MusicLibrary {
 
             val addedAtMs = (attributes?.get(NSFileCreationDate) as? NSDate)
                 ?.timeIntervalSince1970?.times(1000)?.toLong()
-            val descriptor = read(
-                relativePath = relativePath,
-                absolutePath = absolutePath,
-                sizeBytes = sizeBytes,
-                modifiedAtMs = modifiedAtMs,
-                addedAtMs = addedAtMs,
-            )
+            // One pool per file. What AVFoundation hands back is autoreleased, and this walk is a single
+            // call on a worker with no pool of its own: without one, every file's metadata — its embedded
+            // cover with it — stayed in memory until the last file of the library had been read.
+            val descriptor = autoreleasepool {
+                read(
+                    relativePath = relativePath,
+                    absolutePath = absolutePath,
+                    sizeBytes = sizeBytes,
+                    modifiedAtMs = modifiedAtMs,
+                    addedAtMs = addedAtMs,
+                )
+            }
             cache[relativePath] = CachedTrack(modifiedAtMs, sizeBytes, descriptor)
             if (descriptor.isLikelyMusic(relativePath)) found += descriptor
         }
@@ -554,8 +562,10 @@ internal class IosMusicLibrary : MusicLibrary {
         // AVFoundation assigns FLAC's vorb/METADATA_BLOCK_PICTURE the common artwork key, but
         // does not include it in commonMetadata. Its dataValue is the raw JPEG/PNG payload, so a
         // second pass over the complete metadata list recovers FLAC/OGG covers without a decoder.
+        // Fetched once: each read of `metadata` crosses into AVFoundation and brings back a new list.
+        val metadata = asset.metadata
         if (artwork == null) {
-            asset.metadata.forEach { raw ->
+            metadata.forEach { raw ->
                 val item = raw as? AVMetadataItem ?: return@forEach
                 if (item.commonKey == AVMetadataCommonKeyArtwork) {
                     item.dataValue?.let { artwork = it }
@@ -569,11 +579,11 @@ internal class IosMusicLibrary : MusicLibrary {
             // An untagged file still deserves a readable row, and this is what
             // MediaStore does on Android too, so the platforms agree.
             title = title.knownOrNull()
-                ?: asset.rawString("TITLE")
+                ?: metadata.rawString("TITLE")
                 ?: relativePath.substringAfterLast('/').substringBeforeLast('.'),
-            artist = artist.knownOrNull() ?: asset.rawString("ARTIST", "ALBUMARTIST"),
-            album = album.knownOrNull() ?: asset.rawString("ALBUM"),
-            genre = (asset.firstString(GENRE_IDENTIFIERS) ?: asset.rawString("GENRE"))
+            artist = artist.knownOrNull() ?: metadata.rawString("ARTIST", "ALBUMARTIST"),
+            album = album.knownOrNull() ?: metadata.rawString("ALBUM"),
+            genre = (metadata.firstString(GENRE_IDENTIFIERS) ?: metadata.rawString("GENRE"))
                 ?.let(::cleanGenre),
             // An indefinite or unreadable CMTime comes back NaN rather than throwing.
             durationMs = seconds.takeIf { !it.isNaN() && it > 0 }?.times(1000)?.toLong(),
@@ -586,16 +596,16 @@ internal class IosMusicLibrary : MusicLibrary {
             // source with a single switch covering two unrelated sets of files. Android's path
             // projection returns null for a file in the mount root for the same reason.
             folderPath = relativePath.substringBeforeLast('/', "").takeIf(String::isNotBlank),
-            year = (asset.firstString(YEAR_IDENTIFIERS) ?: asset.rawString("DATE", "YEAR") ?: created)
+            year = (metadata.firstString(YEAR_IDENTIFIERS) ?: metadata.rawString("DATE", "YEAR") ?: created)
                 ?.let(::parseYear),
             sizeBytes = sizeBytes.takeIf { it > 0 },
             fileName = relativePath.substringAfterLast('/'),
             sourceRevision = "ios-import-v1:$sizeBytes:$modifiedAtMs",
-            trackNumber = TrackNumbers.parse(asset.rawString("TRACKNUMBER", "TRCK"))
-                ?: asset.iTunesPairNumber("trkn"),
-            discNumber = TrackNumbers.parse(asset.rawString("DISCNUMBER", "TPOS"))
-                ?: asset.iTunesPairNumber("disk"),
-            albumArtist = asset.rawString("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "ALBUM%20ARTIST", "TPE2", "aART"),
+            trackNumber = TrackNumbers.parse(metadata.rawString("TRACKNUMBER", "TRCK"))
+                ?: metadata.iTunesPairNumber("trkn"),
+            discNumber = TrackNumbers.parse(metadata.rawString("DISCNUMBER", "TPOS"))
+                ?: metadata.iTunesPairNumber("disk"),
+            albumArtist = metadata.rawString("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "ALBUM%20ARTIST", "TPE2", "aART"),
         )
     }
 
@@ -612,8 +622,8 @@ internal class IosMusicLibrary : MusicLibrary {
      * Matching on the part after the "/" keeps this keyspace-agnostic, so an
      * ID3 or iTunes file that also lacks a common mapping still resolves.
      */
-    private fun AVURLAsset.rawString(vararg names: String): String? {
-        metadata.forEach { raw ->
+    private fun List<*>.rawString(vararg names: String): String? {
+        forEach { raw ->
             val item = raw as? AVMetadataItem ?: return@forEach
             val name = item.identifier?.substringAfterLast('/') ?: return@forEach
             if (names.any { it.equals(name, ignoreCase = true) }) {
@@ -629,8 +639,8 @@ internal class IosMusicLibrary : MusicLibrary {
      * string for them and [rawString] cannot see them.
      */
     @OptIn(ExperimentalForeignApi::class)
-    private fun AVURLAsset.iTunesPairNumber(atom: String): Int? {
-        metadata.forEach { raw ->
+    private fun List<*>.iTunesPairNumber(atom: String): Int? {
+        forEach { raw ->
             val item = raw as? AVMetadataItem ?: return@forEach
             if (item.identifier?.substringAfterLast('/') != atom) return@forEach
             val data = item.dataValue ?: return@forEach
@@ -643,8 +653,8 @@ internal class IosMusicLibrary : MusicLibrary {
     }
 
     /** First non-blank string value across [identifiers], in preference order. */
-    private fun AVURLAsset.firstString(identifiers: List<String?>): String? {
-        val all = metadata
+    private fun List<*>.firstString(identifiers: List<String?>): String? {
+        val all = this
         identifiers.forEach { identifier ->
             val match = AVMetadataItem
                 .metadataItemsFromArray(all, filteredByIdentifier = identifier)

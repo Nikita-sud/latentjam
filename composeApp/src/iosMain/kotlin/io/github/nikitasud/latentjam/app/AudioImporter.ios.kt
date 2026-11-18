@@ -26,6 +26,7 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
 import platform.Foundation.NSNumber
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
+import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
 import platform.Foundation.NSUserDomainMask
@@ -107,8 +108,12 @@ private fun copyIntoDocuments(urls: List<NSURL>): AudioImportResult {
     var skipped = 0
     var failed = 0
 
+    // With `asCopy` the picker hands over private copies in this app's temporary directory, and nothing removes them
+    // for the app: kept, every imported file was on the phone twice. Only a file really in there is consumed.
+    val temporary = NSURL.fileURLWithPath(NSTemporaryDirectory(), isDirectory = true).URLByResolvingSymlinksInPath?.path
     urls.forEach { source ->
-        when (importOne(manager, destinationDirectory, source)) {
+        val pickersCopy = isInsideDirectory(source.URLByResolvingSymlinksInPath?.path, temporary)
+        when (importOne(manager, destinationDirectory, source, consumeSource = pickersCopy)) {
             ImportOutcome.IMPORTED -> imported += 1
             ImportOutcome.ALREADY_PRESENT -> skipped += 1
             ImportOutcome.FAILED -> failed += 1
@@ -131,12 +136,28 @@ internal enum class ImportOutcome { IMPORTED, ALREADY_PRESENT, FAILED }
  * A shorter matching prefix can be a complete trimmed MP3, so it never proves an interrupted import.
  * Even empty existing files are preserved; only the unique temporary copy made by this import may
  * be removed on failure.
+ *
+ * With [consumeSource] the source is the picker's private copy: it is moved into place rather than
+ * copied, and whatever the outcome it is gone afterwards.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun importOne(
     manager: NSFileManager,
     destinationDirectory: NSURL,
     source: NSURL,
+    consumeSource: Boolean = false,
+): ImportOutcome = try {
+    placeOne(manager, destinationDirectory, source, consumeSource)
+} finally {
+    if (consumeSource) source.path?.let { if (manager.fileExistsAtPath(it)) manager.removeItemAtPath(it, null) }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun placeOne(
+    manager: NSFileManager,
+    destinationDirectory: NSURL,
+    source: NSURL,
+    moveSource: Boolean,
 ): ImportOutcome {
     val sourcePath = source.path
     val name = source.lastPathComponent
@@ -172,23 +193,29 @@ internal fun importOne(
         println("IOS_IMPORT: no free name for a picked file after $MAX_NAME_ATTEMPTS attempts")
         return ImportOutcome.FAILED
     }
-    return copyAtomically(manager, source, target)
+    return copyAtomically(manager, source, target, moveSource)
 }
 
 /**
  * Stages a complete copy beside the destination and moves it without replacing an existing file.
  * A unique temporary name keeps concurrent imports and remnants of earlier imports independent.
  * If another writer takes the destination after the name check, the move fails and preserves it.
+ * With [moveSource] the source itself is staged (a rename inside the container), so the file is never
+ * on disk twice; when that is refused it is copied as before.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 private fun copyAtomically(
     manager: NSFileManager,
     source: NSURL,
     destinationPath: String,
+    moveSource: Boolean,
 ): ImportOutcome {
     val partialPath = "$destinationPath.${NSUUID().UUIDString}$PARTIAL_SUFFIX"
     var failure: String? = null
-    val copied = memScoped {
+    val moved = moveSource && manager.moveItemAtURL(source, NSURL.fileURLWithPath(partialPath), null)
+    // A move that gave up half way may have left a piece under the staging name.
+    if (moveSource && !moved) manager.removeItemAtPath(partialPath, null)
+    val copied = moved || memScoped {
         val error = alloc<ObjCObjectVar<NSError?>>()
         error.value = null
         val ok = manager.copyItemAtURL(source, NSURL.fileURLWithPath(partialPath), error.ptr)
