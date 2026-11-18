@@ -67,7 +67,9 @@ internal class DurableWriterRewriteTest {
         val limit = case.original.size.toLong()
         assertTrue(assertIs<WritePlan.StreamingRewrite>(WriteFixtures.plan(case)).newLength > limit)
         val full = VolumeFullAt(files.track(track), limit)
-        assertIs<WriteResult.Failed>(writer(files, atomic = false).write(track, full, case.edits, targetFreeBytes = null))
+        val failed = assertIs<WriteResult.Failed>(writer(files, atomic = false).write(track, full, case.edits, targetFreeBytes = null))
+        // The file held other bytes for a while: whoever has it open must be told to read it again.
+        assertTrue(failed.touched)
         // The copy really was cut short over the track, so the original came back from the backup.
         assertFalse(assertNotNull(full.cutShort).contentEquals(case.original))
         assertContentEquals(case.original, files.trackBytes(track))

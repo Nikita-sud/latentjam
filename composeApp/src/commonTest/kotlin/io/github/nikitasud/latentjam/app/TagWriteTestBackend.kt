@@ -7,6 +7,7 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.library.tags.Id3Tags
 import io.github.nikitasud.latentjam.library.tags.TagEdits
 import io.github.nikitasud.latentjam.library.tags.write.DurableWriter
+import io.github.nikitasud.latentjam.library.tags.write.StorageFullException
 import io.github.nikitasud.latentjam.library.tags.write.TagRecovery
 import io.github.nikitasud.latentjam.library.tags.write.TargetFile
 
@@ -43,6 +44,9 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
 
     /** Files whose handle's force() fails, as a process killed mid-save leaves them. */
     val forceFails = HashSet<String>()
+
+    /** Files on a volume with room for only this many bytes of them: a write past it lands in part and fails. */
+    val volumeFullAt = HashMap<String, Long>()
 
     /** The keys each read-only look before a consent was asked about. */
     val probes = ArrayList<List<String>>()
@@ -101,6 +105,14 @@ internal class TestTagWriteBackend(override val strategy: TagWriteStrategy) : Ta
                     override fun force() {
                         if (key in forceFails) throw IllegalStateException("process died")
                         files.track(key).force()
+                    }
+
+                    override fun write(offset: Long, bytes: ByteArray, from: Int, count: Int) {
+                        val limit = volumeFullAt[key]
+                        if (limit == null || offset + count <= limit) return files.track(key).write(offset, bytes, from, count)
+                        val fits = maxOf(0L, limit - offset).toInt()
+                        if (fits > 0) files.track(key).write(offset, bytes, from, fits)
+                        throw StorageFullException("volume full")
                     }
 
                     override fun close() {

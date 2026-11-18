@@ -663,14 +663,16 @@ internal class TagWriteCoordinator<C>(
         if (first.results.any { it.key == result.key }) return
         val updated = first.copy(results = first.results + result)
         update(updated)
-        if (result.movesAudio) {
-            try {
-                onRewritten(result.key)
-            } catch (_: Exception) {
-                // The save stands whatever became of telling the player.
-            }
-        }
+        if (result.movesAudio) announceRewritten(result.key)
         mutableProgress.value = TagWriteProgress(updated.id, updated.results.size, updated.keys.size)
+    }
+
+    private fun announceRewritten(key: String) {
+        try {
+            onRewritten(key)
+        } catch (_: Exception) {
+            // The save stands whatever became of telling the player.
+        }
     }
 
     private fun resume() {
@@ -884,6 +886,8 @@ internal class TagWriteCoordinator<C>(
         // (after an atomic replace the old handle points at the replaced file).
         val recovered = withOpened(key) { file, _, _ -> recoverKey(key, file) }
         if (recovered !is Attempt.Done || recovered.result.status == FileWriteStatus.RECOVERY_PENDING) return first
+        // Told now: the save that follows reports only itself, and one that fits in place moves nothing.
+        if (recovered.result.movesAudio) announceRewritten(key)
         return withOpened(key) { file, free, path -> saved(key, backend.writer.write(key, file, request.edits, free, path)) }
     }
 
@@ -916,7 +920,8 @@ internal class TagWriteCoordinator<C>(
         WriteResult.NoChange -> FileWriteResult(key, FileWriteStatus.UNCHANGED)
         is WriteResult.Refused -> FileWriteResult(key, FileWriteStatus.REFUSED, refusal = result.reason)
         WriteResult.NotEnoughSpace -> FileWriteResult(key, FileWriteStatus.NO_SPACE)
-        is WriteResult.Failed -> FileWriteResult(key, FileWriteStatus.FAILED)
+        // A copy over the file that was put back: its bytes moved and moved again under an open reader.
+        is WriteResult.Failed -> FileWriteResult(key, FileWriteStatus.FAILED, rewritten = result.touched)
         is WriteResult.RecoveryPending -> FileWriteResult(key, FileWriteStatus.RECOVERY_PENDING)
     }
 

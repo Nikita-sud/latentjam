@@ -110,6 +110,37 @@ internal class TagWriteCoordinatorTest {
     }
 
     @Test
+    fun aRewriteThatFailedAndWasPutBackIsAnnouncedToo() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        // Room for the file as it is, not for its growth: the copy over it lands in part, then fails.
+        backend.volumeFullAt["a"] = testMp3().size.toLong()
+        val harness = Harness(backend, this)
+        harness.enqueue(listOf("a"), TagEdits(lyrics = "la ".repeat(40_000)))
+        runCurrent()
+        // The file held part of the new one for a while: a player that has it open reads it again.
+        assertEquals(listOf("a"), harness.rewritten)
+        harness.deliver()
+        assertEquals(FileWriteStatus.FAILED, harness.reports.single().results.single().status)
+        assertContentEquals(testMp3(), backend.files.bytes("a"))
+    }
+
+    @Test
+    fun anInterruptedSaveFinishedOnTheWayToANewOneIsAnnounced() = runTest {
+        val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
+        backend.files.put("a", testMp3())
+        interruptSave(backend, "a")
+        val harness = Harness(backend, this)
+        // The new save fits in place, so its own result says nothing moved; the recovery before it did.
+        harness.enqueue(listOf("a"), TagEdits(title = "New"))
+        runCurrent()
+        assertEquals(listOf("a"), harness.rewritten)
+        harness.deliver()
+        assertEquals(FileWriteStatus.SAVED, harness.reports.single().results.single().status)
+        assertContentEquals(testMp3("New"), backend.files.bytes("a"))
+    }
+
+    @Test
     fun withoutConsentEveryFileIsSavedAndTheIndexRescannedOnce() = runTest {
         val backend = TestTagWriteBackend(TagWriteStrategy.NO_CONSENT)
         listOf("a", "b", "c", "d").forEach { backend.files.put(it, testMp3()) }
