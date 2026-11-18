@@ -288,17 +288,55 @@ internal class GenreEnrichmentTest {
     }
 
     @Test
-    fun aChangedFileKeepsTheScannersAlbumUntilItIsReadAgain() = runTest {
-        // The album tag may be what changed: nothing remembered of the old bytes decides for the new ones.
+    fun aSavedTagDoesNotBringTheFolderBackAsTheAlbum() = runTest {
+        // The title of an album-less song is edited: the scan after the save meets a line of the old revision.
+        // While the scanner still says the folder's name, that line's "no album" stands, and nothing flashes.
+        val settings = MemorySettings()
+        var reads = 0
+        val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) {
+            reads++
+            EmbeddedTagFacts()
+        }
+        enrichment.backfill(listOf(inFolder))
+        val saved = inFolder.copy(title = "A new title", sourceRevision = "revision|2")
+        val albumless = saved.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")
+        assertEquals(listOf(albumless), enrichment.apply(listOf(saved)))
+        // The re-read says the same: nothing is published a second time.
+        assertFalse(enrichment.backfill(listOf(albumless)))
+        assertEquals(2, reads)
+        assertEquals(listOf(albumless), enrichment.apply(listOf(saved)))
+    }
+
+    @Test
+    fun anAlbumTypedIntoAnAlbumlessSongIsShownAtOnce() = runTest {
+        // The scanner's album is no longer the folder's name: it came from the file, whatever the old line said.
+        val settings = MemorySettings()
+        GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { EmbeddedTagFacts() }.backfill(listOf(inFolder))
+        val typed = inFolder.copy(album = "Kaadhal", sourceRevision = "revision|2")
+        val enrichment = GenreEnrichment(settings, ownCover = { _, _ -> error("never stripped") }, folderAlbums = true) {
+            EmbeddedTagFacts(album = "Kaadhal")
+        }
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
+        assertFalse(enrichment.backfill(listOf(typed)))
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
+    }
+
+    @Test
+    fun anAlbumTypedThatIsTheFoldersNameComesBackWithTheReRead() = runTest {
+        // The one case the scanner's text cannot settle: the old line holds until the file is read again,
+        // and then the album the scan reported is given back without waiting for another scan.
         val settings = MemorySettings()
         var facts = EmbeddedTagFacts()
         val enrichment = GenreEnrichment(settings, ownCover = stripped, folderAlbums = true) { facts }
         enrichment.backfill(listOf(inFolder))
-        val retagged = inFolder.copy(sourceRevision = "revision|2")
-        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+        val typed = inFolder.copy(sourceRevision = "revision|2")
+        val published = enrichment.apply(listOf(typed))
+        assertEquals(listOf(typed.copy(album = null, scannerAlbum = "TAMIL", artworkUri = "song-cover")), published)
         facts = EmbeddedTagFacts(album = "TAMIL")
-        enrichment.backfill(listOf(retagged))
-        assertEquals(listOf(retagged), enrichment.apply(listOf(retagged)))
+        assertTrue(enrichment.backfill(published))
+        // The album and its identity are back; the cover keeps to the song's own until the next scan.
+        assertEquals(listOf(typed.copy(artworkUri = "song-cover")), enrichment.apply(published))
+        assertEquals(listOf(typed), enrichment.apply(listOf(typed)))
     }
 
     private val mpegAudio = byteArrayOf(0xFF.toByte(), 0xFB.toByte(), 0x90.toByte(), 0x64) + ByteArray(1024)
