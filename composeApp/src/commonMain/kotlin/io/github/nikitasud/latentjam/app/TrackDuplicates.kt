@@ -6,6 +6,8 @@ package io.github.nikitasud.latentjam.app
 
 import androidx.compose.ui.text.intl.Locale
 import io.github.nikitasud.latentjam.history.Favorites
+import io.github.nikitasud.latentjam.history.ListeningHistory
+import io.github.nikitasud.latentjam.history.moveListens
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.library.tags.TrackRecordingIds
@@ -867,14 +869,21 @@ internal fun mergedMembership(
  * favorites edit aborts the merge; previously rewritten playlists remain valid because all
  * copies are still visible and no references have been discarded. [onHideTrack] receives each
  * loser once the references are safe; a caller that deletes files instead simply collects them.
+ *
+ * The listens of the copies that go become the survivor's ([moveListens], issue #40): the copy
+ * recommended for keeping is the better file, which is often not the one that was played, and
+ * its counts would otherwise start from nothing while the old ones stayed with a track that is
+ * gone. They move last, once playlists and favourites are safe, so a merge that is refused
+ * leaves every copy with its own listens. Returns how many listens moved.
  */
 internal suspend fun mergeDuplicateGroup(
     group: List<TrackDescriptor>,
     survivor: TrackDescriptor,
     playlists: Playlists,
     favorites: Favorites,
+    history: ListeningHistory,
     onHideTrack: suspend (TrackDescriptor) -> Unit,
-) {
+): Int {
     val losers = group.filter { it.id != survivor.id }
     val duplicateIds = losers.mapTo(mutableSetOf(), TrackDescriptor::id)
     for (playlist in playlists.all()) {
@@ -893,7 +902,9 @@ internal suspend fun mergeDuplicateGroup(
             "Favorites changed during duplicate merge"
         }
     }
+    val moved = history.moveListens(from = duplicateIds, to = survivor.id)
     losers.forEach { onHideTrack(it) }
+    return moved
 }
 
 /**

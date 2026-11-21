@@ -2572,9 +2572,11 @@ private fun DuplicatesSettings(
                     deleteFiles = delete,
                     playlists = AppGraph.playlists,
                     favorites = AppGraph.favorites,
+                    history = AppGraph.history,
                     onHideTracks = onHideTracks,
                     onDeleteTracks = onDeleteTracks,
                     onDataChanged = onDuplicateDataChanged,
+                    onListensMoved = AppGraph::noteHistoryImported,
                 )
                 if (!delete) {
                     val mergedKeys = merges.mapTo(HashSet()) { it.first.key }

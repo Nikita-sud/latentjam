@@ -7,6 +7,10 @@ package io.github.nikitasud.latentjam.app
 import io.github.nikitasud.latentjam.history.DefaultFavorites
 import io.github.nikitasud.latentjam.history.Favorites
 import io.github.nikitasud.latentjam.history.FavoritesStore
+import io.github.nikitasud.latentjam.history.DefaultListeningHistory
+import io.github.nikitasud.latentjam.history.HistoryStore
+import io.github.nikitasud.latentjam.history.ListenEvent
+import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.history.TrackStats
 import io.github.nikitasud.latentjam.library.DefaultPlaylists
 import io.github.nikitasud.latentjam.library.PlaylistStore
@@ -408,6 +412,25 @@ internal class DuplicateMergeTest {
 
     private fun track(id: String) = TrackDescriptor(id = TrackId(id), title = id)
 
+    private class MemoryHistoryStore : HistoryStore {
+        val lines = mutableListOf<String>()
+        override suspend fun append(line: String) { lines += line }
+        override suspend fun readAll(): List<String> = lines.toList()
+        override suspend fun clear() { lines.clear() }
+    }
+
+    private fun listen(id: String, startedAt: Long, completed: Boolean = true) = ListenEvent(
+        trackId = TrackId(id),
+        startedAtMs = startedAt,
+        playedMs = if (completed) 200_000 else 10_000,
+        trackDurationMs = 200_000,
+        completed = completed,
+        skipped = !completed,
+    )
+
+    private suspend fun historyOf(vararg events: ListenEvent): DefaultListeningHistory =
+        DefaultListeningHistory(MemoryHistoryStore()).also { history -> events.forEach { history.record(it) } }
+
     @Test
     fun rejectedPlaylistCasAbortsBeforeFavoritesOrTracksAreRemoved() = runTest {
         val backingPlaylists = DefaultPlaylists(MemoryPlaylistStore())
@@ -426,6 +449,7 @@ internal class DuplicateMergeTest {
         }
         val hidden = mutableListOf<TrackId>()
         val survivor = track("survivor")
+        val history = historyOf(listen("duplicate", 1_000))
         var failure: Throwable? = null
 
         try {
@@ -434,6 +458,7 @@ internal class DuplicateMergeTest {
                 survivor = survivor,
                 playlists = playlists,
                 favorites = favorites,
+                history = history,
                 onHideTrack = { hidden += it.id },
             )
         } catch (problem: Throwable) {
@@ -443,6 +468,8 @@ internal class DuplicateMergeTest {
         assertIs<IllegalStateException>(failure)
         assertEquals(listOf(TrackId("duplicate")), favorites.all())
         assertTrue(hidden.isEmpty())
+        // A refused merge leaves every copy with its own listens.
+        assertEquals(setOf(TrackId("duplicate")), history.stats().keys)
     }
 
     @Test
@@ -460,6 +487,7 @@ internal class DuplicateMergeTest {
         }
         val hidden = mutableListOf<TrackId>()
         val survivor = track("survivor")
+        val history = historyOf(listen("duplicate", 1_000))
         var failure: Throwable? = null
 
         try {
@@ -468,6 +496,7 @@ internal class DuplicateMergeTest {
                 survivor = survivor,
                 playlists = playlists,
                 favorites = favorites,
+                history = history,
                 onHideTrack = { hidden += it.id },
             )
         } catch (problem: Throwable) {
@@ -478,6 +507,7 @@ internal class DuplicateMergeTest {
         assertEquals(listOf("survivor"), playlists.all().single { it.id == created.id }.trackIds)
         assertEquals(listOf(TrackId("duplicate")), backingFavorites.all())
         assertTrue(hidden.isEmpty())
+        assertEquals(setOf(TrackId("duplicate")), history.stats().keys)
     }
 
     @Test
@@ -492,20 +522,83 @@ internal class DuplicateMergeTest {
         }
         val survivor = track("survivor")
         val hidden = mutableListOf<TrackId>()
+        // Issue #40: thirty plays of the kept copy and fifteen of the copy that goes make forty-five.
+        val log = List(30) { listen("survivor", 1_000L + it) } +
+            List(15) { listen("duplicate", 5_000L + it, completed = it < 10) } +
+            listen("before", 9_000)
+        val history = historyOf(*log.toTypedArray())
 
-        mergeDuplicateGroup(
+        val moved = mergeDuplicateGroup(
             group = listOf(survivor, track("duplicate")),
             survivor = survivor,
             playlists = playlists,
             favorites = favorites,
+            history = history,
             onHideTrack = { loser ->
                 assertEquals(listOf("before", "survivor"), playlists.all().single { it.id == created.id }.trackIds)
                 assertEquals(listOf(TrackId("survivor")), favorites.all())
+                // The listens are the survivor's before the copy goes.
+                assertEquals(setOf(TrackId("survivor"), TrackId("before")), history.stats().keys)
                 hidden += loser.id
             },
         )
 
         assertEquals(listOf(TrackId("duplicate")), hidden)
+        assertEquals(15, moved)
+        val kept = history.stats().getValue(TrackId("survivor"))
+        assertEquals(45, kept.plays)
+        assertEquals(40, kept.completions)
+        assertEquals(5, kept.skips)
+        assertEquals(5_014, kept.lastPlayedAtMs)
+        // Every listen keeps its own time and length, in the order it was recorded.
+        val expected = log.map { if (it.trackId.value == "duplicate") it.copy(trackId = TrackId("survivor")) else it }
+        assertEquals(expected, history.allEvents())
+        assertEquals(1, history.stats().getValue(TrackId("before")).plays)
+    }
+
+    @Test
+    fun aMergeTakenUpAgainMovesNoListenTwice() = runTest {
+        val playlists = DefaultPlaylists(MemoryPlaylistStore())
+        val favorites = DefaultFavorites(MemoryFavoritesStore())
+        val survivor = track("survivor")
+        val history = historyOf(listen("survivor", 1_000), listen("duplicate", 2_000))
+        val group = listOf(survivor, track("duplicate"))
+
+        // The first try got as far as the listens and then could not hide the copy.
+        assertFailsWith<IllegalStateException> {
+            mergeDuplicateGroup(group, survivor, playlists, favorites, history, onHideTrack = { error("could not hide") })
+        }
+        val after = history.allEvents()
+        assertEquals(listOf("survivor", "survivor"), after.map { it.trackId.value })
+
+        assertEquals(0, mergeDuplicateGroup(group, survivor, playlists, favorites, history, onHideTrack = {}))
+        assertEquals(after, history.allEvents())
+        assertEquals(2, history.stats().getValue(TrackId("survivor")).plays)
+    }
+
+    @Test
+    fun aHistoryThatCannotBeWrittenStopsTheMergeBeforeAnyCopyGoes() = runTest {
+        val playlists = DefaultPlaylists(MemoryPlaylistStore())
+        val favorites = DefaultFavorites(MemoryFavoritesStore())
+        val survivor = track("survivor")
+        val backing = historyOf(listen("duplicate", 2_000))
+        val history = object : ListeningHistory by backing {
+            override suspend fun merge(
+                imported: List<ListenEvent>,
+                maxEvents: Int,
+                combine: (existing: List<ListenEvent>, imported: List<ListenEvent>) -> List<ListenEvent>,
+            ): Int = error("disk unavailable")
+        }
+        val hidden = mutableListOf<TrackId>()
+
+        assertFailsWith<IllegalStateException> {
+            mergeDuplicateGroup(
+                listOf(survivor, track("duplicate")), survivor, playlists, favorites, history,
+                onHideTrack = { hidden += it.id },
+            )
+        }
+        assertTrue(hidden.isEmpty())
+        assertEquals(setOf(TrackId("duplicate")), backing.stats().keys)
     }
 }
 

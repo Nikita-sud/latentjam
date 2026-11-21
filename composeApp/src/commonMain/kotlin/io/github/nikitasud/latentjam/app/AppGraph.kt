@@ -193,7 +193,7 @@ object AppGraph {
     val historyRevision: StateFlow<Long> = mutableHistoryRevision.asStateFlow()
 
     /**
-     * Reports listens written without playback (a ListenBrainz import): every reader keyed on
+     * Reports listens written without playback (a ListenBrainz import, a duplicate merge): every reader keyed on
      * [historyRevision] — For You, Statistics, Search, auto playlists — then rebuilds from the log.
      */
     fun noteHistoryImported() {

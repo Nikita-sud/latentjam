@@ -5,6 +5,7 @@
 package io.github.nikitasud.latentjam.app
 
 import io.github.nikitasud.latentjam.history.Favorites
+import io.github.nikitasud.latentjam.history.ListeningHistory
 import io.github.nikitasud.latentjam.library.Playlists
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
 import kotlinx.coroutines.NonCancellable
@@ -36,28 +37,34 @@ internal suspend fun hideTracksAndRefresh(
 /**
  * Rewrite references before removing copies, and republish partial durable changes even on failure.
  * A rejected native delete request is propagated to the caller instead of escaping its coroutine.
+ * [onListensMoved] runs when listens of the copies that go became a survivor's, also when a later
+ * group failed: what reads the listening history then has to read it again.
  */
 internal suspend fun performDuplicateMerge(
     merges: List<Pair<DuplicateGroup, DuplicateCopy>>,
     deleteFiles: Boolean,
     playlists: Playlists,
     favorites: Favorites,
+    history: ListeningHistory,
     onHideTracks: suspend (List<TrackDescriptor>) -> Unit,
     onDeleteTracks: (List<TrackDescriptor>) -> Unit,
     onDataChanged: suspend () -> Unit,
+    onListensMoved: () -> Unit = {},
 ) {
     require(!deleteFiles || canDeleteDuplicateFiles(merges)) {
         "Some duplicate copies cannot be deleted from this source"
     }
     val losers = mutableListOf<TrackDescriptor>()
     var failure: Throwable? = null
+    var listensMoved = 0
     try {
         for ((group, survivor) in merges) {
-            mergeDuplicateGroup(
+            listensMoved += mergeDuplicateGroup(
                 group = group.copies.map { it.track },
                 survivor = survivor.track,
                 playlists = playlists,
                 favorites = favorites,
+                history = history,
                 onHideTrack = { losers += it },
             )
         }
@@ -66,7 +73,10 @@ internal suspend fun performDuplicateMerge(
         failure = problem
     }
     try {
-        withContext(NonCancellable) { onDataChanged() }
+        withContext(NonCancellable) {
+            if (listensMoved > 0) onListensMoved()
+            onDataChanged()
+        }
     } catch (problem: Throwable) {
         if (failure == null) failure = problem
     }

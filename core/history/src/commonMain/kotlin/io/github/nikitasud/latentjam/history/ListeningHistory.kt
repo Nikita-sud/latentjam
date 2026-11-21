@@ -110,6 +110,28 @@ public interface ListeningHistory {
 }
 
 /**
+ * Gives every listen of the tracks [from] to the track [to], and says how many it moved: what merging duplicate
+ * copies of one recording does with the listens of the copies that go (issue #40). Each listen keeps its place in
+ * the log, its time and its length; only its track changes, so the kept copy's counts become the sum of the
+ * copies' and a backup made afterwards holds the listens under the kept copy.
+ *
+ * One indivisible update ([ListeningHistory.merge]): a listen recorded meanwhile is neither lost nor moved twice.
+ * Repeating it moves nothing, so a merge taken up again after an interruption is safe, and a log with no such
+ * listen is not written at all. No listen is added, so the log's length is never a reason to refuse.
+ */
+public suspend fun ListeningHistory.moveListens(from: Set<TrackId>, to: TrackId): Int {
+    val leaving = from - to
+    if (leaving.isEmpty()) return 0
+    var moved = 0
+    merge(imported = emptyList(), maxEvents = Int.MAX_VALUE) { existing, _ ->
+        // Counted afresh on every call: an implementation may run this more than once.
+        moved = existing.count { it.trackId in leaving }
+        if (moved == 0) existing else existing.map { if (it.trackId in leaving) it.copy(trackId = to) else it }
+    }
+    return moved
+}
+
+/**
  * The most recent [limit] log lines as listens, newest first: [ListeningHistory.recentEvents] with a
  * playback that was paused and resumed across a trip to the background read as the one listen it was
  * ([ListeningNormalization.joinResumed]). What SMART and For You read; a backup takes the lines as written.

@@ -678,4 +678,96 @@ internal class ListeningHistoryTest {
         assertFalse(imported.copy(origin = ListenOrigin(ListenStart.USER_PICK)).isImported)
         assertFalse(imported.copy(completed = false).isImported)
     }
+
+    // Issue #40: merging duplicate copies of one recording keeps the listens of the copies that go.
+
+    @Test
+    fun theListensOfMergedCopiesBecomeTheKeptCopysAndNothingElseChanges() = runTest {
+        val store = FakeStore()
+        val history = DefaultListeningHistory(store)
+        val log = listOf(
+            event("kept", 1_000, completed = true),
+            event("copy", 2_000, played = 20_000, skipped = true),
+            event("other", 3_000),
+            event("copy2", 4_000, completed = true),
+            event("copy", 5_000, completed = true),
+        )
+        log.forEach { history.record(it) }
+
+        assertEquals(3, history.moveListens(from = setOf(TrackId("copy"), TrackId("copy2")), to = TrackId("kept")))
+
+        // Every listen is still there, at its place, with its own time and length; only the track changed.
+        val expected = log.map { if (it.trackId.value == "other") it else it.copy(trackId = TrackId("kept")) }
+        assertEquals(expected, history.allEvents())
+        assertEquals(expected.map(ListenEvent::serialize), store.lines)
+        val stats = history.stats()
+        assertEquals(setOf(TrackId("kept"), TrackId("other")), stats.keys)
+        val kept = stats.getValue(TrackId("kept"))
+        assertEquals(4, kept.plays)
+        assertEquals(3, kept.completions)
+        assertEquals(1, kept.skips)
+        assertEquals(5_000, kept.lastPlayedAtMs)
+        // A new process reads the same log.
+        assertEquals(stats, DefaultListeningHistory(store).stats())
+    }
+
+    @Test
+    fun movingListensAgainChangesNothingAndWritesNothing() = runTest {
+        var rewrites = 0
+        val backing = FakeStore()
+        val store = object : HistoryStore by backing {
+            override suspend fun replaceAll(lines: List<String>) {
+                rewrites++
+                backing.replaceAll(lines)
+            }
+        }
+        val history = DefaultListeningHistory(store)
+        history.record(event("kept", 1_000))
+        history.record(event("copy", 2_000))
+
+        assertEquals(1, history.moveListens(setOf(TrackId("copy")), TrackId("kept")))
+        assertEquals(1, rewrites)
+        val after = history.allEvents()
+        // A merge repeated after an interruption, a copy that was never played, the kept copy named among the
+        // copies, no copies at all: none of them touches the log.
+        assertEquals(0, history.moveListens(setOf(TrackId("copy")), TrackId("kept")))
+        assertEquals(0, history.moveListens(setOf(TrackId("never-played")), TrackId("kept")))
+        assertEquals(0, history.moveListens(setOf(TrackId("kept")), TrackId("kept")))
+        assertEquals(0, history.moveListens(emptySet(), TrackId("kept")))
+        assertEquals(1, rewrites)
+        assertEquals(after, history.allEvents())
+    }
+
+    @Test
+    fun listensMoveInALogLongerThanABackupHolds() = runTest {
+        // Later plays are never refused, so a log can be longer than any bound a restore sets; moving listens
+        // adds none and must not be refused for it.
+        val store = FakeStore(List(40) { event(if (it % 2 == 0) "kept" else "copy", 1_000L + it).serialize() })
+        val history = DefaultListeningHistory(store)
+        assertEquals(20, history.moveListens(setOf(TrackId("copy")), TrackId("kept")))
+        assertEquals(40, history.stats().getValue(TrackId("kept")).plays)
+    }
+
+    @Test
+    fun aListenRecordedWhileListensMoveIsKept() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val backing = FakeStore()
+        val store = object : HistoryStore by backing {
+            override suspend fun replaceAll(lines: List<String>) {
+                gate.await()
+                backing.replaceAll(lines)
+            }
+        }
+        val history = DefaultListeningHistory(store)
+        history.record(event("copy", 1_000))
+        val moving = launch { history.moveListens(setOf(TrackId("copy")), TrackId("kept")) }
+        runCurrent()
+        val recording = launch { history.record(event("other", 2_000)) }
+        runCurrent()
+        gate.complete(Unit)
+        moving.join()
+        recording.join()
+        assertEquals(listOf("kept", "other"), history.allEvents().map { it.trackId.value })
+        assertEquals(listOf("kept", "other"), DefaultListeningHistory(backing).allEvents().map { it.trackId.value })
+    }
 }
