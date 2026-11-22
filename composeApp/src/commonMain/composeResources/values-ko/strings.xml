@@ -646,6 +646,11 @@
     <string name="settings_normalize_volume_subtitle">큰 곡의 음량을 일정한 수준으로 낮춥니다</string>
     <string name="settings_crossfade">부드러운 전환</string>
     <string name="settings_crossfade_subtitle">곡의 끝과 다음 곡의 시작이 겹칩니다</string>
+    <string name="settings_sound">사운드</string>
+    <string name="settings_sound_subtitle">이퀄라이저 및 전환</string>
+    <string name="settings_transitions">전환</string>
+    <string name="settings_adaptive_crossfade">스마트 크로스페이드</string>
+    <string name="settings_adaptive_crossfade_subtitle">비슷한 곡 사이에서는 길게, 분위기가 바뀌면 짧게 전환합니다</string>
     <string name="settings_crossfade_value">%1$d초</string>
     <string name="duplicates_keep_this">이것을 유지</string>
     <string name="snack_duplicates_merged">중복이 병합되었습니다. 재생목록이 유지된 복사본을 가리킵니다</string>

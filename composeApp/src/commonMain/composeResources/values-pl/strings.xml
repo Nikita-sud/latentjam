@@ -721,6 +721,11 @@
     <string name="settings_normalize_volume_subtitle">Ścisza głośne utwory do bardziej równego poziomu</string>
     <string name="settings_crossfade">Płynne przejścia</string>
     <string name="settings_crossfade_subtitle">Koniec utworu nakłada się na początek następnego</string>
+    <string name="settings_sound">Dźwięk</string>
+    <string name="settings_sound_subtitle">Korektor i przejścia</string>
+    <string name="settings_transitions">Przejścia</string>
+    <string name="settings_adaptive_crossfade">Inteligentne przejścia</string>
+    <string name="settings_adaptive_crossfade_subtitle">Dłuższe między podobnymi utworami, krótsze przy zmianie brzmienia</string>
     <string name="settings_crossfade_value">%1$d s</string>
     <string name="duplicates_keep_this">Zachowaj ten</string>
     <string name="snack_duplicates_merged">Duplikaty scalone: playlisty wskazują teraz zachowaną kopię</string>

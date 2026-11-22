@@ -261,6 +261,7 @@ internal class CrossfadeCoordinator(
                 slot = intro.slot,
                 outgoingEndUs = if (trailMs > 0L) anchors.outgoingEndMs * 1000L else C.TIME_UNSET,
                 incomingStartFrame = (leadMs * intro.sampleRate / 1000L).toInt(),
+                adaptiveLength = settings.seamFadeMs != null,
                 holdsOutgoing = entryMs != null,
             )
         }

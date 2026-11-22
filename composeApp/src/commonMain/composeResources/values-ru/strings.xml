@@ -712,6 +712,11 @@
     <string name="settings_normalize_volume_subtitle">Снижает громкие треки до более ровного уровня</string>
     <string name="settings_crossfade">Плавные переходы</string>
     <string name="settings_crossfade_subtitle">Конец трека накладывается на начало следующего</string>
+    <string name="settings_sound">Звук</string>
+    <string name="settings_sound_subtitle">Эквалайзер и переходы</string>
+    <string name="settings_transitions">Переходы</string>
+    <string name="settings_adaptive_crossfade">Умный кроссфейд</string>
+    <string name="settings_adaptive_crossfade_subtitle">Дольше между похожими треками и короче при смене звучания</string>
     <string name="settings_crossfade_value">%1$d с</string>
     <string name="duplicates_keep_this">Оставить этот</string>
     <string name="snack_duplicates_merged">Дубликаты объединены: плейлисты теперь указывают на оставленную копию</string>

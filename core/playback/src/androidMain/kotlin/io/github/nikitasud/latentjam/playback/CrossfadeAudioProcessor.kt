@@ -159,14 +159,20 @@ internal class OverlapPlan(
     val slot: Int = -1,
     val outgoingEndUs: Long = C.TIME_UNSET,
     val incomingStartFrame: Int = 0,
+    /** SMART fitted this seam below the slider, so the outgoing fallback uses its overlap too. */
+    val adaptiveLength: Boolean = false,
     /**
      * A fade entry ([FadeEnd]): the outgoing track keeps its own level through the overlap — its
      * fade-out does the leaving — and the overlap may be longer than the slider.
      */
     val holdsOutgoing: Boolean = false,
 ) {
-    /** How long before its end this plan's seam is settled: the slider, or a longer fade entry. */
-    fun windowUs(sliderUs: Long): Long = if (holdsOutgoing) maxOf(sliderUs, overlapUs) else sliderUs
+    /** How long before its end this plan's seam is settled: its overlap, or a longer fade entry. */
+    fun windowUs(sliderUs: Long): Long = when {
+        holdsOutgoing -> maxOf(sliderUs, overlapUs)
+        adaptiveLength -> overlapUs
+        else -> sliderUs
+    }
 }
 
 /** See [CrossfadeSettings.pendingRise]. */
@@ -488,15 +494,18 @@ internal class CrossfadeAudioProcessor(
         val envelopeStep = 1f / (rate * ENVELOPE_SLEW_MS / 1000f)
         val introStep = 1f / (rate * CROSSFADE_CANCEL_MS / 1000f)
         val rampFrames = NORMALIZATION_RAMP_MS * rate / 1000L
-        val fallbackFadeUs = minOf(fadeMs * 1000L, durationUs / 2L)
         // An overlap meets the outgoing track's last sound: its end is settled where that window
         // begins, which a long trailing silence puts before the file's own fade window.
         val ownPlan = livePlan?.takeIf { it.outgoingId == mediaId }
         val soundEndUs = ownPlan?.let { anchorUs(it, durationUs) } ?: durationUs
         val windowUs = ownPlan?.windowUs(fadeMs * 1000L) ?: (fadeMs * 1000L)
+        val fallbackFadeUs = minOf(windowUs, durationUs / 2L)
         val decideAtUs = minOf(durationUs - fallbackFadeUs, soundEndUs - minOf(windowUs, soundEndUs / 2L))
         // A queue edit can end an album continuation, or begin one, under a fading track.
-        if (segment.end == End.NONE && edges.fadeOut) segment.end = End.FADE
+        if (segment.end == End.NONE && edges.fadeOut) {
+            segment.end = End.FADE
+            segment.endFadeMs = windowUs / 1000L
+        }
         if (segment.end == End.FADE && !edges.fadeOut) segment.end = End.NONE
         val mix = segment.mix
         if (mix != null && !mix.cancelled && (livePlan !== mix.plan || fadeMs <= 0L)) mix.cancelled = true
@@ -516,7 +525,7 @@ internal class CrossfadeAudioProcessor(
             if (segment.end == End.UNDECIDED && fadeMs > 0L && durationUs > 0L &&
                 mediaUs >= decideAtUs
             ) {
-                segment.decideEnd(edges, livePlan, durationUs, mediaUs, rate, index)
+                segment.decideEnd(edges, livePlan, durationUs, mediaUs, rate, index, windowUs / 1000L)
             }
 
             var envelope = 1f
@@ -555,7 +564,13 @@ internal class CrossfadeAudioProcessor(
                     }
                 }
             } else if (segment.end == End.FADE && fadeMs > 0L) {
-                envelope *= crossfadeFactor(mediaUs / 1000L, durationMs, fadeMs, fadeIn = false, fadeOut = true)
+                envelope *= crossfadeFactor(
+                    mediaUs / 1000L,
+                    durationMs,
+                    segment.endFadeMs,
+                    fadeIn = false,
+                    fadeOut = true,
+                )
             }
             segment.envelope = if (segment.envelopeFresh) envelope else slew(segment.envelope, envelope, envelopeStep)
             segment.envelopeFresh = false
@@ -644,6 +659,7 @@ internal class CrossfadeAudioProcessor(
         var riseFromUs = 0L
 
         var end = End.UNDECIDED
+        var endFadeMs = 0L
         var mix: Mix? = null
 
         var envelope = 1f
@@ -691,7 +707,16 @@ internal class CrossfadeAudioProcessor(
          */
         var waitFromUs = -1L
 
-        fun decideEnd(edges: FadeEdges, plan: OverlapPlan?, durationUs: Long, mediaUs: Long, rate: Int, index: Long) {
+        fun decideEnd(
+            edges: FadeEdges,
+            plan: OverlapPlan?,
+            durationUs: Long,
+            mediaUs: Long,
+            rate: Int,
+            index: Long,
+            seamFadeMs: Long,
+        ) {
+            endFadeMs = seamFadeMs
             if (!edges.fadeOut) {
                 end = End.NONE
                 return
@@ -704,8 +729,9 @@ internal class CrossfadeAudioProcessor(
             if (!usable) {
                 // Its opening is still being decoded (a seek close to the end started that late):
                 // play on at full level for a moment rather than settle on the plain fades.
-                val windowUs = durationUs - minOf(settings.fadeMs * 1000L, durationUs / 2L)
-                val waitUs = minOf(MAX_LATE_MIX_US, settings.fadeMs * 1000L / 2L)
+                val fadeUs = seamFadeMs * 1000L
+                val windowUs = durationUs - minOf(fadeUs, durationUs / 2L)
+                val waitUs = minOf(MAX_LATE_MIX_US, fadeUs / 2L)
                 if (settings.preparingFor == stream?.mediaId) {
                     // A seek deep into the window waits for the opening as long as one before it would.
                     if (index == 0L && waitFromUs < 0L) waitFromUs = mediaUs
@@ -721,7 +747,7 @@ internal class CrossfadeAudioProcessor(
             }
             val endUs = anchorUs(plan, durationUs)
             val mixStartUs = endUs - plan.overlapUs
-            val windowUs = endUs - minOf(plan.windowUs(settings.fadeMs * 1000L), endUs / 2L)
+            val windowUs = endUs - minOf(plan.windowUs(seamFadeMs * 1000L), endUs / 2L)
             // A start before the window — the slider lowered after the opening was decoded for a
             // longer overlap — would cut the next track in loud and partway into its opening.
             val missedStart = mixStartUs < windowUs - LATE_START_US

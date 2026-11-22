@@ -679,6 +679,11 @@
     <string name="settings_normalize_volume_subtitle">Senkt laute Titel auf ein einheitlicheres Niveau</string>
     <string name="settings_crossfade">Weiche Übergänge</string>
     <string name="settings_crossfade_subtitle">Das Ende eines Titels überlappt den Anfang des nächsten</string>
+    <string name="settings_sound">Klang</string>
+    <string name="settings_sound_subtitle">Equalizer und Übergänge</string>
+    <string name="settings_transitions">Übergänge</string>
+    <string name="settings_adaptive_crossfade">Intelligenter Übergang</string>
+    <string name="settings_adaptive_crossfade_subtitle">Länger bei ähnlichen Titeln, kürzer bei Klangwechseln</string>
     <string name="settings_crossfade_value">%1$d s</string>
     <string name="duplicates_keep_this">Diesen behalten</string>
     <string name="snack_duplicates_merged">Duplikate zusammengeführt: Playlists zeigen jetzt auf die behaltene Kopie</string>

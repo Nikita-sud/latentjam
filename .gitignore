@@ -11,6 +11,7 @@ xcuserdata/
 third_party/
 tools/research/output/
 iosApp/Pods/
+.vscode/
 
 # Python
 __pycache__/

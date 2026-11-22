@@ -463,6 +463,8 @@ internal class LoudnessNormalizationTest {
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds = MutableStateFlow(0)
         override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
+        override val adaptiveCrossfade = MutableStateFlow(DEFAULT_ADAPTIVE_CROSSFADE)
+        override fun setAdaptiveCrossfade(enabled: Boolean) { adaptiveCrossfade.value = enabled }
         override val relativePlaylistPaths = MutableStateFlow(false)
         override fun setRelativePlaylistPaths(enabled: Boolean) { relativePlaylistPaths.value = enabled }
         override val songSort = MutableStateFlow(DEFAULT_SONG_SORT)

@@ -721,6 +721,11 @@
     <string name="settings_normalize_volume_subtitle">Знижує гучні треки до більш рівного рівня</string>
     <string name="settings_crossfade">Плавні переходи</string>
     <string name="settings_crossfade_subtitle">Кінець треку накладається на початок наступного</string>
+    <string name="settings_sound">Звук</string>
+    <string name="settings_sound_subtitle">Еквалайзер і переходи</string>
+    <string name="settings_transitions">Переходи</string>
+    <string name="settings_adaptive_crossfade">Розумний кросфейд</string>
+    <string name="settings_adaptive_crossfade_subtitle">Довший між схожими треками й коротший, коли звучання змінюється</string>
     <string name="settings_crossfade_value">%1$d с</string>
     <string name="duplicates_keep_this">Залишити цей</string>
     <string name="snack_duplicates_merged">Дублікати об'єднано: плейлисти тепер вказують на залишену копію</string>

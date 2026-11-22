@@ -265,6 +265,10 @@ import io.github.nikitasud.latentjam.app.generated.resources.settings_color_them
 import io.github.nikitasud.latentjam.app.generated.resources.settings_color_theme_body
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer
 import io.github.nikitasud.latentjam.app.generated.resources.settings_equalizer_unavailable
+import io.github.nikitasud.latentjam.app.generated.resources.settings_crossfade_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_sound
+import io.github.nikitasud.latentjam.app.generated.resources.settings_sound_subtitle
+import io.github.nikitasud.latentjam.app.generated.resources.settings_transitions
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_being_repaired
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_finish
 import io.github.nikitasud.latentjam.app.generated.resources.settings_interrupted_forget
@@ -431,7 +435,9 @@ private enum class SettingsPage {
     HIDDEN_TRACKS,
     DUPLICATES,
     STATS,
+    SOUND,
     EQUALIZER,
+    TRANSITIONS,
     INTELLIGENCE,
     INTELLIGENCE_PROBLEMS,
     SMART_EXCLUSIONS,
@@ -606,7 +612,6 @@ internal fun SettingsScreen(
                 when (animatedStack.last()) {
                     SettingsPage.ROOT -> SettingsRoot(
                         listState = rootListState,
-                        equalizer = equalizer,
                         onOpen = { open(SettingsPage.ROOT, it) },
                     )
                     SettingsPage.APPEARANCE -> AppearanceSettings(
@@ -656,7 +661,12 @@ internal fun SettingsScreen(
                         tracks = tracks,
                         active = stack.last() == SettingsPage.STATS,
                     )
+                    SettingsPage.SOUND -> SoundSettings(
+                        equalizer = equalizer,
+                        onOpen = { open(SettingsPage.SOUND, it) },
+                    )
                     SettingsPage.EQUALIZER -> EqualizerSettings(equalizer, settings)
+                    SettingsPage.TRANSITIONS -> TransitionSettings(settings)
                     SettingsPage.INTELLIGENCE -> IntelligenceSettings(
                         listState = intelligenceListState,
                         settings = settings,
@@ -720,7 +730,9 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
     SettingsPage.HIDDEN_TRACKS -> Res.string.settings_hidden_tracks
     SettingsPage.DUPLICATES -> Res.string.settings_duplicates
     SettingsPage.STATS -> Res.string.settings_stats
+    SettingsPage.SOUND -> Res.string.settings_sound
     SettingsPage.EQUALIZER -> Res.string.settings_equalizer
+    SettingsPage.TRANSITIONS -> Res.string.settings_transitions
     SettingsPage.INTELLIGENCE -> Res.string.settings_intelligence
     SettingsPage.INTELLIGENCE_PROBLEMS -> Res.string.intelligence_problems
     SettingsPage.SMART_EXCLUSIONS -> Res.string.intelligence_manage_exclusions
@@ -733,15 +745,8 @@ private fun SettingsPage.titleResource(): StringResource = when (this) {
 @Composable
 private fun SettingsRoot(
     listState: LazyListState,
-    equalizer: EqualizerController,
     onOpen: (SettingsPage) -> Unit,
 ) {
-    val equalizerState by equalizer.state.collectAsState()
-    val equalizerSubtitle = when {
-        !equalizerState.available -> stringResource(Res.string.settings_equalizer_unavailable)
-        equalizerState.enabled -> stringResource(Res.string.state_on)
-        else -> stringResource(Res.string.state_off)
-    }
     FadingLazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -763,10 +768,9 @@ private fun SettingsRoot(
                 )
                 SettingsRow(
                     horizontalPadding = 16.dp,
-                    title = stringResource(Res.string.settings_equalizer),
-                    subtitle = equalizerSubtitle.takeUnless { equalizerState.available },
-                    value = equalizerSubtitle.takeIf { equalizerState.available },
-                    onClick = { onOpen(SettingsPage.EQUALIZER) },
+                    title = stringResource(Res.string.settings_sound),
+                    subtitle = stringResource(Res.string.settings_sound_subtitle),
+                    onClick = { onOpen(SettingsPage.SOUND) },
                 )
             }
         }
@@ -815,6 +819,43 @@ private fun SettingsRoot(
                     subtitle = stringResource(Res.string.settings_about_subtitle),
                     onClick = { onOpen(SettingsPage.ABOUT) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoundSettings(
+    equalizer: EqualizerController,
+    onOpen: (SettingsPage) -> Unit,
+) {
+    val equalizerState by equalizer.state.collectAsState()
+    val equalizerSubtitle = when {
+        !equalizerState.available -> stringResource(Res.string.settings_equalizer_unavailable)
+        equalizerState.enabled -> stringResource(Res.string.state_on)
+        else -> stringResource(Res.string.state_off)
+    }
+    FadingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
+        item {
+            SettingsCardSection(stringResource(Res.string.settings_sound)) {
+                SettingsRow(
+                    horizontalPadding = 16.dp,
+                    title = stringResource(Res.string.settings_equalizer),
+                    subtitle = equalizerSubtitle.takeUnless { equalizerState.available },
+                    value = equalizerSubtitle.takeIf { equalizerState.available },
+                    onClick = { onOpen(SettingsPage.EQUALIZER) },
+                )
+                if (boundaryFadeControlsAvailable) {
+                    SettingsRow(
+                        horizontalPadding = 16.dp,
+                        title = stringResource(Res.string.settings_transitions),
+                        subtitle = stringResource(Res.string.settings_crossfade_subtitle),
+                        onClick = { onOpen(SettingsPage.TRANSITIONS) },
+                    )
+                }
             }
         }
     }

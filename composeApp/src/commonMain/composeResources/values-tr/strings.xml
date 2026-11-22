@@ -669,6 +669,11 @@
     <string name="settings_normalize_volume_subtitle">Yüksek parçaları tutarlı bir seviyeye düşürür</string>
     <string name="settings_crossfade">Yumuşak geçişler</string>
     <string name="settings_crossfade_subtitle">Bir parçanın sonu bir sonrakinin başlangıcıyla örtüşür</string>
+    <string name="settings_sound">Ses</string>
+    <string name="settings_sound_subtitle">Ekolayzır ve geçişler</string>
+    <string name="settings_transitions">Geçişler</string>
+    <string name="settings_adaptive_crossfade">Akıllı geçiş</string>
+    <string name="settings_adaptive_crossfade_subtitle">Benzer parçalar arasında daha uzun, ses değiştiğinde daha kısa</string>
     <string name="settings_crossfade_value">%1$d sn</string>
     <string name="duplicates_keep_this">Bunu tut</string>
     <string name="snack_duplicates_merged">Kopyalar birleştirildi: çalma listeleri artık tutulan kopyayı gösteriyor</string>

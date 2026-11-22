@@ -84,13 +84,15 @@ internal class CrossfadeAudioProcessorTest {
         outgoingEndMs: Long? = null,
         incomingStartFrame: Int = 0,
         holdsOutgoing: Boolean = false,
+        adaptiveLength: Boolean = false,
+        sampleRate: Int = RATE,
         samples: (Int) -> Int,
     ) =
         OverlapPlan(
             outgoingId = outgoing,
             incomingId = incoming,
             overlapUs = overlapMs * 1000L,
-            sampleRate = RATE,
+            sampleRate = sampleRate,
             channelCount = 1,
             pcm = ByteBuffer.allocateDirect(frames * 2).order(ByteOrder.LITTLE_ENDIAN).apply {
                 repeat(frames) { putShort(samples(it).toShort()) }
@@ -99,6 +101,7 @@ internal class CrossfadeAudioProcessorTest {
             frames = frames,
             outgoingEndUs = outgoingEndMs?.times(1000L) ?: C.TIME_UNSET,
             incomingStartFrame = incomingStartFrame,
+            adaptiveLength = adaptiveLength,
             holdsOutgoing = holdsOutgoing,
         )
 
@@ -132,6 +135,29 @@ internal class CrossfadeAudioProcessorTest {
         assertEquals((2_000 until 5_000).toList(), incoming)
         // Processed ahead of the speaker: until the player reports the join, Next still lands in B.
         assertTrue(settings.mixing === overlap)
+    }
+
+    @Test
+    fun aShortenedSeamAlsoShortensTheOutgoingFallbackFade() {
+        settings.fadeMs = 12_000
+        val a = stream("a", 180_000)
+        // The 3 s seam cannot be mixed at this sample rate, so it falls back to single-track fades.
+        settings.plan = plan(
+            "a",
+            "b",
+            overlapMs = 3_000,
+            frames = 6_000,
+            adaptiveLength = true,
+            sampleRate = RATE * 2,
+            samples = loud,
+        )
+        reposition(a, atMs = 160_000)
+
+        val outgoing = feed(loud, 160_000, 180_000)
+
+        assertTrue(outgoing.subList(0, 17_000).all { it == 1000 }, "the outgoing track faded before the 3 s seam")
+        assertEquals(500, outgoing[18_500], "the fallback fade should use the seam's 3 s duration")
+        assertEquals(0, outgoing.last())
     }
 
     @Test
