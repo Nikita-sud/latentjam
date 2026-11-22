@@ -22,7 +22,8 @@ import kotlinx.coroutines.CancellationException
  *
  * A release-track MBID is evidence only: one old and one current instance, same mounted volume,
  * same format and compatible duration. Every known duplicate (even an offline/deleted one) vetoes
- * relocation. A partial scan, failed read, absent baseline or recording-only tag never guesses.
+ * relocation. A partial scan, absent baseline or recording-only tag never guesses, and neither does
+ * a match beside a file that could not be read and may be a second copy of that track (see [Unread]).
  */
 internal class AndroidTrackIdentities(
     private val read: () -> Reader?,
@@ -203,7 +204,7 @@ internal class AndroidTrackIdentities(
         val canRelocate = storageAvailable && allAudioIds != null &&
             missing.any { it.tags?.releaseTrack != null && it.source !in allAudioIds } && unknown.isNotEmpty()
         val facts = HashMap<String, TrackIdentityTags?>()
-        val failedVolumes = HashSet<String>()
+        val unread = HashMap<String, Unread>()
         if (canRelocate) {
             // Read all stale rows, including hidden/excluded ones: an unread duplicate must not
             // make a seemingly unique match. Cached current revisions require no file I/O.
@@ -215,7 +216,7 @@ internal class AndroidTrackIdentities(
                     !current.isEmpty() && old.checked == current) old.tags
                 else safelyRead(track)
                 facts[track.id.value] = tags
-                if (tags == null) failedVolumes += volume(track)
+                if (tags == null) unread.getOrPut(volume(track), ::Unread).add(track.durationMs)
             }
         }
         val oldGroups = previous.values.filter { it.tags?.releaseTrack != null }
@@ -230,11 +231,12 @@ internal class AndroidTrackIdentities(
             val duration = track.durationMs
             val oldDuration = old.duration
             if (newGroups[key]?.size != 1 || old.source in allAudioIds ||
-                volume(track) in failedVolumes || old.volume.isEmpty() || old.volume != volume(track) ||
+                old.volume.isEmpty() || old.volume != volume(track) ||
                 old.extension.isEmpty() || old.extension != extension(track) ||
                 oldDuration == null || duration == null || oldDuration <= 0 || duration <= 0 ||
-                kotlin.math.abs(oldDuration - duration) > 1_000 ||
-                (old.tags?.recording != null && tags.recording != null && old.tags.recording != tags.recording)
+                kotlin.math.abs(oldDuration - duration) > SAME_TRACK_DURATION_MS ||
+                (old.tags?.recording != null && tags.recording != null && old.tags.recording != tags.recording) ||
+                unread[volume(track)]?.mayHoldACopyOf(oldDuration, duration) == true
             ) continue
             matches[track.id.value] = old
         }
@@ -448,8 +450,33 @@ internal class AndroidTrackIdentities(
         track.fileName.orEmpty().takeIf { '.' in it }?.substringAfterLast('.')?.lowercase().orEmpty(),
     )
 
+    /**
+     * The files of one volume whose tags a scan could not read, by their lengths. Such a file may carry the
+     * release-track id of a track that moved, and then that track has two files and no match is unique. It used to
+     * stop every relocation on its volume, which in practice stopped them all: a library of some size nearly always
+     * holds one file the reader gives up on (a fragmented download, a damaged file), at every scan (issue #17). Only
+     * a file about as long as the moved track can be a copy of it, so only such a file stops that track's match: one
+     * within [SAME_TRACK_DURATION_MS] of the old or the new length, in any format (a readable copy in another format
+     * vetoes too), or one whose length MediaStore does not know.
+     */
+    private class Unread {
+        private var unknownLength = false
+        private val lengths = ArrayList<Long>()
+
+        fun add(durationMs: Long?) {
+            if (durationMs == null || durationMs <= 0) unknownLength = true else lengths += durationMs
+        }
+
+        fun mayHoldACopyOf(oldDuration: Long, newDuration: Long): Boolean = unknownLength || lengths.any {
+            kotlin.math.abs(it - oldDuration) <= SAME_TRACK_DURATION_MS || kotlin.math.abs(it - newDuration) <= SAME_TRACK_DURATION_MS
+        }
+    }
+
     private companion object {
         const val HEADER = "latentjam-track-identities-v1"
+
+        /** How far apart the lengths of two files of one track may be: what a match asks of the moved file itself. */
+        private const val SAME_TRACK_DURATION_MS = 1_000L
         private const val MEDIA_STORE_SONGS = "content://media/external/audio/media/"
         private const val NO_DURATION = Long.MIN_VALUE
 

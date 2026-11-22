@@ -4,6 +4,8 @@
  */
 package io.github.nikitasud.latentjam.library
 
+import io.github.nikitasud.latentjam.library.tags.ByteArraySource
+import io.github.nikitasud.latentjam.library.tags.Mp4Fixtures
 import io.github.nikitasud.latentjam.library.tags.RandomAccessSource
 import io.github.nikitasud.latentjam.library.tags.TrackIdentityTags
 import io.github.nikitasud.latentjam.smart.TrackDescriptor
@@ -165,6 +167,62 @@ internal class AndroidTrackIdentitiesTest {
         f.scan(track("10")); f.remember()
         f.reader = { if (it.id.value == "21") throw IOException("unreadable") else tags }
         assertEquals(listOf(TrackId("20"), TrackId("21")), f.scan(track("20"), track("21")).map { it.id })
+    }
+
+    @Test fun anUnreadableFileOfAnotherLengthDoesNotStopTheMovedTracksOfItsVolume() {
+        // Issue #17: one file whose tags cannot be read (a fragmented download, a damaged file) stopped every
+        // relocation on its volume, at every scan, for as long as it stayed in the library. It can only be a second
+        // copy of the moved track if it is about as long.
+        val f = Fixture(tags)
+        val video = track("5").copy(durationMs = 303_000, fileName = "video.mp3")
+        f.reader = { if (it.id.value == "5") null else tags }
+        f.scan(track("10"), video); f.remember()
+        f.restart()
+        assertEquals(listOf(TrackId("10"), TrackId("5")), f.scan(track("20"), video).map { it.id })
+    }
+
+    @Test fun aFragmentedDownloadInTheLibraryDoesNotStopATaggedFileFromBeingFollowed() {
+        // The same with the reader the app uses, on the bytes of two files: an M4A as Picard tags it, and a
+        // fragmented one (as video sites serve them), which the reader does not take for complete.
+        val tagged = Mp4Fixtures.file(listOf(
+            Mp4Fixtures.text("©nam", "Song"),
+            Mp4Fixtures.freeform("MusicBrainz Release Track Id", tags.releaseTrack!!),
+            Mp4Fixtures.freeform("MusicBrainz Track Id", tags.recording!!),
+        ))
+        val fragmented = tagged + Mp4Fixtures.leaf("moof", ByteArray(8))
+        assertEquals(tags, identityTagsOf(ByteArraySource(tagged)))
+        assertEquals(null, identityTagsOf(ByteArraySource(fragmented)))
+        val f = Fixture(tags)
+        f.reader = { identityTagsOf(ByteArraySource(if (it.id.value == "5") fragmented else tagged)) }
+        val video = track("5").copy(durationMs = 303_000)
+        f.scan(track("10"), video); f.remember()
+        f.restart()
+        assertEquals(listOf(TrackId("10"), TrackId("5")), f.scan(track("20"), video).map { it.id })
+    }
+
+    @Test fun anUnreadableFileVetoesAMatchOnlyWhenItCouldBeACopyOfThatTrack() {
+        // By its length alone: within a second of the moved track (what the match itself asks of the new file), or
+        // of no known length. Any format: a readable copy in another format vetoes too.
+        val couldBeACopy = listOf(
+            track("5").copy(durationMs = 180_900), track("5").copy(durationMs = 179_100),
+            track("5").copy(durationMs = null), track("5").copy(durationMs = 0),
+            track("5").copy(durationMs = 180_000, fileName = "copy.mp3"),
+        )
+        val cannotBe = listOf(track("5").copy(durationMs = 181_100), track("5").copy(durationMs = 178_900))
+        for ((unread, expected) in couldBeACopy.map { it to "20" } + cannotBe.map { it to "10" }) {
+            val f = Fixture(tags)
+            f.reader = { if (it.id.value == "5") null else tags }
+            f.scan(track("10"), unread); f.remember()
+            assertEquals(TrackId(expected), f.scan(track("20"), unread).first().id, "unread file of ${unread.durationMs} ms")
+        }
+    }
+
+    @Test fun anUnreadableFileOnAnotherVolumeDoesNotVetoAsBefore() {
+        val f = Fixture(tags)
+        val card = track("5").copy(storageVolume = "1234-abcd")
+        f.reader = { if (it.id.value == "5") null else tags }
+        f.scan(track("10"), card); f.remember()
+        assertEquals(TrackId("10"), f.scan(track("20"), card).first().id)
     }
 
     @Test fun aFileWhoseTagsDoNotFitInMemoryDoesNotEndThePassAndIsNotReadAtEveryLaunch() {
