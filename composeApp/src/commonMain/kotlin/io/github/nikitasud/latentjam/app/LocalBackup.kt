@@ -91,8 +91,8 @@ internal data class LocalBackupSettings(
     val smartEnabled: Boolean? = null,
     /** "Learn from my habits"; travels and restores as [smartEnabled] does. */
     val learnFromHabits: Boolean? = null,
-    /** Added in backup v13; older snapshots use the default adaptive-crossfade setting. */
-    val adaptiveCrossfade: Boolean = DEFAULT_ADAPTIVE_CROSSFADE,
+    /** The smart crossfade switch; travels and restores as [smartEnabled] does. */
+    val adaptiveCrossfade: Boolean? = null,
 )
 
 /**
@@ -182,9 +182,6 @@ private const val FIRST_VERSION_WITH_APPEARANCE = 11
 
 /** The format version that brought a listen's pick surface and personal-term flag (two more "H" fields). */
 private const val FIRST_VERSION_WITH_PICK_SURFACE = 12
-
-/** The format version that brought the adaptive-crossfade setting. */
-private const val FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE = 13
 
 internal enum class LocalBackupSection {
     PLAYLISTS,
@@ -285,11 +282,11 @@ internal object LocalBackupCodec {
      * The version every export writes. A record arrives together with the version number that
      * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8, the favourites ("F") and
      * the duplicate finder's verdicts ("N") with v9, the look ("K") with v11, a listen's pick surface and personal flag
-     * (two more "H" fields) with v12, adaptive crossfade with v13 — so a build that knows only an older
+     * (two more "H" fields) with v12 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 13
+    const val FORMAT_VERSION: Int = 12
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -334,11 +331,7 @@ internal object LocalBackupCodec {
                             includeNoveltyMixes.toBit(),
                             normalizeVolume.toBit(),
                             crossfadeSeconds.toString(),
-                        ) + if (snapshot.formatVersion >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE) {
-                            arrayOf(adaptiveCrossfade.toBit())
-                        } else {
-                            emptyArray()
-                        }
+                        )
                     } else {
                         emptyArray()
                     },
@@ -361,7 +354,7 @@ internal object LocalBackupCodec {
                 if (snapshot.formatVersion >= FIRST_VERSION_WITH_APPEARANCE) {
                     appendRecord(
                         "K",
-                        (encodeAppearance(appearance) + encodeBackupSwitches(smartEnabled, learnFromHabits)).encodeField(),
+                        (encodeAppearance(appearance) + encodeBackupSwitches(smartEnabled, learnFromHabits, adaptiveCrossfade)).encodeField(),
                         pageHeaderStyle.persistedValue,
                     )
                 }
@@ -454,6 +447,7 @@ internal object LocalBackupCodec {
         var look: Pair<Appearance, PageHeaderStyle>? = null
         var smartEnabled: Boolean? = null
         var learnFromHabits: Boolean? = null
+        var adaptiveCrossfade: Boolean? = null
         val tracks = mutableListOf<LocalBackupTrackReference>()
         val playlists = mutableListOf<LocalBackupPlaylist>()
         val history = mutableListOf<LocalBackupListenEvent>()
@@ -478,13 +472,7 @@ internal object LocalBackupCodec {
                     createdAtMs = record.nextField().parseLong("creation time")
                 }
                 "S" -> {
-                    record.requireFieldCount(
-                        when {
-                            version >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE -> 11
-                            version >= 3 -> 10
-                            else -> 7
-                        },
-                    )
+                    record.requireFieldCount(if (version >= 3) 10 else 7)
                     if (settings != null) formatError("Duplicate settings record")
                     settings = LocalBackupSettings(
                         themeMode = enumValue<ThemeMode>(record.nextField(), "theme"),
@@ -515,11 +503,6 @@ internal object LocalBackupCodec {
                             record.nextField().parseInt("crossfade seconds")
                         } else {
                             0
-                        },
-                        adaptiveCrossfade = if (version >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE) {
-                            record.nextField().parseBit("adaptive crossfade")
-                        } else {
-                            DEFAULT_ADAPTIVE_CROSSFADE
                         },
                     )
                 }
@@ -578,6 +561,7 @@ internal object LocalBackupCodec {
                     val appearance = decodeAppearance(encodedAppearance)
                     smartEnabled = encodedAppearance.backupSwitch(SMART_SWITCH_KEY)
                     learnFromHabits = encodedAppearance.backupSwitch(HABITS_SWITCH_KEY)
+                    adaptiveCrossfade = encodedAppearance.backupSwitch(ADAPTIVE_CROSSFADE_SWITCH_KEY)
                     // Tolerant like the appearance: a header style from a later build falls back to
                     // the default instead of refusing the whole restore.
                     val style = pageHeaderStyleFromPersisted(record.nextField())
@@ -709,6 +693,7 @@ internal object LocalBackupCodec {
                     pageHeaderStyle = look?.second ?: PageHeaderStyle.DOTS,
                     smartEnabled = smartEnabled,
                     learnFromHabits = learnFromHabits,
+                    adaptiveCrossfade = adaptiveCrossfade,
                 ),
             tracks = tracks,
             playlists = playlists,
@@ -734,11 +719,6 @@ internal object LocalBackupCodec {
         }
         if (snapshot.settings.crossfadeSeconds !in 0..MAX_CROSSFADE_SECONDS) {
             formatError("Unsupported crossfade duration")
-        }
-        if (snapshot.formatVersion < FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE &&
-            !snapshot.settings.adaptiveCrossfade
-        ) {
-            formatError("Older backups cannot encode adaptive crossfade")
         }
         if (snapshot.settings.artistVariety !in ARTIST_VARIETY_PENALTIES.indices) {
             formatError("Unsupported artist variety")
@@ -1067,11 +1047,17 @@ internal object LocalBackupCodec {
     private const val HEX = "0123456789abcdef"
     private const val SMART_SWITCH_KEY = "smart"
     private const val HABITS_SWITCH_KEY = "habits"
+    private const val ADAPTIVE_CROSSFADE_SWITCH_KEY = "adaptive_crossfade"
 
     /** The switches a snapshot knows, as more `;key=value` pairs after the look's own ([encodeAppearance]). */
-    private fun encodeBackupSwitches(smartEnabled: Boolean?, learnFromHabits: Boolean?): String = buildString {
+    private fun encodeBackupSwitches(
+        smartEnabled: Boolean?,
+        learnFromHabits: Boolean?,
+        adaptiveCrossfade: Boolean?,
+    ): String = buildString {
         smartEnabled?.let { append(';').append(SMART_SWITCH_KEY).append('=').append(it) }
         learnFromHabits?.let { append(';').append(HABITS_SWITCH_KEY).append('=').append(it) }
+        adaptiveCrossfade?.let { append(';').append(ADAPTIVE_CROSSFADE_SWITCH_KEY).append('=').append(it) }
     }
 
     /** The value of the switch [key] in a "K" record's key list; null when it is absent or not a boolean. */
@@ -1162,7 +1148,6 @@ internal class LocalBackupService(
                 includeNoveltyMixes = settings.includeNoveltyMixes.value,
                 normalizeVolume = settings.normalizeVolume.value,
                 crossfadeSeconds = settings.crossfadeSeconds.value,
-                adaptiveCrossfade = settings.adaptiveCrossfade.value,
                 pageLayout = settings.pageLayout.value,
                 artistVariety = settings.artistVariety.value,
                 songSort = settings.songSort.value.inBackupForm(),
@@ -1173,6 +1158,7 @@ internal class LocalBackupService(
                 pageHeaderStyle = settings.pageHeaderStyle.value,
                 smartEnabled = settings.smartEnabled.value,
                 learnFromHabits = settings.learnFromHabits.value,
+                adaptiveCrossfade = settings.adaptiveCrossfade.value,
             ),
             tracks = references,
             playlists = storedPlaylists.map { playlist ->
@@ -1379,7 +1365,6 @@ internal class LocalBackupService(
                 settings.setIncludeNoveltyMixes(snapshot.settings.includeNoveltyMixes)
                 settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
                 settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
-                settings.setAdaptiveCrossfade(snapshot.settings.adaptiveCrossfade)
                 settings.setArtistVariety(snapshot.settings.artistVariety)
                 settings.setSongSort(snapshot.settings.songSort)
                 settings.setAlbumSort(snapshot.settings.albumSort)
@@ -1400,6 +1385,7 @@ internal class LocalBackupService(
                 }
                 // Switched off before the backup, they stay off after it: a file from 0.9.5 or older says nothing.
                 snapshot.settings.learnFromHabits?.let(settings::setLearnFromHabits)
+                snapshot.settings.adaptiveCrossfade?.let(settings::setAdaptiveCrossfade)
                 snapshot.settings.smartEnabled?.let { applySmartEnabled(it) }
                 settings.setPlaylistSortOrders(settings.playlistSortOrders.value.normalized())
                 completed += LocalBackupSection.SETTINGS

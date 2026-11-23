@@ -152,8 +152,8 @@ a while at first.
     seek bar previews the lyric line as you scrub.
   - An editable queue that survives restarts; playlists with M3U import/export, drag-to-reorder and
     their own sort order; album, artist and genre browsing, and folders as a tree or a flat list.
-  - Fades on pause and track changes, an optional crossfade of up to 12 s with adaptive length under
-    Settings → Sound → Transitions, volume normalisation, an equaliser, a sleep timer.
+  - Fades on pause and track changes, an optional crossfade of up to 12 s,
+    volume normalisation, an equaliser, a sleep timer.
   - A duplicate finder that recognises the same recording saved twice even when the tags differ,
     and tells you which copy to keep.
   - Local backup and restore.

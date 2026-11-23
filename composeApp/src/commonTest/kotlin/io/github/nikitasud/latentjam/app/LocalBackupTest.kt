@@ -110,7 +110,6 @@ internal class LocalBackupTest {
                 includeNoveltyMixes = true,
                 normalizeVolume = true,
                 crossfadeSeconds = 7,
-                adaptiveCrossfade = false,
                 pageLayout = PageLayout()
                     .withPageEnabled(StartPage.MAP, true)
                     .withPageEnabled(StartPage.GENRES, false)
@@ -160,7 +159,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t13\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         assertFalse(encoded.contains("Группа крови"), "User strings must be safely encoded")
     }
 
@@ -259,6 +258,35 @@ internal class LocalBackupTest {
     }
 
     @Test
+    fun theSmartCrossfadeSwitchSurvivesBackupRestoreWithoutANewFormatVersion() = runTest {
+        val source = fixture(emptyList())
+        source.settings.setAdaptiveCrossfade(true)
+        val encoded = source.service.exportEncoded()
+
+        val destination = fixture(emptyList())
+        destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
+        assertTrue(destination.settings.adaptiveCrossfade.value)
+
+        // One more key of the look record, as the SMART switch is: the file keeps the version 0.9.5 reads.
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
+        val record = encoded.lineSequence().single { it.startsWith("K\t") }.split('\t')
+        assertEquals(3, record.size)
+        val look = record[1].drop(1).chunked(2).map { it.toInt(16).toByte() }.toByteArray().decodeToString()
+        assertContains(look, ";adaptive_crossfade=true")
+        assertEquals(source.settings.appearance.value, decodeAppearance(look))
+
+        // A file that says nothing of it (0.9.5 and older) leaves the switch as it is.
+        val older = encoded.lineSequence().joinToString("\n") { line ->
+            if (line.startsWith("K\t")) "K\ts${encodeAppearance(Appearance()).hex()}\tdots" else line
+        }
+        destination.service.importEncoded(older, LocalBackupRestoreMode.REPLACE)
+        assertTrue(destination.settings.adaptiveCrossfade.value)
+        destination.settings.setAdaptiveCrossfade(false)
+        destination.service.importEncoded(older, LocalBackupRestoreMode.REPLACE)
+        assertFalse(destination.settings.adaptiveCrossfade.value)
+    }
+
+    @Test
     fun appearanceRoundTripsInTheCodecAndRejectsInvalidDuplicateAndPrematureRecords() {
         val snapshot = emptySnapshot().copy(
             settings = emptySnapshot().settings.copy(
@@ -281,7 +309,7 @@ internal class LocalBackupTest {
             assertFailsWith<LocalBackupFormatException>(bad) { LocalBackupCodec.decode(encoded.replace(record, bad)) }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t13", "LOCAL-BACKUP\t10"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t10"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.encode(snapshot.copy(settings = snapshot.settings.copy(appearance = Appearance(albumColumns = 7))))
@@ -313,7 +341,7 @@ internal class LocalBackupTest {
             }
         }
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t13", "LOCAL-BACKUP\t7"))
+            LocalBackupCodec.decode(encoded.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t7"))
         }
     }
 
@@ -355,20 +383,7 @@ internal class LocalBackupTest {
         assertFalse(decoded.settings.includeNoveltyMixes)
         assertFalse(decoded.settings.normalizeVolume)
         assertEquals(0, decoded.settings.crossfadeSeconds)
-        assertEquals(DEFAULT_ADAPTIVE_CROSSFADE, decoded.settings.adaptiveCrossfade)
         assertNull(decoded.listeningHistory.firstOrNull()?.listenedMs)
-    }
-
-    @Test
-    fun v12BackupsKeepTheDefaultAdaptiveCrossfadeSetting() {
-        val v12 = emptySnapshot().copy(formatVersion = 12)
-        val decoded = LocalBackupCodec.decode(LocalBackupCodec.encode(v12))
-        assertEquals(DEFAULT_ADAPTIVE_CROSSFADE, decoded.settings.adaptiveCrossfade)
-        assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.encode(
-                v12.copy(settings = v12.settings.copy(adaptiveCrossfade = !DEFAULT_ADAPTIVE_CROSSFADE)),
-            )
-        }
     }
 
     @Test
@@ -532,7 +547,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t13\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
     }
 
     @Test
@@ -586,7 +601,7 @@ internal class LocalBackupTest {
         // One version past the current format: a file from a newer build is refused whole, before
         // any record of it is read.
         assertFailsWith<LocalBackupFormatException> {
-            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t13", "LOCAL-BACKUP\t14"))
+            LocalBackupCodec.decode(valid.replaceFirst("LOCAL-BACKUP\t12", "LOCAL-BACKUP\t13"))
         }
         assertFailsWith<LocalBackupFormatException> {
             LocalBackupCodec.decode(valid + "Q\tnot-hex\n")
@@ -681,7 +696,7 @@ internal class LocalBackupTest {
         val encoded = source.service.exportEncoded()
         destination.service.importEncoded(encoded, LocalBackupRestoreMode.REPLACE)
 
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t13\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         assertEquals(layout, destination.settings.pageLayout.value)
         assertEquals(StartPage.STATISTICS, destination.settings.startPage.value)
     }
@@ -772,7 +787,6 @@ internal class LocalBackupTest {
         source.settings.setIncludeNoveltyMixes(true)
         source.settings.setNormalizeVolume(true)
         source.settings.setCrossfadeSeconds(9)
-        source.settings.setAdaptiveCrossfade(false)
         source.settings.setArtistVariety(0)
         source.settings.setSongSort(SortChoice(SongSort.RECENT, SongSortDirection.DESCENDING))
         source.settings.setAlbumSort(SortChoice(AlbumSort.ARTIST, SongSortDirection.ASCENDING))
@@ -821,7 +835,6 @@ internal class LocalBackupTest {
         assertTrue(destination.settings.includeNoveltyMixes.value)
         assertTrue(destination.settings.normalizeVolume.value)
         assertEquals(9, destination.settings.crossfadeSeconds.value)
-        assertEquals(false, destination.settings.adaptiveCrossfade.value)
         assertEquals(0, destination.settings.artistVariety.value)
         assertEquals(
             SortChoice(SongSort.RECENT, SongSortDirection.DESCENDING),
@@ -1408,7 +1421,7 @@ internal class LocalBackupTest {
         val encoded = LocalBackupCodec.encode(snapshot)
 
         assertEquals(snapshot, LocalBackupCodec.decode(encoded))
-        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t13\n"))
+        assertTrue(encoded.startsWith("LATENTJAM-LOCAL-BACKUP\t12\n"))
         // One record per heart, newest first; one per verdict, every track of it on the line.
         assertEquals(
             listOf("F\ts63", "F\ts${"file:\nКИНО\t1".hex()}", "F\ts62"),
@@ -2027,7 +2040,7 @@ internal class LocalBackupTest {
         override fun setNormalizeVolume(enabled: Boolean) { normalizeVolume.value = enabled }
         override val crossfadeSeconds: MutableStateFlow<Int> = MutableStateFlow(0)
         override fun setCrossfadeSeconds(seconds: Int) { crossfadeSeconds.value = seconds }
-        override val adaptiveCrossfade = MutableStateFlow(DEFAULT_ADAPTIVE_CROSSFADE)
+        override val adaptiveCrossfade: MutableStateFlow<Boolean> = MutableStateFlow(DEFAULT_ADAPTIVE_CROSSFADE)
         override fun setAdaptiveCrossfade(enabled: Boolean) { adaptiveCrossfade.value = enabled }
         override val relativePlaylistPaths: MutableStateFlow<Boolean> = MutableStateFlow(false)
         override fun setRelativePlaylistPaths(enabled: Boolean) { relativePlaylistPaths.value = enabled }
