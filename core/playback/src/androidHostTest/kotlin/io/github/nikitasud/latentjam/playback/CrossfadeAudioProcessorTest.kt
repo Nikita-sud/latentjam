@@ -161,6 +161,23 @@ internal class CrossfadeAudioProcessorTest {
     }
 
     @Test
+    fun theSliderStillDecidesAPlainFadeAfterItsEndWasSettled() {
+        // No seam SMART fitted: a slider lowered under a fading track is the fade from then on.
+        settings.fadeMs = 12_000
+        val a = stream("a", 180_000)
+        reposition(a, atMs = 160_000)
+        val early = feed(loud, 160_000, 170_000)
+        assertTrue(early.last() in 800..850, "the 12 s fade was at ${early.last()} with 10 s to go")
+
+        settings.fadeMs = 2_000
+        val late = feed(loud, 170_000, 180_000)
+
+        assertEquals(1000, late[7_000], "the track did not come back to full level for the 2 s fade")
+        assertEquals(500, late[9_000])
+        assertTrue(late.last() <= 1, "the track ended at ${late.last()}")
+    }
+
+    @Test
     fun aFadeEntryLongerThanTheSliderRisesUnderTheOutgoingTracksOwnLevel() {
         settings.fadeMs = 2_000
         val a = stream("a", 20_000)
