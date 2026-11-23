@@ -91,6 +91,8 @@ internal data class LocalBackupSettings(
     val smartEnabled: Boolean? = null,
     /** "Learn from my habits"; travels and restores as [smartEnabled] does. */
     val learnFromHabits: Boolean? = null,
+    /** Added in backup v13; older snapshots use the default adaptive-crossfade setting. */
+    val adaptiveCrossfade: Boolean = DEFAULT_ADAPTIVE_CROSSFADE,
 )
 
 /**
@@ -180,6 +182,9 @@ private const val FIRST_VERSION_WITH_APPEARANCE = 11
 
 /** The format version that brought a listen's pick surface and personal-term flag (two more "H" fields). */
 private const val FIRST_VERSION_WITH_PICK_SURFACE = 12
+
+/** The format version that brought the adaptive-crossfade setting. */
+private const val FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE = 13
 
 internal enum class LocalBackupSection {
     PLAYLISTS,
@@ -280,11 +285,11 @@ internal object LocalBackupCodec {
      * The version every export writes. A record arrives together with the version number that
      * carries it — "L" with v4, "V" with v6, "O" with v7, "G" with v8, the favourites ("F") and
      * the duplicate finder's verdicts ("N") with v9, the look ("K") with v11, a listen's pick surface and personal flag
-     * (two more "H" fields) with v12 — so a build that knows only an older
+     * (two more "H" fields) with v12, adaptive crossfade with v13 — so a build that knows only an older
      * version refuses such a file with "Unsupported backup version" instead of tripping over a
      * record it does not know ("Unknown backup record at line N").
      */
-    const val FORMAT_VERSION: Int = 12
+    const val FORMAT_VERSION: Int = 13
     private const val LEGACY_FORMAT_VERSION: Int = 1
     private const val HEADER = "LATENTJAM-LOCAL-BACKUP"
     private const val MAX_TEXT_CHARS = 64 * 1024 * 1024
@@ -329,7 +334,11 @@ internal object LocalBackupCodec {
                             includeNoveltyMixes.toBit(),
                             normalizeVolume.toBit(),
                             crossfadeSeconds.toString(),
-                        )
+                        ) + if (snapshot.formatVersion >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE) {
+                            arrayOf(adaptiveCrossfade.toBit())
+                        } else {
+                            emptyArray()
+                        }
                     } else {
                         emptyArray()
                     },
@@ -469,7 +478,13 @@ internal object LocalBackupCodec {
                     createdAtMs = record.nextField().parseLong("creation time")
                 }
                 "S" -> {
-                    record.requireFieldCount(if (version >= 3) 10 else 7)
+                    record.requireFieldCount(
+                        when {
+                            version >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE -> 11
+                            version >= 3 -> 10
+                            else -> 7
+                        },
+                    )
                     if (settings != null) formatError("Duplicate settings record")
                     settings = LocalBackupSettings(
                         themeMode = enumValue<ThemeMode>(record.nextField(), "theme"),
@@ -500,6 +515,11 @@ internal object LocalBackupCodec {
                             record.nextField().parseInt("crossfade seconds")
                         } else {
                             0
+                        },
+                        adaptiveCrossfade = if (version >= FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE) {
+                            record.nextField().parseBit("adaptive crossfade")
+                        } else {
+                            DEFAULT_ADAPTIVE_CROSSFADE
                         },
                     )
                 }
@@ -714,6 +734,11 @@ internal object LocalBackupCodec {
         }
         if (snapshot.settings.crossfadeSeconds !in 0..MAX_CROSSFADE_SECONDS) {
             formatError("Unsupported crossfade duration")
+        }
+        if (snapshot.formatVersion < FIRST_VERSION_WITH_ADAPTIVE_CROSSFADE &&
+            !snapshot.settings.adaptiveCrossfade
+        ) {
+            formatError("Older backups cannot encode adaptive crossfade")
         }
         if (snapshot.settings.artistVariety !in ARTIST_VARIETY_PENALTIES.indices) {
             formatError("Unsupported artist variety")
@@ -1137,6 +1162,7 @@ internal class LocalBackupService(
                 includeNoveltyMixes = settings.includeNoveltyMixes.value,
                 normalizeVolume = settings.normalizeVolume.value,
                 crossfadeSeconds = settings.crossfadeSeconds.value,
+                adaptiveCrossfade = settings.adaptiveCrossfade.value,
                 pageLayout = settings.pageLayout.value,
                 artistVariety = settings.artistVariety.value,
                 songSort = settings.songSort.value.inBackupForm(),
@@ -1353,6 +1379,7 @@ internal class LocalBackupService(
                 settings.setIncludeNoveltyMixes(snapshot.settings.includeNoveltyMixes)
                 settings.setNormalizeVolume(snapshot.settings.normalizeVolume)
                 settings.setCrossfadeSeconds(snapshot.settings.crossfadeSeconds)
+                settings.setAdaptiveCrossfade(snapshot.settings.adaptiveCrossfade)
                 settings.setArtistVariety(snapshot.settings.artistVariety)
                 settings.setSongSort(snapshot.settings.songSort)
                 settings.setAlbumSort(snapshot.settings.albumSort)

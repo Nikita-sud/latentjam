@@ -669,6 +669,11 @@
     <string name="settings_normalize_volume_subtitle">तेज़ ट्रैक को एक समान स्तर की ओर कम करता है</string>
     <string name="settings_crossfade">सहज बदलाव</string>
     <string name="settings_crossfade_subtitle">एक ट्रैक का अंत अगले की शुरुआत से मिल जाता है</string>
+    <string name="settings_sound">ध्वनि</string>
+    <string name="settings_sound_subtitle">इक्वलाइज़र और ट्रांज़िशन</string>
+    <string name="settings_transitions">ट्रांज़िशन</string>
+    <string name="settings_adaptive_crossfade">स्मार्ट क्रॉसफ़ेड</string>
+    <string name="settings_adaptive_crossfade_subtitle">मिलते-जुलते ट्रैक के बीच लंबा, ध्वनि बदलने पर छोटा</string>
     <string name="settings_crossfade_value">%1$d से.</string>
     <string name="duplicates_keep_this">इसे रखें</string>
     <string name="snack_duplicates_merged">डुप्लिकेट मिला दिए गए: प्लेलिस्ट अब रखी गई कॉपी की ओर इशारा करती हैं</string>

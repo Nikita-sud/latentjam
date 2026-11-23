@@ -693,6 +693,11 @@
     <string name="settings_normalize_volume_subtitle">הנמכת שירים רועשים לרמה אחידה</string>
     <string name="settings_crossfade">מעברים חלקים</string>
     <string name="settings_crossfade_subtitle">סוף השיר חופף לתחילת השיר הבא</string>
+    <string name="settings_sound">צליל</string>
+    <string name="settings_sound_subtitle">אקולייזר ומעברים</string>
+    <string name="settings_transitions">מעברים</string>
+    <string name="settings_adaptive_crossfade">מעבר חכם</string>
+    <string name="settings_adaptive_crossfade_subtitle">ארוך יותר בין שירים דומים וקצר יותר כשהצליל משתנה</string>
     <string name="settings_crossfade_value">%1$d שנ׳</string>
     <string name="duplicates_keep_this">לשמור את זה</string>
     <string name="snack_duplicates_merged">הכפילויות מוזגו: הפלייליסטים מפנים עכשיו לעותק שנשמר</string>

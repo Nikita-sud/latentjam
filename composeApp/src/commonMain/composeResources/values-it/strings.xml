@@ -676,6 +676,11 @@
     <string name="settings_normalize_volume_subtitle">Riduce i brani forti verso un livello uniforme</string>
     <string name="settings_crossfade">Transizioni morbide</string>
     <string name="settings_crossfade_subtitle">La fine di un brano si sovrappone all’inizio del successivo</string>
+    <string name="settings_sound">Audio</string>
+    <string name="settings_sound_subtitle">Equalizzatore e transizioni</string>
+    <string name="settings_transitions">Transizioni</string>
+    <string name="settings_adaptive_crossfade">Dissolvenza intelligente</string>
+    <string name="settings_adaptive_crossfade_subtitle">Più lunga tra brani simili, più breve quando cambia il suono</string>
     <string name="settings_crossfade_value">%1$d s</string>
     <string name="duplicates_keep_this">Tieni questo</string>
     <string name="snack_duplicates_merged">Duplicati uniti: le playlist ora puntano alla copia conservata</string>

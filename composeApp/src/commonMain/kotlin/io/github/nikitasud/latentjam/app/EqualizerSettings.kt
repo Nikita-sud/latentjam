@@ -57,7 +57,6 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
     val scope = rememberCoroutineScope()
     val normalize by settings.normalizeVolume.collectAsState()
     val normalization by AppGraph.normalizationStatus.collectAsState()
-    val crossfade by settings.crossfadeSeconds.collectAsState()
 
     FadingLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -202,14 +201,50 @@ internal fun EqualizerSettings(equalizer: EqualizerController, settings: AppSett
                     }
                 }
             }
-            if (boundaryFadeControlsAvailable) item {
-                ToneCard {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(Res.string.settings_crossfade), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        Text(if (crossfade == 0) stringResource(Res.string.state_off) else stringResource(Res.string.settings_crossfade_value, crossfade))
+        }
+    }
+}
+
+@Composable
+internal fun TransitionSettings(settings: AppSettings) {
+    val crossfade by settings.crossfadeSeconds.collectAsState()
+    val adaptiveCrossfade by settings.adaptiveCrossfade.collectAsState()
+
+    FadingLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (playbackGainControlsAvailable && boundaryFadeControlsAvailable) item {
+            ToneCard {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(Res.string.settings_crossfade), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text(if (crossfade == 0) stringResource(Res.string.state_off) else stringResource(Res.string.settings_crossfade_value, crossfade))
+                }
+                Text(stringResource(Res.string.settings_crossfade_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                AppSlider(
+                    value = crossfade.toFloat(),
+                    onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) },
+                    valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(),
+                    steps = MAX_CROSSFADE_SECONDS - 1,
+                )
+                Row(
+                    Modifier.fillMaxWidth().toggleable(
+                        value = adaptiveCrossfade,
+                        role = Role.Switch,
+                        onValueChange = settings::setAdaptiveCrossfade,
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(Res.string.settings_adaptive_crossfade), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            stringResource(Res.string.settings_adaptive_crossfade_subtitle),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Text(stringResource(Res.string.settings_crossfade_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    AppSlider(value = crossfade.toFloat(), onValueChange = { settings.setCrossfadeSeconds(it.roundToInt()) }, valueRange = 0f..MAX_CROSSFADE_SECONDS.toFloat(), steps = MAX_CROSSFADE_SECONDS - 1)
+                    AppSwitch(checked = adaptiveCrossfade, onCheckedChange = null)
                 }
             }
         }

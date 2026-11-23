@@ -435,6 +435,9 @@ private val USE_FAVOURITES_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(D
 
 /** The learned SMART ranker is on until the listener turns it off. */
 internal const val DEFAULT_SMART_RANKER = true
+
+/** Adaptive transitions are on until the listener turns them off. */
+internal const val DEFAULT_ADAPTIVE_CROSSFADE = true
 private val SMART_RANKER_FALLBACK_FLOW: StateFlow<Boolean> = MutableStateFlow(false)
 
 interface AppSettings {
@@ -516,6 +519,10 @@ interface AppSettings {
     /** Seconds of amplitude fade at each track boundary; 0 (the default) keeps hard cuts. */
     val crossfadeSeconds: StateFlow<Int>
     fun setCrossfadeSeconds(seconds: Int)
+
+    /** Whether SMART sizes each crossfade to how naturally the two tracks fit. On by default. */
+    val adaptiveCrossfade: StateFlow<Boolean>
+    fun setAdaptiveCrossfade(enabled: Boolean)
 
     /**
      * Whether an M3U export writes each path from the playlist's own folder (`../Music/…`), for

@@ -773,6 +773,11 @@
     <string name="settings_normalize_volume_subtitle">يخفض المقاطع العالية نحو مستوى ثابت</string>
     <string name="settings_crossfade">انتقالات سلسة</string>
     <string name="settings_crossfade_subtitle">تتداخل نهاية المقطع مع بداية المقطع التالي</string>
+    <string name="settings_sound">الصوت</string>
+    <string name="settings_sound_subtitle">المعادل والانتقالات</string>
+    <string name="settings_transitions">الانتقالات</string>
+    <string name="settings_adaptive_crossfade">تداخل ذكي</string>
+    <string name="settings_adaptive_crossfade_subtitle">يطول بين المقاطع المتشابهة ويقصر عند اختلاف الصوت</string>
     <string name="settings_crossfade_value">%1$d ث</string>
     <string name="duplicates_keep_this">احتفظ بهذه</string>
     <string name="snack_duplicates_merged">تم دمج التكرارات: تشير قوائم التشغيل الآن إلى النسخة المحتفَظ بها</string>
