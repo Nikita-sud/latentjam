@@ -435,10 +435,10 @@ private val USE_FAVOURITES_DEFAULT_FLOW: StateFlow<Boolean> = MutableStateFlow(D
 
 /** The learned SMART ranker is on until the listener turns it off. */
 internal const val DEFAULT_SMART_RANKER = true
-
-/** Adaptive transitions are on until the listener turns them off. */
-internal const val DEFAULT_ADAPTIVE_CROSSFADE = true
 private val SMART_RANKER_FALLBACK_FLOW: StateFlow<Boolean> = MutableStateFlow(false)
+
+/** The smart crossfade is off until the listener turns it on: the slider alone decides. */
+internal const val DEFAULT_ADAPTIVE_CROSSFADE = false
 
 interface AppSettings {
     val themeMode: StateFlow<ThemeMode>
@@ -520,7 +520,10 @@ interface AppSettings {
     val crossfadeSeconds: StateFlow<Int>
     fun setCrossfadeSeconds(seconds: Int)
 
-    /** Whether SMART sizes each crossfade to how naturally the two tracks fit. On by default. */
+    /**
+     * Whether SMART sizes each crossfade to the two tracks it joins (issue #25): the slider becomes the
+     * longest blend. Off by default.
+     */
     val adaptiveCrossfade: StateFlow<Boolean>
     fun setAdaptiveCrossfade(enabled: Boolean)
 

@@ -422,7 +422,6 @@
     <string name="settings_library_restore_body">LatentJam から取り除いた曲をすべてライブラリに戻します。端末上のファイルは変更されません。</string>
     <string name="settings_playlist_relative_paths">書き出すプレイリストで相対パスを使う</string>
     <string name="settings_playlist_relative_paths_body">各曲のパスをプレイリストのあるフォルダからの相対パス（../Music/…）で書き込み、ほかの端末でも使えるようにします。フォルダのパスがない場所に保存したときは、フルパスのままです。</string>
-    <string name="settings_equalizer_unavailable">このオーディオ出力では利用できません</string>
     <string name="equalizer_unavailable_body">現在のオーディオ出力では LatentJam からイコライザーを利用できません。別の出力をお試しください。再生は通常どおり行えます。</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>
     <string name="equalizer_preset_flat">フラット</string>
@@ -648,7 +647,6 @@
     <string name="settings_crossfade_subtitle">曲の終わりと次の曲の始まりを重ねます</string>
     <string name="settings_sound">サウンド</string>
     <string name="settings_sound_subtitle">イコライザーとトランジション</string>
-    <string name="settings_transitions">トランジション</string>
     <string name="settings_adaptive_crossfade">スマートクロスフェード</string>
     <string name="settings_adaptive_crossfade_subtitle">似た曲の間は長く、音の傾向が変わると短くします</string>
     <string name="settings_crossfade_value">%1$d 秒</string>

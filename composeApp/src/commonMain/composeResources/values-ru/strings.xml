@@ -474,7 +474,6 @@
     <string name="settings_playlist_relative_paths">Относительные пути в экспортированных плейлистах</string>
     <string name="settings_playlist_relative_paths_body">Записывать путь к каждому треку от папки плейлиста (../Music/…), чтобы плейлист работал и на других устройствах. При сохранении в место без пути к папке записываются полные пути.</string>
 
-    <string name="settings_equalizer_unavailable">Недоступен для текущего аудиовыхода</string>
     <string name="equalizer_unavailable_body">Текущий аудиовыход не предоставляет LatentJam доступ к эквалайзеру. Попробуйте выбрать другой выход. Музыка продолжит воспроизводиться как обычно.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>
     <string name="equalizer_preset_flat">Ровный</string>
@@ -714,7 +713,6 @@
     <string name="settings_crossfade_subtitle">Конец трека накладывается на начало следующего</string>
     <string name="settings_sound">Звук</string>
     <string name="settings_sound_subtitle">Эквалайзер и переходы</string>
-    <string name="settings_transitions">Переходы</string>
     <string name="settings_adaptive_crossfade">Умный кроссфейд</string>
     <string name="settings_adaptive_crossfade_subtitle">Дольше между похожими треками и короче при смене звучания</string>
     <string name="settings_crossfade_value">%1$d с</string>

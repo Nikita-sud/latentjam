@@ -486,7 +486,6 @@
     <string name="settings_library_restore_body">Przywróć do biblioteki wszystkie utwory usunięte z LatentJam. Pliki na urządzeniu pozostaną bez zmian.</string>
     <string name="settings_playlist_relative_paths">Ścieżki względne w eksportowanych playlistach</string>
     <string name="settings_playlist_relative_paths_body">Zapisuje ścieżkę każdego utworu względem folderu playlisty (../Music/…), aby działała ona także na innych urządzeniach. W miejscach bez ścieżki folderu zapisywane są pełne ścieżki.</string>
-    <string name="settings_equalizer_unavailable">Niedostępny dla tego wyjścia audio</string>
     <string name="equalizer_unavailable_body">Bieżące wyjście audio nie udostępnia korektora aplikacji LatentJam. Spróbuj innego wyjścia. Odtwarzanie nadal działa normalnie.</string>
     <string name="equalizer_bass_value">%1$d\u0025</string>
     <string name="equalizer_preset_flat">Płaski</string>
@@ -723,7 +722,6 @@
     <string name="settings_crossfade_subtitle">Koniec utworu nakłada się na początek następnego</string>
     <string name="settings_sound">Dźwięk</string>
     <string name="settings_sound_subtitle">Korektor i przejścia</string>
-    <string name="settings_transitions">Przejścia</string>
     <string name="settings_adaptive_crossfade">Inteligentne przejścia</string>
     <string name="settings_adaptive_crossfade_subtitle">Dłuższe między podobnymi utworami, krótsze przy zmianie brzmienia</string>
     <string name="settings_crossfade_value">%1$d s</string>
