@@ -51,7 +51,7 @@ jobs:
         # No onnxruntime wheel, no prebuilt binary, no ORT Gradle build: the committed operator list, the SHA-1-checked
         # dependency mirror, protoc from the protobuf sources, javac and the NDK (tools/runtime/ort_source_build.sh).
         run: |
-          git clone --depth 1 --branch "v$ORT_VERSION" --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git "$RUNNER_TEMP/ort-source"
+          tools/release/build.sh ort-source "$RUNNER_TEMP/ort-source"
           JOBS=2 LATENTJAM_ORT_WORK="$RUNNER_TEMP/ort-work" bash tools/runtime/ort_source_build.sh "$RUNNER_TEMP/ort-source" "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME"
       - name: Fetch Maven Central's AAR, whose other ABIs the release packages
         run: curl --fail --location --retry 3 "https://repo.maven.apache.org/maven2/com/microsoft/onnxruntime/onnxruntime-android/$ORT_VERSION/onnxruntime-android-$ORT_VERSION.aar" -o "$RUNNER_TEMP/onnxruntime-android-$ORT_VERSION.aar"

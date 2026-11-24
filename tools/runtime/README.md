@@ -29,7 +29,7 @@ Debug and test builds keep Maven Central's full runtime.
   that runs this script in its `build:` step) is test-built in the fork's CI.
 
 ```sh
-git clone --depth 1 --branch v1.26.0 --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git /tmp/ort
+tools/release/build.sh ort-source /tmp/ort
 bash tools/runtime/ort_source_build.sh /tmp/ort "$ANDROID_HOME/ndk/28.2.13676358" "$ANDROID_HOME"
 ./gradlew :androidApp:assembleRelease
 ```
@@ -109,8 +109,7 @@ the repository's usual JDK for the application build.
 For the current version:
 
 ```sh
-git clone --depth 1 --branch v1.26.0 --recursive --shallow-submodules \
-  https://github.com/microsoft/onnxruntime.git /tmp/latentjam-ort-source
+tools/release/build.sh ort-source /tmp/latentjam-ort-source
 python3 -m venv /tmp/latentjam-ort-python
 /tmp/latentjam-ort-python/bin/pip install onnxruntime==1.26.0 onnx numpy
 ```

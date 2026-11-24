@@ -274,15 +274,32 @@ def fdroid_mr(_args):
     git("add", "metadata", "srclibs", cwd=FDROIDDATA)
     if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=FDROIDDATA).returncode == 0:
         sys.exit(f"{branch}: nothing to commit (already rendered?)")
+    srclib_changed = bool(git("diff", "--cached", "--name-only", "--", "srclibs", cwd=FDROIDDATA))
     git("commit", "--quiet", "-m", f"LatentJam {version} ({base * 10 + 1}-{base * 10 + 4}): frozen per-ABI recipe",
         cwd=FDROIDDATA)
     text = MR_TEXT.format(version=version, first=base * 10 + 1, last=base * 10 + 4, commit=head)
+    if srclib_changed:
+        text += SRCLIB_TEXT.format(**ort_source())
     (RELEASES / version).mkdir(parents=True, exist_ok=True)
     (RELEASES / version / "fdroid-mr.md").write_text(text)
     save_state(version, fdroid_mr_commit=head, fdroid_mr_branch=branch)
     print(f"{FDROIDDATA} branch {branch} ready; MR text in {RELEASES / version / 'fdroid-mr.md'}.\n"
           f"Owner: git -C {FDROIDDATA} push fork {branch}, then open the MR before the tag.")
 
+
+def ort_source():
+    """The runtime source's address and pinned commit, as tools/release/build.sh has them."""
+    script = (ROOT / "tools/release/build.sh").read_text()
+    return {key.lower(): re.search(rf"^ORT_SOURCE_{key}=(\S+)$", script, re.M).group(1)
+            for key in ("URL", "VERSION", "COMMIT")}
+
+
+# Added to the MR text only when the render changed srclibs/: the owner reads it before he opens the MR.
+SRCLIB_TEXT = """
+`srclibs/onnxruntime.yml` changes too: github.com/microsoft/onnxruntime has answered 404 since 2026-11-18, so the
+srclib now points at {url}, which holds the same history. Tag v{version} there is commit {commit}, and
+`build.sh fdroid-prebuild arm64-v8a` refuses a checkout at any other commit.
+"""
 
 MR_TEXT = """LatentJam {version} ({first}-{last}), commit {commit}
 

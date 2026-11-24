@@ -19,10 +19,13 @@ app:
     - 10 * %c + 3
     - 10 * %c + 4
 
+# The address tools/release/build.sh clones from (ORT_SOURCE_URL; test_build_sh.py holds the two equal): the history of
+# github.com/microsoft/onnxruntime, which has answered 404 since 2026-11-18. `build.sh fdroid-prebuild arm64-v8a`
+# refuses a checkout whose commit is not the pinned one.
 srclibs:
   onnxruntime:
     RepoType: git
-    Repo: https://github.com/microsoft/onnxruntime.git
+    Repo: https://github.com/Nikita-sud/onnxruntime.git
     Prepare: git submodule update --init --recursive --depth 1
 
 # Ascending ABI digit (androidApp/build.gradle.kts abiVersionDigits): the bot zips these with the sorted codes.

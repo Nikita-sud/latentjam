@@ -100,6 +100,15 @@ class BotCopyTest(unittest.TestCase):
         changed["builds"][1]["prebuild"] += " --other"
         self.assertTrue(recipe_tool.recipe_vs_master(changed, text))
 
+    def test_a_srclib_that_differs_from_master_needs_an_mr(self):
+        recipe = recipe_tool.load_recipe()
+        same = {name: recipe_tool.dump_yaml(fields) for name, fields in recipe["srclibs"].items()}
+        self.assertEqual(recipe_tool.srclibs_vs_master(recipe, same), [])
+        elsewhere = {"onnxruntime": "RepoType: git\nRepo: https://example.org/gone.git\n"}
+        differences = recipe_tool.srclibs_vs_master(recipe, elsewhere)
+        self.assertTrue(any("Repo" in d and "example.org" in d for d in differences), differences)
+        self.assertTrue(recipe_tool.srclibs_vs_master(recipe, {"onnxruntime": None}))
+
     def test_pins_must_match_the_tree(self):
         recipe = copy.deepcopy(recipe_tool.load_recipe())
         self.assertEqual(recipe_tool.pin_problems(recipe, recipe_tool.ROOT), [])
@@ -191,5 +200,12 @@ class CiYamlTest(unittest.TestCase):
             # fdroid rewritemeta: parse with fdroidserver, write with its writer.
             recipe_tool.metadata.write_metadata(target, recipe_tool.metadata.parse_metadata(target))
             self.assertEqual(rendered, target.read_text())
+            # A srclib file that is already there with another address is brought to the recipe's.
+            srclib = out / "srclibs/onnxruntime.yml"
+            recipe = recipe_tool.load_recipe()
+            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"]["onnxruntime"])
+            srclib.write_text("RepoType: git\nRepo: https://example.org/gone.git\n")
+            recipe_tool.render(root, "0" * 40, base, out)
+            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"]["onnxruntime"])
             # The line that broke !55889 stays whole, as CI's writer keeps it.
             self.assertIn("fdroid-prebuild arm64-v8a $$onnxruntime$$", rendered)

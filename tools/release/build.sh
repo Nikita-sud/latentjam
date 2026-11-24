@@ -9,6 +9,7 @@
 #   tools/release/build.sh ios                     unsigned IPA (macOS only)      -> build/release/<version>/
 #   tools/release/build.sh fdroid-prebuild ABI [ORT_SOURCE NDK SDK]
 #                                                  what F-Droid's recipe runs before its own Gradle build
+#   tools/release/build.sh ort-source DIR          the pinned onnxruntime source with submodules, cloned into DIR
 #   tools/release/build.sh sign DIR [--resign]     sign DIR's APKs with the release key (Mac, interactive password)
 #   tools/release/build.sh verify-signed APK...    the checks CI's sign job runs after signing
 #
@@ -29,6 +30,12 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 NDK_VERSION=28.2.13676358
 BUILD_TOOLS=36.0.0
+# Where the reduced runtime's source is cloned from: a repository holding the history of github.com/microsoft/onnxruntime,
+# which has answered 404 since 2026-11-18. The commit is what is trusted, not the address: a git checkout at any other
+# commit is refused (verify_ort_source). tools/release/fdroid/recipe.yml gives F-Droid's srclib the same address.
+ORT_SOURCE_URL=https://github.com/Nikita-sud/onnxruntime.git
+ORT_SOURCE_VERSION=1.26.0
+ORT_SOURCE_COMMIT=8c546c37b43caaca1fa25db430dab94b901cf277
 # SHA-256 of the certificate every GitHub release APK has carried (the old debug key, now latentjam-release.p12).
 RELEASE_CERT_SHA256=dd7001b32e9693c346d596fccdd65e6d307590a21878c49d785a2cabb4554a2b
 
@@ -69,6 +76,29 @@ ort_jobs() {
   [ "$cpus" -lt "$by_mem" ] && echo "$cpus" || echo "$by_mem"
 }
 
+# Refuses a git checkout of the runtime's source whose HEAD is not the pinned commit. A directory without .git (an
+# unpacked archive someone named) cannot be checked this way and is left to whoever named it.
+verify_ort_source() {
+  local source=$1 version head
+  version=$(ort_version)
+  [ "$version" = "$ORT_SOURCE_VERSION" ] \
+    || die "the app uses onnxruntime $version, the pinned source is $ORT_SOURCE_VERSION: set ORT_SOURCE_VERSION and ORT_SOURCE_COMMIT"
+  [ -e "$source/.git" ] || return 0
+  # safe.directory: F-Droid's build user is not always the one that cloned the srclib.
+  head=$(git -c "safe.directory=$source" -C "$source" rev-parse HEAD) || die "$source: its commit cannot be read"
+  [ "$head" = "$ORT_SOURCE_COMMIT" ] \
+    || die "$source is at commit $head, onnxruntime v$version is $ORT_SOURCE_COMMIT"
+}
+
+# The pinned source with its submodules, cloned into a directory that does not exist yet.
+clone_ort_source() {
+  local source=$1
+  run git clone --quiet --depth 1 --branch "v$(ort_version)" --recursive --shallow-submodules \
+    "$ORT_SOURCE_URL" "$source" >&2 || return 1
+  [ "${LATENTJAM_DRY_RUN:-0}" = 1 ] || [ -e "$source/.git" ] || die "$source: the clone left no git checkout"
+  verify_ort_source "$source"
+}
+
 # The reduced ARM64 ONNX Runtime's Maven repository, built if needed; prints its path.
 reduced_ort_repo() {
   local sdk=$1 version ndk source key repo
@@ -93,9 +123,9 @@ reduced_ort_repo() {
     [ -n "${LATENTJAM_ORT_SOURCE:-}" ] && die "$source is not an onnxruntime v$version checkout with submodules"
     # A directory already there (an interrupted clone, someone's own work) is never deleted for them.
     [ -e "$source" ] && die "$source exists but is not a complete onnxruntime v$version checkout: move it away"
-    run git clone --quiet --depth 1 --branch "v$version" --recursive --shallow-submodules \
-      https://github.com/microsoft/onnxruntime.git "$source" >&2 || { rm -rf "$source"; exit 1; }
+    ( clone_ort_source "$source" ) || { rm -rf "$source"; exit 1; }
   fi
+  verify_ort_source "$source"
   # Work dir and download mirror on disk, per output; two worktrees with the same key share them, so build one at a
   # time. The mirror is kept.
   # With the cache off the output sits in this tree, and the work dir must not (ort_source_build.sh refuses it).
@@ -168,10 +198,17 @@ cmd_fdroid_prebuild() {
   run sdkmanager 'cmake;3.22.1'
   [ "$abi" = arm64-v8a ] || return 0
   local source=$2 ndk=$3 sdk=$4 work=$HOME/.cache/latentjam-ort
+  verify_ort_source "$source"
   run sdkmanager 'cmake;3.31.6'
   PATH="$sdk/cmake/3.31.6/bin:$PATH" LATENTJAM_ORT_WORK="$work/work" LATENTJAM_ORT_MIRROR="$work/mirror" \
     JOBS=${JOBS:-$(ort_jobs)} run bash "$ROOT/tools/runtime/ort_source_build.sh" "$source" "$ndk" "$sdk"
   run rm -rf "$work"
+}
+
+cmd_ort_source() {
+  [ $# -eq 1 ] && [ -n "$1" ] || die "ort-source DIR"
+  [ ! -e "$1" ] || die "$1 exists: name a directory that does not"
+  ( clone_ort_source "$1" ) || { rm -rf "$1"; exit 1; }
 }
 
 apksigner_bin() { echo "$(sdk_root)/build-tools/$BUILD_TOOLS/apksigner"; }
@@ -224,7 +261,8 @@ case "$command" in
   bundle) cmd_bundle "$@";;
   ios) cmd_ios "$@";;
   fdroid-prebuild) cmd_fdroid_prebuild "$@";;
+  ort-source) cmd_ort_source "$@";;
   sign) cmd_sign "$@";;
   verify-signed) cmd_verify_signed "$@";;
-  *) sed -n '5,13p' "$0" >&2; exit 2;;
+  *) sed -n '5,14p' "$0" >&2; exit 2;;
 esac

@@ -5,13 +5,14 @@
 
   fdroid_recipe.py render --commit HASH --base METADATA.yml --out DIR
       fdroiddata files for this tree's version: METADATA.yml (fdroiddata master's file) plus the four build blocks
-      for this commit, CurrentVersion/CurrentVersionCode, and srclibs/onnxruntime.yml when missing. Written through
+      for this commit, CurrentVersion/CurrentVersionCode, and srclibs/onnxruntime.yml as the recipe has it. Written through
       fdroidserver's own writer, so `fdroid rewritemeta` leaves them unchanged.
   fdroid_recipe.py check [--master METADATA.yml]
       fails (exit 1) when F-Droid's scanner would reject a block on a `git archive` export of HEAD, when the recipe's
       pins differ from the tree (ONNX Runtime srclib tag, NDK), or when fdroidserver reads another version from the
-      tree; exits 3 when the recipe differs from the last four blocks on fdroiddata master, i.e. this release needs
-      an fdroiddata MR (fetched from GitLab unless --master gives the file).
+      tree; exits 3 when the recipe differs from the last four blocks or from the srclib on fdroiddata master, i.e.
+      this release needs an fdroiddata MR (fetched from GitLab unless --master gives the file; the srclib is then
+      compared only when --master-srclibs names fdroiddata's srclibs directory).
 
 Needs fdroidserver (master, as fdroiddata's CI installs it) on ruamel.yaml CI_RUAMEL_YAML, Debian trixie's: the Python
 that tools/release/fdroid-venv.sh makes, ~/.cache/latentjam/fdroidserver-venv/bin/python.
@@ -25,6 +26,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -32,6 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = Path(__file__).resolve().parent / "fdroid" / "recipe.yml"
 MASTER_URL = "https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/{appid}.yml"
+SRCLIB_MASTER_URL = "https://gitlab.com/fdroid/fdroiddata/-/raw/master/srclibs/{name}.yml"
 # Fields checkupdates changes when it copies the blocks; everything else must stay identical.
 PER_RELEASE = {"versionName", "versionCode", "commit", "disable"}
 NDK_MODULES = ["core/ort-ops", "core/map-native", "core/audio-dsp"]
@@ -143,6 +146,21 @@ def recipe_vs_master(recipe, master_text):
     return differences
 
 
+def srclibs_vs_master(recipe, master_srclibs):
+    """Differences between the recipe's srclibs and fdroiddata master's files ({name: YAML text, None when absent})."""
+    differences = []
+    for name, fields in recipe["srclibs"].items():
+        text = master_srclibs.get(name)
+        if text is None:
+            differences.append(f"srclibs/{name}.yml is not on master")
+            continue
+        theirs = ruamel.yaml.YAML(typ="safe", pure=True).load(text) or {}
+        for key in sorted(set(theirs) | set(fields)):
+            if theirs.get(key) != fields.get(key):
+                differences.append(f"srclibs/{name}.yml {key}: master {theirs.get(key)!r}, recipe {fields.get(key)!r}")
+    return differences
+
+
 def export_head(root, destination):
     """`git archive HEAD` of root, unpacked into destination: what F-Droid clones, without ignored build outputs."""
     data = subprocess.run(["git", "-C", str(root), "archive", "--format=tar", "HEAD"], check=True,
@@ -176,7 +194,7 @@ def scan_problems(tree, block):
     return count, errors
 
 
-def check(root, master_text):
+def check(root, master_text, master_srclibs=None):
     recipe = load_recipe()
     failures = pin_problems(recipe, root)
     name, code = tree_version(root)
@@ -198,6 +216,8 @@ def check(root, master_text):
                 failures.append(f"block {digit} ({block['gradleprops'][-1]}): the scanner reports {count} "
                                 f"problem(s): " + "; ".join(errors[:10]))
     differences = recipe_vs_master(recipe, master_text) if master_text is not None else []
+    if master_srclibs is not None:
+        differences += srclibs_vs_master(recipe, master_srclibs)
     return failures, differences
 
 
@@ -220,8 +240,9 @@ def render(root, commit, base_path, out_dir):
     app["CurrentVersionCode"] = code * 10 + len(recipe["builds"])
     metadata.write_metadata(target, app)
     for srclib, fields in recipe["srclibs"].items():
+        # Written when missing or different: a file with another address would make F-Droid fetch from there.
         path = out / "srclibs" / f"{srclib}.yml"
-        if not path.exists():
+        if not path.exists() or load_recipe(path) != fields:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(dump_yaml(fields))
     return target
@@ -232,6 +253,24 @@ def master_metadata(appid, path):
         return Path(path).read_text()
     with urllib.request.urlopen(MASTER_URL.format(appid=appid), timeout=60) as response:
         return response.read().decode()
+
+
+def master_srclibs(recipe, directory):
+    """fdroiddata master's srclib files the recipe names: from a checkout's srclibs directory, or from GitLab."""
+    found = {}
+    for name in recipe["srclibs"]:
+        if directory:
+            path = Path(directory, f"{name}.yml")
+            found[name] = path.read_text() if path.exists() else None
+            continue
+        try:
+            with urllib.request.urlopen(SRCLIB_MASTER_URL.format(name=name), timeout=60) as response:
+                found[name] = response.read().decode()
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            found[name] = None
+    return found
 
 
 def require_ci_yaml():
@@ -251,6 +290,8 @@ def main(argv=None):
     r.add_argument("--out", required=True, help="an fdroiddata checkout (or a directory laid out like one)")
     c = sub.add_parser("check")
     c.add_argument("--master", help="fdroiddata master's metadata file (default: fetched from GitLab)")
+    c.add_argument("--master-srclibs", help="fdroiddata master's srclibs directory (default: fetched from GitLab; "
+                                            "not compared when --master is given without it)")
     c.add_argument("--offline", action="store_true", help="skip the comparison with fdroiddata master")
     args = parser.parse_args(argv)
     common.config = common.read_config() if Path("config.yml").exists() else {}
@@ -260,7 +301,10 @@ def main(argv=None):
         return 0
     recipe = load_recipe()
     master = None if args.offline else master_metadata(recipe["appid"], args.master)
-    failures, differences = check(ROOT, master)
+    srclibs = None
+    if not args.offline and (args.master_srclibs or not args.master):
+        srclibs = master_srclibs(recipe, args.master_srclibs)
+    failures, differences = check(ROOT, master, srclibs)
     for failure in failures:
         print(f"FAIL: {failure}")
     for difference in differences:
