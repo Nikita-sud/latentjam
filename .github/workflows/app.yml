@@ -74,7 +74,9 @@ jobs:
           retention-days: 14
   ios:
     runs-on: macos-15
-    timeout-minutes: 90
+    # The same steps have taken 64 to 85 minutes on this runner, and on 2026-11-24 the tests alone took 70,
+    # so the old limit of 90 ended the job while it was linking. 150 is twice the usual 75.
+    timeout-minutes: 150
     env:
       # Compose Multiplatform 1.11 links UIKit API from the iOS 26 SDK (UIViewLayoutRegion);
       # the image's default Xcode 16.4 ships the iOS 18.5 SDK and the app fails to link.
