@@ -17,10 +17,12 @@ import kotlin.time.Duration.Companion.minutes
 
 internal class SmartQueueAvailabilityTest {
     @Test
-    fun `fully indexed library keeps refilling through its last remaining track`() = runTest(timeout = 3.minutes) {
+    fun `fully indexed library keeps refilling through its last remaining track`() = runTest(timeout = 20.minutes) {
         // This exhausts a real 3,000-track corpus through 250 queue plans on Dispatchers.Default;
-        // virtual time cannot accelerate it. Native debug builds can exceed runTest's one-minute
-        // default, so retain the full workload and assertions with a bounded stress-test timeout.
+        // virtual time cannot accelerate it. The limit is the one SmartNeverStopsTest gives the same
+        // kind of work: the native debug build needs about a minute on an Apple Silicon Mac, and
+        // GitHub's macOS runner, which runs this module's suite 2.8 times slower (27 minutes
+        // against 9.5), went past the three minutes this test used to have on 2026-11-24.
         val library = tracks(3_000)
         val harness = harness(library, includeText = false)
         val byId = library.associateBy { it.id }
