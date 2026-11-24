@@ -279,7 +279,9 @@ def fdroid_mr(_args):
         cwd=FDROIDDATA)
     text = MR_TEXT.format(version=version, first=base * 10 + 1, last=base * 10 + 4, commit=head)
     if srclib_changed:
-        text += SRCLIB_TEXT.format(**ort_source())
+        # Right under the title: it is the one part a reviewer has not seen in an earlier release.
+        title, rest = text.split("\n", 1)
+        text = title + "\n" + SRCLIB_TEXT.format(**ort_source()) + rest
     (RELEASES / version).mkdir(parents=True, exist_ok=True)
     (RELEASES / version / "fdroid-mr.md").write_text(text)
     save_state(version, fdroid_mr_commit=head, fdroid_mr_branch=branch)
@@ -296,9 +298,10 @@ def ort_source():
 
 # Added to the MR text only when the render changed srclibs/: the owner reads it before he opens the MR.
 SRCLIB_TEXT = """
-`srclibs/onnxruntime.yml` changes too: github.com/microsoft/onnxruntime has answered 404 since 2026-11-18, so the
-srclib now points at {url}, which holds the same history. Tag v{version} there is commit {commit}, and
-`build.sh fdroid-prebuild arm64-v8a` refuses a checkout at any other commit.
+This MR also changes `srclibs/`: github.com/microsoft/onnxruntime has answered 404 since 2026-11-18, so the arm64-v8a
+block takes ONNX Runtime's source from the srclib `onnxruntime-latentjam`, {url}, which holds the same history.
+Tag v{version} there is commit {commit}, and `build.sh fdroid-prebuild arm64-v8a` refuses a checkout at any other
+commit. The shared `onnxruntime` srclib is left as it is, because another app builds another commit from it.
 """
 
 MR_TEXT = """LatentJam {version} ({first}-{last}), commit {commit}
@@ -307,7 +310,7 @@ The four per-ABI build blocks no longer change from one release to the next, so 
 on its own (it copies the last four blocks verbatim; VercodeOperation 10 * %c + 1..4):
 
 - prebuild is one line calling `tools/release/build.sh fdroid-prebuild <abi>` in the app's repository; for arm64-v8a
-  it builds the reduced ONNX Runtime from the `onnxruntime` srclib (native build only, nothing in the srclib is
+  it builds the reduced ONNX Runtime from the `onnxruntime-latentjam` srclib (native build only, nothing in it is
   edited) into `build/reduced-ort/maven`, which is scanignored. That built AAR is also in the source tarball.
 - scanignore `androidApp/src/main/assets/ml/*.bin`: data only (packed indices and tables; provenance and licences
   in `androidApp/src/main/assets/ml/LICENSE-MODEL.txt`). Some of these files are not packaged at all

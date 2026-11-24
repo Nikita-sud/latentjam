@@ -5,8 +5,8 @@
 
   fdroid_recipe.py render --commit HASH --base METADATA.yml --out DIR
       fdroiddata files for this tree's version: METADATA.yml (fdroiddata master's file) plus the four build blocks
-      for this commit, CurrentVersion/CurrentVersionCode, and srclibs/onnxruntime.yml as the recipe has it. Written through
-      fdroidserver's own writer, so `fdroid rewritemeta` leaves them unchanged.
+      for this commit, CurrentVersion/CurrentVersionCode, and the recipe's srclib file (srclibs/<name>.yml). Written
+      through fdroidserver's own writer, so `fdroid rewritemeta` leaves them unchanged.
   fdroid_recipe.py check [--master METADATA.yml]
       fails (exit 1) when F-Droid's scanner would reject a block on a `git archive` export of HEAD, when the recipe's
       pins differ from the tree (ONNX Runtime srclib tag, NDK), or when fdroidserver reads another version from the
@@ -91,7 +91,7 @@ def pin_problems(recipe, root):
     for build in recipe["builds"]:
         for srclib in build.get("srclibs", []):
             name, ref = srclib.split("@", 1)
-            if name == "onnxruntime" and ref != f"v{ort}":
+            if name in recipe["srclibs"] and ref != f"v{ort}":
                 problems.append(f"the recipe builds ORT {ref}, the app uses v{ort}: update recipe.yml, then this "
                                 f"release needs an fdroiddata MR")
     return problems

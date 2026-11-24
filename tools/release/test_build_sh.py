@@ -18,8 +18,8 @@ def frozen_prebuild_lines():
 
 def run_line(line, home):
     # fdroidserver substitutes $$name$$ with absolute paths and runs the line with bash -e in the recipe's subdir.
-    line = line.replace("$$onnxruntime$$", "/build/srclib/onnxruntime").replace("$$NDK$$", "/sdk/ndk/28.2.13676358")
-    line = line.replace("$$SDK$$", "/sdk")
+    line = line.replace("$$onnxruntime-latentjam$$", "/build/srclib/onnxruntime-latentjam")
+    line = line.replace("$$NDK$$", "/sdk/ndk/28.2.13676358").replace("$$SDK$$", "/sdk")
     env = dict(os.environ, LATENTJAM_DRY_RUN="1", HOME=str(home))
     return subprocess.run(["bash", "-e", "-c", line], cwd=ROOT / "androidApp", env=env, capture_output=True, text=True)
 
@@ -37,7 +37,7 @@ class FrozenPrebuildTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("sdkmanager cmake;3.22.1", result.stderr)
                 arm64 = "arm64-v8a" in line
-                self.assertEqual("ort_source_build.sh /build/srclib/onnxruntime /sdk/ndk/28.2.13676358 /sdk"
+                self.assertEqual("ort_source_build.sh /build/srclib/onnxruntime-latentjam /sdk/ndk/28.2.13676358 /sdk"
                                  in result.stderr, arm64)
                 if arm64:
                     # The ORT work dir lives on disk outside the scanned tree, and is removed afterwards.

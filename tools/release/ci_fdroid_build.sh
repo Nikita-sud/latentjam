@@ -38,10 +38,12 @@ git -C "$home_vagrant/gradlew-fdroid" pull
 git -C /tmp clone --quiet https://gitlab.com/fdroid/fdroid-bootstrap-buildserver.git
 git -C /tmp/fdroid-bootstrap-buildserver config transfer.fsckObjects true
 
-# An fdroiddata work dir: its config, tools and .gitignore, plus the app's current metadata from master.
+# An fdroiddata work dir: its config, tools and .gitignore, plus the app's current metadata from master. The recipe's
+# srclib file is in the sparse set whether or not master has it yet: render writes it, and `git add` refuses a path
+# outside the set.
 DATA=/fdroiddata
 git clone --quiet --depth 1 --filter=blob:none --sparse https://gitlab.com/fdroid/fdroiddata.git $DATA
-git -C $DATA sparse-checkout set --no-cone /config/ /tools/ /srclibs/onnxruntime.yml /.gitignore \
+git -C $DATA sparse-checkout set --no-cone /config/ /tools/ /srclibs/onnxruntime-latentjam.yml /.gitignore \
   "/metadata/$APPID.yml"
 cp /tmp/fdroid-bootstrap-buildserver/roles/production_hardening/files/gitconfig $DATA/../.gitconfig
 cd $DATA

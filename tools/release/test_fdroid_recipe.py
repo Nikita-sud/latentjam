@@ -20,6 +20,8 @@ except ImportError:
     recipe_tool = None
 
 ELF = b"\x7fELF\x02\x01\x01" + bytes(200)
+# The recipe's srclib: the app's own, next to fdroiddata's shared `onnxruntime`.
+SRCLIB = "onnxruntime-latentjam"
 
 
 def tree_with_flagged_files(root):
@@ -104,16 +106,27 @@ class BotCopyTest(unittest.TestCase):
         recipe = recipe_tool.load_recipe()
         same = {name: recipe_tool.dump_yaml(fields) for name, fields in recipe["srclibs"].items()}
         self.assertEqual(recipe_tool.srclibs_vs_master(recipe, same), [])
-        elsewhere = {"onnxruntime": "RepoType: git\nRepo: https://example.org/gone.git\n"}
+        elsewhere = {SRCLIB: "RepoType: git\nRepo: https://example.org/gone.git\n"}
         differences = recipe_tool.srclibs_vs_master(recipe, elsewhere)
         self.assertTrue(any("Repo" in d and "example.org" in d for d in differences), differences)
-        self.assertTrue(recipe_tool.srclibs_vs_master(recipe, {"onnxruntime": None}))
+        # A srclib master does not have yet needs the MR that adds it.
+        self.assertTrue(recipe_tool.srclibs_vs_master(recipe, {SRCLIB: None}))
+
+    def test_the_srclib_is_the_apps_own(self):
+        # fdroiddata's `onnxruntime` srclib is shared: another app builds another commit from it.
+        recipe = recipe_tool.load_recipe()
+        self.assertEqual(list(recipe["srclibs"]), [SRCLIB])
+        named = [s.split("@")[0] for build in recipe["builds"] for s in build.get("srclibs", [])]
+        self.assertEqual(named, [SRCLIB])
+        self.assertNotIn("$$onnxruntime$$", recipe_tool.RECIPE.read_text())
+        ci = (recipe_tool.ROOT / "tools/release/ci_fdroid_build.sh").read_text()
+        self.assertIn(f"/srclibs/{SRCLIB}.yml", ci)
 
     def test_pins_must_match_the_tree(self):
         recipe = copy.deepcopy(recipe_tool.load_recipe())
         self.assertEqual(recipe_tool.pin_problems(recipe, recipe_tool.ROOT), [])
         recipe["ndk_version"] = "27.0.0"
-        recipe["builds"][1]["srclibs"] = ["onnxruntime@v1.0.0"]
+        recipe["builds"][1]["srclibs"] = [f"{SRCLIB}@v1.0.0"]
         self.assertEqual(len(recipe_tool.pin_problems(recipe, recipe_tool.ROOT)), 4)
 
 
@@ -201,11 +214,11 @@ class CiYamlTest(unittest.TestCase):
             recipe_tool.metadata.write_metadata(target, recipe_tool.metadata.parse_metadata(target))
             self.assertEqual(rendered, target.read_text())
             # A srclib file that is already there with another address is brought to the recipe's.
-            srclib = out / "srclibs/onnxruntime.yml"
+            srclib = out / f"srclibs/{SRCLIB}.yml"
             recipe = recipe_tool.load_recipe()
-            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"]["onnxruntime"])
+            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"][SRCLIB])
             srclib.write_text("RepoType: git\nRepo: https://example.org/gone.git\n")
             recipe_tool.render(root, "0" * 40, base, out)
-            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"]["onnxruntime"])
+            self.assertEqual(recipe_tool.load_recipe(srclib), recipe["srclibs"][SRCLIB])
             # The line that broke !55889 stays whole, as CI's writer keeps it.
-            self.assertIn("fdroid-prebuild arm64-v8a $$onnxruntime$$", rendered)
+            self.assertIn(f"fdroid-prebuild arm64-v8a $${SRCLIB}$$", rendered)
