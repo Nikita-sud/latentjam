@@ -18,13 +18,20 @@
       "category": "entertainment",
       "versions": [
         {
+          "version": "0.9.6",
+          "date": "2026-11-24T18:55:09Z",
+          "localizedDescription": "A release of fixes: more than a hundred of them, across playback, history, the library, tags, backups and analysis, on Android and on iOS. Two things are new: a smart crossfade, and albums that play without gaps on iPhone. Still fully on-device: no account, no catalogue, no network.",
+          "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.6/LatentJam-v0.9.6-unsigned.ipa",
+          "size": 46300119,
+          "buildVersion": "47",
+          "minOSVersion": "15.1"
+        },
+        {
           "version": "0.9.5",
           "date": "2026-11-15T11:26:57Z",
           "localizedDescription": "SMART can now be switched off, so LatentJam also works as a plain music player. Apple Lossless files play and are analysed on Android, playlists show how long they play and can be pinned to the home screen, and a deleted playlist can be brought back. Still fully on-device: no account, no catalogue, no network.",
           "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.5/LatentJam-v0.9.5-unsigned.ipa",
-          "size": 46155628,
-          "buildVersion": "46",
-          "minOSVersion": "15.1"
+          "size": 46155628
         },
         {
           "version": "0.9.4",
@@ -138,11 +145,11 @@
           "NSAppleMusicUsageDescription": "LatentJam uses your on-device music library to organize tracks and make private recommendations locally."
         }
       },
-      "version": "0.9.5",
-      "versionDate": "2026-11-15T11:26:57Z",
-      "versionDescription": "SMART can now be switched off, so LatentJam also works as a plain music player. Apple Lossless files play and are analysed on Android, playlists show how long they play and can be pinned to the home screen, and a deleted playlist can be brought back. Still fully on-device: no account, no catalogue, no network.",
-      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.5/LatentJam-v0.9.5-unsigned.ipa",
-      "size": 46155628
+      "version": "0.9.6",
+      "versionDate": "2026-11-24T18:55:09Z",
+      "versionDescription": "A release of fixes: more than a hundred of them, across playback, history, the library, tags, backups and analysis, on Android and on iOS. Two things are new: a smart crossfade, and albums that play without gaps on iPhone. Still fully on-device: no account, no catalogue, no network.",
+      "downloadURL": "https://github.com/Nikita-sud/latentjam/releases/download/v0.9.6/LatentJam-v0.9.6-unsigned.ipa",
+      "size": 46300119
     }
   ],
   "news": []
