@@ -1,0 +1,6 @@
+Smart crossfade (Settings › Sound, off by default): longer between similar tracks, shorter when the sound changes.
+iPhone: albums play without gaps; Music library songs are analysed.
+Merging duplicates keeps the listens of every copy.
+Songs without an album tag are no longer grouped into an album named after their folder, and no longer borrow another file's cover. Marking a folder as an album comes in 0.9.7.
+Mono files play at the right loudness.
+Many fixes.

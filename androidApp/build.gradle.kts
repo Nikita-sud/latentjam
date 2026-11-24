@@ -68,8 +68,8 @@ android {
         applicationId = "io.github.nikitasud.latentjam.kmp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 46
-        versionName = "0.9.5"
+        versionCode = 47
+        versionName = "0.9.6"
     }
 
     if (uploadKeystore != null) {
