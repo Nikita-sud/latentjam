@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * What one SMART press holds in memory, and that holding less of it changes nothing it plans.
@@ -28,9 +29,13 @@ import kotlin.test.assertEquals
  * Every value is derived from integer arithmetic, so the floats are the same on every platform.
  */
 internal class SmartPressFootprintTest {
+    // The slowest of these takes 19 s in a Kotlin/Native debug build on a Mac. runTest's own limit is 60 s, and a GitHub
+    // runner has needed more than five times the Mac's time for one of them (12 s there, over 60 s on the runner).
+    // Ten minutes is 30 times the slowest, and still ends a test that hangs long before the job does.
+    private val limit = 10.minutes
 
     @Test
-    fun `a SMART press builds the recorded snapshot and plans the recorded queues`() = runTest {
+    fun `a SMART press builds the recorded snapshot and plans the recorded queues`() = runTest(timeout = limit) {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
         val first = engine(audioStore, textStore)
@@ -68,7 +73,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `tracks the library does not show keep their analysis and SMART reads what it read without them`() = runTest {
+    fun `tracks the library does not show keep their analysis and SMART reads what it read without them`() = runTest(timeout = limit) {
         // Hidden tracks and the tracks of a source switched off: here the last hundred, four of them in the history.
         val shown = library.dropLast(100)
         val notShown = library.takeLast(100).mapTo(HashSet()) { it.id }
@@ -120,7 +125,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `an engine told what the library does not show plans without those tracks before any sync`() = runTest {
+    fun `an engine told what the library does not show plans without those tracks before any sync`() = runTest(timeout = limit) {
         // A process with no screen (a headset, a car, the widget) restores the index and plans; nothing has
         // synchronized the library there. The last hundred tracks are hidden, four of them in the history.
         val shown = library.dropLast(100)
@@ -168,7 +173,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `with the hub kept a cold press computes the exact hub and every press plans the recorded queues`() = runTest {
+    fun `with the hub kept a cold press computes the exact hub and every press plans the recorded queues`() = runTest(timeout = limit) {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
         val first = engine(audioStore, textStore, backgroundHub = true)
@@ -208,7 +213,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `a warm-up before the first press gives that press the exact hub and keeps no snapshot`() = runTest {
+    fun `a warm-up before the first press gives that press the exact hub and keeps no snapshot`() = runTest(timeout = limit) {
         val audioStore = FakeIndexStore()
         val textStore = FakeIndexStore()
         val built = engine(audioStore, textStore)
@@ -247,7 +252,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `a snapshot rebuilt for a tag change while the hub pass runs still gets the exact hub`() = runTest {
+    fun `a snapshot rebuilt for a tag change while the hub pass runs still gets the exact hub`() = runTest(timeout = limit) {
         val engine = engine(FakeIndexStore(), FakeIndexStore(), backgroundHub = true)
         engine.initialize()
         engine.indexLibrary(library)
@@ -264,7 +269,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `a folder name the library no longer shows as an album is still what SMART ranks with`() = runTest {
+    fun `a folder name the library no longer shows as an album is still what SMART ranks with`() = runTest(timeout = limit) {
         // As the scan reports songs whose files name no album: filed under their folder's name. Every sixth
         // track here, the untagged ones among them, in folders whose names are class words too.
         val folders = listOf("Audiobooks", "Karaoke", "Interviews", "Music")
@@ -310,7 +315,7 @@ internal class SmartPressFootprintTest {
     }
 
     @Test
-    fun `a SMART press reads the stored vectors without copying them`() = runTest {
+    fun `a SMART press reads the stored vectors without copying them`() = runTest(timeout = limit) {
         val audio = CopyCountingIndex(InMemoryVectorIndex(SmartSnapshot.AUDIO_DIM))
         val text = CopyCountingIndex(InMemoryVectorIndex(TextEncoder.TEXT_DIM))
         val engine = engine(FakeIndexStore(), FakeIndexStore(), audio = audio, text = text)

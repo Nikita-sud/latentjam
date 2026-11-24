@@ -20,12 +20,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * The Map's streamed layout reads fused rows from the engine on demand. It is only the same Map
  * if every row, and therefore the whole layout, matches the held-matrix path bit for bit.
  */
 internal class MapStreamedRowsTest {
+    // The slowest of these takes 7 s in a Kotlin/Native debug build on a Mac; a GitHub runner has needed more than five
+    // times the Mac's time for a test of this kind and passed runTest's own 60 s (see SmartPressFootprintTest). Same limit.
+    private val limit = 10.minutes
 
     // More than one chunk, so reads cross a chunk boundary; one track has no audio and one has no
     // metadata, so both single-modality hybrid rows are exercised.
@@ -42,7 +46,7 @@ internal class MapStreamedRowsTest {
     private val ids = tracks.map(TrackDescriptor::id)
 
     @Test
-    fun streamedRowsAndLayoutEqualTheHeldMatrix() = runTest {
+    fun streamedRowsAndLayoutEqualTheHeldMatrix() = runTest(timeout = limit) {
         val engine = hybridEngine()
         val space = assertNotNull(engine.libraryMixVectors(ids))
         assertEquals(LibraryVectorSource.AUDIO_AND_METADATA, space.source)
@@ -74,7 +78,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun aPopulationChangeDuringTheReadDiscardsTheLayout() = runTest {
+    fun aPopulationChangeDuringTheReadDiscardsTheLayout() = runTest(timeout = limit) {
         val engine = hybridEngine()
         val rows = assertNotNull(engine.libraryMixRows(ids))
         val row = FloatArray(rows.dim)
@@ -88,7 +92,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun vectorsAnalysedDuringTheReadStillGiveALayout() = runTest {
+    fun vectorsAnalysedDuringTheReadStillGiveALayout() = runTest(timeout = limit) {
         // The last stretch of an analysis: the space is already hybrid and audio keeps arriving
         // for tracks that have metadata, faster than one read of the rows. Every chunk read here
         // is followed by one more analysed track, so no read ever sees a still index.
@@ -136,7 +140,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun aBudgetMeasuredBeforeTheRowsExistAlreadyCoversTheirChunk() = runTest {
+    fun aBudgetMeasuredBeforeTheRowsExistAlreadyCoversTheirChunk() = runTest(timeout = limit) {
         // The page measures free memory once, before the rows allocate their chunk buffer, and
         // hands that figure on. It must suffice exactly: the requirement counts the chunk itself.
         val engine = hybridEngine()
@@ -150,7 +154,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun theEngineLockIsFreeBetweenChunks() = runTest {
+    fun theEngineLockIsFreeBetweenChunks() = runTest(timeout = limit) {
         val engine = hybridEngine()
         val rows = assertNotNull(engine.libraryMixRows(ids))
         val row = FloatArray(rows.dim)
@@ -163,7 +167,7 @@ internal class MapStreamedRowsTest {
     }
 
     @Test
-    fun theDefaultRowsServeABuiltSpace() = runTest {
+    fun theDefaultRowsServeABuiltSpace() = runTest(timeout = limit) {
         val engine = hybridEngine()
         val space = assertNotNull(engine.libraryMixVectors(ids))
         val rows = LibraryVectorRows.of(space)
