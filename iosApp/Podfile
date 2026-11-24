@@ -4,7 +4,9 @@ use_frameworks! :linkage => :static
 
 target 'iosApp' do
   project 'iosApp.xcodeproj'
-  pod 'onnxruntime-c', '1.26.0'
+  # The pod as CocoaPods trunk describes 1.26.0, except for where its archive comes from: Microsoft's download host
+  # stopped serving it in November 2026. podspecs/onnxruntime-c.podspec.json names a copy and its SHA-256.
+  pod 'onnxruntime-c', :podspec => 'podspecs/onnxruntime-c.podspec.json'
   # LatentJam's own operators (the music encoder's 4-bit convolutions), built from source.
   pod 'LatentJamOrtOps', :path => '../core/ort-ops'
   pod 'LatentJamMap', :path => '../core/map-native'

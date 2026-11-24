@@ -16,7 +16,10 @@ set -euo pipefail
 VERSION="${1:-1.26.0}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$ROOT/third_party/onnxruntime"
-URL="https://download.onnxruntime.ai/pod-archive-onnxruntime-c-${VERSION}.zip"
+# Microsoft's download host stopped serving the archive in November 2026; this is the copy the iOS app's pod uses
+# (iosApp/podspecs/onnxruntime-c.podspec.json), checked against the SHA-256 that file names.
+URL="https://github.com/Nikita-sud/onnxruntime/releases/download/v${VERSION}/pod-archive-onnxruntime-c-${VERSION}.zip"
+SHA256="$(sed -n 's/.*"sha256": "\([0-9a-f]*\)".*/\1/p' "$ROOT/iosApp/podspecs/onnxruntime-c.podspec.json")"
 
 if [ -d "$DEST/onnxruntime.xcframework" ] && [ "${FORCE:-0}" != "1" ]; then
     echo "already present: $DEST/onnxruntime.xcframework  (FORCE=1 to refetch)"
@@ -30,6 +33,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 curl -fL --progress-bar -o "$TMP/ort.zip" "$URL"
+echo "$SHA256  $TMP/ort.zip" | shasum -a 256 -c - >/dev/null || { echo "the archive is not the pinned one" >&2; exit 1; }
 unzip -q -o "$TMP/ort.zip" -d "$TMP/unpacked"
 
 rm -rf "$DEST/onnxruntime.xcframework" "$DEST/Headers" "$DEST/LICENSE"
